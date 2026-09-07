@@ -30,7 +30,7 @@ async def create_asset(site_id: UUID, file: UploadFile = File(...), user: User =
         raise HTTPException(status_code=404, detail="Site not found")
     try:
         return await upload_file(file, site_id, user.id, db)
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
