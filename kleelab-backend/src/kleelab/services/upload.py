@@ -39,7 +39,7 @@ async def upload_file(file: UploadFile, site_id: UUID | None, user_id: UUID, db:
         raise ValueError("File exceeds the maximum allowed size")
     filename = f"{uuid.uuid4()}-{Path(file.filename or 'upload').name}"
     if not settings.AWS_S3_BUCKET:
-        raise RuntimeError("AWS_S3_BUCKET is not configured")
+        raise ValueError("AWS_S3_BUCKET is not configured")
     key = f"sites/{site_id}/assets/{filename}" if site_id else f"users/{user_id}/assets/{filename}"
     client = boto3.client("s3", region_name=settings.AWS_REGION)
     await asyncio.to_thread(

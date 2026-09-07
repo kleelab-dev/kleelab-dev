@@ -4,11 +4,13 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kleelab.core.database import Base
+
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 
 class Page(Base):
@@ -24,7 +26,7 @@ class Page(Base):
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), nullable=False)
-    content: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    content: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     meta_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meta_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta_keywords: Mapped[str | None] = mapped_column(String(255), nullable=True)

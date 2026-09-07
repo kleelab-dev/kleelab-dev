@@ -5,11 +5,13 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kleelab.core.database import Base
+
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 
 class Product(Base):
@@ -26,10 +28,10 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    images: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    images: Mapped[list[str] | None] = mapped_column(JSONType, nullable=True)
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    variants: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    variants: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
