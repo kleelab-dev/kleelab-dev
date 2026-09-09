@@ -1,6 +1,16 @@
 import { BuilderBlock, Page, Site, Template, User } from '@/types/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+const API_BASE_URL = (configuredApiUrl || 'http://localhost:8000').replace(/\/$/, '');
+
+function validateApiUrl(): void {
+  try {
+    const url = new URL(API_BASE_URL);
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
+  } catch {
+    throw new Error(`Invalid NEXT_PUBLIC_API_URL: "${API_BASE_URL}". Use a full URL such as https://kleelab-dev.onrender.com.`);
+  }
+}
 
 function authHeaders(): HeadersInit {
   const token = typeof window === 'undefined' ? null : window.localStorage.getItem('kleelab_access_token');
@@ -8,6 +18,7 @@ function authHeaders(): HeadersInit {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  validateApiUrl();
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
