@@ -19,7 +19,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
-    throw new Error(detail?.detail || `Request failed (${response.status})`);
+    throw new Error(detail?.detail || detail?.error?.message || `Request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
 }
@@ -80,8 +80,8 @@ export const apiService = {
     return normalizePage(page);
   },
 
-  async publishSite(siteId: string): Promise<Site> {
-    return request<Site>(`/api/sites/${siteId}/publish`, { method: 'POST' });
+  async publishSite(siteId: string): Promise<{ message: string; url: string }> {
+    return request<{ message: string; url: string }>(`/api/sites/${siteId}/publish`, { method: 'POST' });
   },
 
   async savePage(siteId: string, pageId: string, blocks: BuilderBlock[]): Promise<Page> {

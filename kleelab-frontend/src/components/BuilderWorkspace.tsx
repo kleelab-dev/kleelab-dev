@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiService } from '@/services/api';
 import { BuilderBlock, BlockType, Page, Site, Template } from '@/types/api';
+import { EditorCanvas } from '@/components/EditorCanvas';
 
 const blockCatalog: Array<{ type: BlockType; label: string; description: string }> = [
   { type: 'hero', label: 'Hero section', description: 'A bold introduction with a clear action' },
@@ -67,6 +68,8 @@ export function BuilderWorkspace() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   useEffect(() => {
     apiService.getTemplates().then(setTemplates).catch((reason: Error) => setError(reason.message));
@@ -176,11 +179,53 @@ export function BuilderWorkspace() {
     setFuture((current) => current.slice(1));
   };
 
+  const createPage = async () => {
+    if (!selectedSite) return;
+    try {
+      const page = await apiService.createPage(selectedSite.id, { title: `Page ${pages.length + 1}`, slug: `/page-${pages.length + 1}`, content_json: { version: 1, blocks: [] } });
+      setPages((current) => [...current, page]);
+      setSelectedPage(page);
+      setBlocks([]);
+      setSelectedBlockId('');
+      setNotice('New page created.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to create page');
+    }
+  };
+
+  const publishSite = async () => {
+    if (!selectedSite || isPublishing) return;
+    setIsPublishing(true);
+    try {
+      const result = await apiService.publishSite(selectedSite.id);
+      setSelectedSite({ ...selectedSite, is_published: true });
+      setNotice(result.url ? `Published at ${result.url}` : 'Site published.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to publish site');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const openPreview = () => {
+    const preview = window.open('', '_blank');
+    if (!preview) {
+      setError('Preview was blocked. Allow pop-ups for this site and try again.');
+      return;
+    }
+    preview.document.write(`<html><head><title>${selectedPage?.title || 'KleeLab preview'}</title><style>body{margin:0;font-family:system-ui,sans-serif;color:#17231c}section{padding:64px 10%}button{padding:12px 20px;border:0;border-radius:999px;background:#e25d3f;color:white}</style></head><body>${blocks.map((block) => `<section style="background:${block.type === 'hero' ? '#d8e2d2' : block.type === 'contact' ? '#17231c' : '#fff'};color:${block.type === 'contact' ? '#f6f7f2' : '#17231c'}"><small>${block.eyebrow || ''}</small><h1>${block.title || ''}</h1><p>${block.body || ''}</p>${block.cta ? `<button>${block.cta}</button>` : ''}</section>`).join('')}</body></html>`);
+    preview.document.close();
+  };
+
+  if (step === 'editor') {
+    return <EditorCanvas site={selectedSite} pages={pages} selectedPage={selectedPage} blocks={blocks} selectedBlock={selectedBlock} selectedBlockId={selectedBlockId} viewport={viewport} saveState={saveState} notice={notice} error={error} isPublishing={isPublishing} onBack={() => setStep('templates')} onPreview={openPreview} onPublish={publishSite} onCreatePage={createPage} onSelectPage={setSelectedPage} onSelectBlock={setSelectedBlockId} onAddBlock={addBlock} onUpdateBlock={updateSelectedBlock} onMoveBlock={moveBlock} onUndo={undo} onRedo={redo} onViewportChange={setViewport} />;
+  }
+
   if (showAuth) {
     return <main className="grid min-h-screen place-items-center bg-[#f6f7f2] px-6 text-[#17231c]"><section className="w-full max-w-md rounded-2xl border border-[#d8e0d5] bg-white p-8 shadow-[0_18px_50px_rgba(23,35,28,.08)]"><button onClick={() => setShowAuth(false)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#627067]"><ArrowLeftIcon className="h-4 w-4" /> Back to setup</button><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e25d3f]">Save your work</p><h1 className="mt-3 font-serif text-4xl tracking-[-0.04em]">Create your KleeLab account.</h1><p className="mt-3 text-sm leading-6 text-[#627067]">Your site and edits will be saved to your account.</p>{authMode === 'register' && <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Full name" className="mt-7 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />}<input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email address" type="email" className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" /><input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" type="password" className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />{error && <p className="mt-3 text-sm text-[#c94d32]">{error}</p>}<button onClick={authenticate} className="mt-5 w-full rounded-lg bg-[#17231c] px-4 py-3 text-sm font-bold text-white">{authMode === 'register' ? 'Create account' : 'Sign in'}</button><button onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')} className="mt-5 w-full text-sm text-[#627067]">{authMode === 'register' ? 'Already have an account? Sign in' : 'Need an account? Create one'}</button></section></main>;
   }
 
-  if (step !== 'editor') {
+  if (step === 'welcome' || step === 'templates') {
     return (
       <main className="min-h-screen bg-[#f6f7f2] text-[#17231c]">
         <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-7 lg:px-12">
