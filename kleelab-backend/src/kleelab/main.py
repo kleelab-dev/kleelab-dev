@@ -18,7 +18,6 @@ from kleelab.core.middleware import RateLimitMiddleware
 from kleelab.core.config import settings
 from kleelab.routers.auth import router as auth_router
 from kleelab.routers.analytics import router as analytics_router
-from kleelab.routers.assets import router as assets_router
 from kleelab.routers.dashboard import router as dashboard_router
 from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.pages import router as pages_router
@@ -26,12 +25,8 @@ from kleelab.routers.products import router as products_router
 from kleelab.routers.orders import router as orders_router
 from kleelab.routers.seo import router as seo_router
 from kleelab.routers.sites import router as sites_router
-from kleelab.routers.subscriptions import router as subscriptions_router
-from kleelab.routers.subscription_webhooks import router as subscription_webhooks_router
 from kleelab.routers.templates import router as templates_router
-from kleelab.routers.upsell import router as upsell_router
 from kleelab.routers.versions import router as versions_router
-from kleelab.routers.webhooks import router as webhooks_router
 
 
 configure_logging()
@@ -46,13 +41,12 @@ app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://kleelab.com"],
+    allow_origins=[origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.include_router(auth_router)
 app.include_router(analytics_router)
-app.include_router(assets_router)
 app.include_router(dashboard_router)
 app.include_router(gdpr_router)
 app.include_router(sites_router)
@@ -60,12 +54,8 @@ app.include_router(pages_router)
 app.include_router(products_router)
 app.include_router(orders_router)
 app.include_router(seo_router)
-app.include_router(subscriptions_router)
-app.include_router(subscription_webhooks_router)
 app.include_router(templates_router)
-app.include_router(upsell_router)
 app.include_router(versions_router)
-app.include_router(webhooks_router)
 
 
 @app.get("/")

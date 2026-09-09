@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: kleelab-api
+    runtime: python
+    rootDir: kleelab-backend
+    buildCommand: pip install -r requirements.txt && alembic upgrade head && PYTHONPATH=src python scripts/seed_templates.py
+    startCommand: uvicorn kleelab.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kleelab-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+
+databases:
+  - name: kleelab-db
+    databaseName: kleelab
+    user: kleelab

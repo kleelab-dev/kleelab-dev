@@ -27,6 +27,5 @@ class OrderOut(BaseModel):
     total: float
     status: str
     items: list[dict]
-    stripe_payment_id: str | None
     created_at: datetime
     updated_at: datetime

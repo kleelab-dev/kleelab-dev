@@ -99,7 +99,6 @@ def upgrade() -> None:
         sa.Column("total", sa.Numeric(precision=10, scale=2), nullable=False),
         sa.Column("status", sa.String(length=50), nullable=False, server_default="pending"),
         sa.Column("items", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("stripe_payment_id", sa.String(length=255), nullable=True),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["site_id"], ["sites.id"], ondelete="CASCADE"),
@@ -139,21 +138,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_templates_category"), "templates", ["category"], unique=False)
-
-    op.create_table(
-        "subscriptions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("stripe_subscription_id", sa.String(length=255), nullable=True),
-        sa.Column("plan", sa.String(length=50), nullable=False, server_default="free"),
-        sa.Column("status", sa.String(length=50), nullable=False, server_default="active"),
-        sa.Column("current_period_end", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id"),
-    )
 
     op.create_table(
         "assets",
@@ -200,7 +184,6 @@ def downgrade() -> None:
     op.drop_table("agency_leads")
     op.drop_table("page_versions")
     op.drop_table("assets")
-    op.drop_table("subscriptions")
     op.drop_table("templates")
     op.drop_table("products")
     op.drop_table("orders")

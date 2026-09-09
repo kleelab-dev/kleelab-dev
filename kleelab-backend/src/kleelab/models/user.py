@@ -31,4 +31,3 @@ class User(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
     sites = relationship("Site", back_populates="owner", cascade="all, delete")
-    subscription = relationship("Subscription", back_populates="user", uselist=False, cascade="all, delete")
