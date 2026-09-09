@@ -43,8 +43,12 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) ->
     await db.commit()
     await db.refresh(user)
     token = create_signed_token({"user_id": str(user.id), "purpose": "email_verification"}, timedelta(hours=24))
-    send_verification_email(user.email, token)
-    send_welcome_email(user.email, user.full_name)
+    try:
+        send_verification_email(user.email, token)
+        send_welcome_email(user.email, user.full_name)
+    except Exception:
+        # Account creation must not fail when optional email delivery is unavailable.
+        pass
     return user
 
 
