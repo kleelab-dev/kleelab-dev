@@ -8,7 +8,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
-from kleelab.core.feature_gate import require_feature
 from kleelab.core.security import get_current_user
 from kleelab.models.site import Site
 from kleelab.models.user import User
@@ -151,7 +150,6 @@ async def publish_site(
 @router.put(
     "/{site_id}/domain",
     response_model=SiteOut,
-    dependencies=[Depends(require_feature("custom_domain"))],
 )
 async def set_custom_domain(
     site_id: UUID,

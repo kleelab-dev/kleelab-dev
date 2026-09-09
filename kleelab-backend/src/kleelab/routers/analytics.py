@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
-from kleelab.core.feature_gate import require_feature
 from kleelab.core.security import get_current_user
 from kleelab.models.analytics import AnalyticsEvent
 from kleelab.models.site import Site
@@ -33,20 +32,14 @@ async def track(site_id: UUID, event: TrackEvent, request: Request, db: AsyncSes
     return {"status": "tracked"}
 
 
-@router.get(
-    "/analytics",
-    dependencies=[Depends(require_feature("advanced_analytics"))],
-)
+@router.get("/analytics")
 async def analytics(site_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not await db.scalar(select(Site.id).where(Site.id == site_id, Site.user_id == user.id)):
         raise HTTPException(status_code=404, detail="Site not found")
     return await get_site_stats(site_id, db)
 
 
-@router.get(
-    "/analytics/realtime",
-    dependencies=[Depends(require_feature("advanced_analytics"))],
-)
+@router.get("/analytics/realtime")
 async def realtime(site_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not await db.scalar(select(Site.id).where(Site.id == site_id, Site.user_id == user.id)):
         raise HTTPException(status_code=404, detail="Site not found")
