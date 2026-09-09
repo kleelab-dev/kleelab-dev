@@ -4,7 +4,7 @@ services:
     runtime: python
     rootDir: kleelab-backend
     buildCommand: pip install -r requirements.txt && alembic upgrade head && PYTHONPATH=src python scripts/seed_templates.py
-    startCommand: uvicorn kleelab.main:app --host 0.0.0.0 --port $PORT
+    startCommand: PYTHONPATH=src uvicorn kleelab.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
