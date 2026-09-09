@@ -8,10 +8,15 @@ function authHeaders(): HeadersInit {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: { ...authHeaders(), ...(options.headers || {}) },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+    });
+  } catch {
+    throw new Error(`Cannot reach the KleeLab API at ${API_BASE_URL}. Check NEXT_PUBLIC_API_URL and the backend deployment.`);
+  }
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
     throw new Error(detail?.detail || `Request failed (${response.status})`);
