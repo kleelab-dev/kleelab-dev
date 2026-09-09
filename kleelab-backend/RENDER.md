@@ -7,10 +7,10 @@ The repository includes a root `render.yaml` Blueprint. In Render, choose **New 
 
 The web service runs database migrations and seeds the template catalog during its build. It exposes `/health` for Render health checks and binds to Render's `$PORT`.
 
-The start command must include `PYTHONPATH=src` because the application package is stored in the backend's `src` directory:
+The start command must include Uvicorn's `--app-dir src` because the application package is stored in the backend's `src` directory:
 
 ```bash
-PYTHONPATH=src uvicorn kleelab.main:app --host 0.0.0.0 --port $PORT
+uvicorn --app-dir src kleelab.main:app --host 0.0.0.0 --port $PORT
 ```
 
 ## Required environment variable
