@@ -3,7 +3,13 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+
+def validate_password_size(value: str) -> str:
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Password must be 72 bytes or fewer")
+    return value
 
 
 class UserCreate(BaseModel):
@@ -11,10 +17,14 @@ class UserCreate(BaseModel):
     password: str
     full_name: str | None = None
 
+    _validate_password = field_validator("password")(validate_password_size)
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    _validate_password = field_validator("password")(validate_password_size)
 
 
 class Token(BaseModel):
