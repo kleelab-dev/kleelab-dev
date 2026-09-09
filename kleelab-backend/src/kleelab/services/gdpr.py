@@ -10,7 +10,6 @@ from kleelab.models.page import Page
 from kleelab.models.product import Product
 from kleelab.models.site import Site
 from kleelab.models.user import User
-from kleelab.services.upload import delete_asset
 
 
 async def export_user_data(user_id: UUID, db: AsyncSession) -> dict:
@@ -31,7 +30,7 @@ async def delete_user_data(user_id: UUID, db: AsyncSession) -> bool:
         user_assets.extend((await db.execute(select(Asset).where(Asset.site_id.in_(site_ids)))).scalars().all())
 
     for asset in list(dict.fromkeys(user_assets)):
-        await delete_asset(asset, db)
+        await db.delete(asset)
 
     await db.execute(delete(Order).where(Order.site_id.in_(site_ids)))
     await db.execute(delete(Product).where(Product.site_id.in_(site_ids)))
