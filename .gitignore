@@ -1,0 +1,31 @@
+# Node & Next.js
+node_modules/
+.next/
+out/
+dist/
+
+# Python & FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# IDE & Logs
+.idea/
+.vscode/
+*.log
