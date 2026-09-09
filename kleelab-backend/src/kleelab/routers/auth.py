@@ -24,10 +24,19 @@ from kleelab.services.email import send_verification_email, send_password_reset_
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+def ensure_password_supported(password: str) -> None:
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must be 72 bytes or fewer",
+        )
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) -> User:
     """Register a new user account and send a verification email."""
 
+    ensure_password_supported(user_data.password)
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -56,6 +65,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) ->
 async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)) -> Token:
     """Authenticate a user and return a bearer token."""
 
+    ensure_password_supported(user_data.password)
     result = await db.execute(select(User).where(User.email == user_data.email))
     user = result.scalar_one_or_none()
     if user is None or not verify_password(user_data.password, user.password_hash):
