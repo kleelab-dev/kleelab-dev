@@ -1,10 +1,23 @@
 import { BuilderBlock, Page, Site, Template, User } from '@/types/api';
 
-const API_BASE_URL = '';
+// Preferred path: leave this empty so requests go to the relative /api/* routes
+// and Next.js proxies them to the backend (see `rewrites` in next.config.mjs).
+// Set NEXT_PUBLIC_API_URL only when the browser must call the API cross-origin.
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+const TOKEN_KEY = 'kleelab_access_token';
 
 function authHeaders(): HeadersInit {
-  const token = typeof window === 'undefined' ? null : window.localStorage.getItem('kleelab_access_token');
+  const token = typeof window === 'undefined' ? null : window.localStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function getToken(): string | null {
+  return typeof window === 'undefined' ? null : window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function clearToken(): void {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(TOKEN_KEY);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -15,13 +28,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { ...authHeaders(), ...(options.headers || {}) },
     });
   } catch {
-    throw new Error('Cannot reach the KleeLab API. Check the frontend API_URL setting and backend deployment.');
+    throw new Error('Cannot reach the KleeLab API. Make sure the backend is running and API_URL is set correctly.');
   }
+
   if (!response.ok) {
-    const detail = await response.json().catch(() => null);
-    throw new Error(detail?.detail || detail?.error?.message || `Request failed (${response.status})`);
+    const payload = await response.json().catch(() => null);
+    const message =
+      payload?.detail ??
+      payload?.error?.message ??
+      payload?.message ??
+      (response.status === 429
+        ? 'Too many attempts. Please wait a moment and try again.'
+        : `Request failed (${response.status})`);
+    throw new Error(typeof message === 'string' ? message : `Request failed (${response.status})`);
   }
-  return response.json() as Promise<T>;
+
+  // 204 or an empty body must not be parsed as JSON.
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 function normalizePage(page: Record<string, unknown>): Page {
@@ -45,7 +70,11 @@ export const apiService = {
 
   async login(email: string, password: string): Promise<void> {
     const result = await request<{ access_token: string }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    window.localStorage.setItem('kleelab_access_token', result.access_token);
+    window.localStorage.setItem(TOKEN_KEY, result.access_token);
+  },
+
+  logout(): void {
+    clearToken();
   },
 
   async getCurrentUser(): Promise<User> {

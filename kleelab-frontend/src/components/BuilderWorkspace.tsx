@@ -1,21 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
-  Bars3Icon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ComputerDesktopIcon,
-  DevicePhoneMobileIcon,
-  DeviceTabletIcon,
-  EyeIcon,
-  PlusIcon,
-  RocketLaunchIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
   SparklesIcon,
-  Squares2X2Icon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { apiService } from '@/services/api';
 import { BuilderBlock, BlockType, Page, Site, Template } from '@/types/api';
@@ -47,6 +38,16 @@ function blocksFromTemplate(template: Template): BuilderBlock[] {
   });
 }
 
+/** Escape user-authored copy before writing it into the preview window. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function BuilderWorkspace() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -70,35 +71,75 @@ export function BuilderWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [isCreatingSite, setIsCreatingSite] = useState(false);
 
-  useEffect(() => {
-    apiService.getTemplates().then(setTemplates).catch((reason: Error) => setError(reason.message));
-    if (window.localStorage.getItem('kleelab_access_token')) {
-      apiService.getSites().then(setSites).catch((reason: Error) => setError(reason.message));
+  // Signature of the content currently persisted on the server. Autosave only
+  // fires when the in-memory blocks differ, which stops the old save -> state
+  // update -> save loop that hammered the API and tripped the rate limiter.
+  const lastSavedRef = useRef<string>('');
+
+  const loadTemplates = useCallback(async () => {
+    setIsLoadingTemplates(true);
+    try {
+      setTemplates(await apiService.getTemplates());
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load templates');
+    } finally {
+      setIsLoadingTemplates(false);
     }
   }, []);
 
   useEffect(() => {
-    if (step !== 'editor' || !selectedSite || !selectedPage) return;
+    void loadTemplates();
+    if (window.localStorage.getItem('kleelab_access_token')) {
+      apiService.getSites().then(setSites).catch((reason: Error) => setError(reason.message));
+    }
+  }, [loadTemplates]);
+
+  const siteId = selectedSite?.id ?? null;
+  const pageId = selectedPage?.id ?? null;
+
+  useEffect(() => {
+    if (step !== 'editor' || !siteId || !pageId) return;
+    const signature = JSON.stringify(blocks);
+    if (signature === lastSavedRef.current) return;
+
     setSaveState('saving');
     const timer = window.setTimeout(() => {
-      apiService.savePage(selectedSite.id, selectedPage.id, blocks)
-        .then((page) => { setSelectedPage(page); setSaveState('saved'); })
+      apiService.savePage(siteId, pageId, blocks)
+        .then(() => { lastSavedRef.current = signature; setSaveState('saved'); })
         .catch((reason: Error) => { setError(reason.message); setSaveState('saved'); });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [blocks, selectedPage, selectedSite, step]);
+  }, [blocks, pageId, siteId, step]);
 
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
-  const canvasWidth = viewport === 'desktop' ? 'max-w-[760px]' : viewport === 'tablet' ? 'max-w-[520px]' : 'max-w-[360px]';
-  const templateChoices = useMemo(() => templates.slice(0, 4), [templates]);
 
   const updateBlocks = (nextBlocks: BuilderBlock[]) => {
     setHistory((current) => [...current.slice(-19), blocks]);
     setFuture([]);
     setBlocks(nextBlocks);
-    setSaveState('saving');
-    window.setTimeout(() => setSaveState('saved'), 500);
+  };
+
+  /** Replace the canvas content and remember it as the server's baseline. */
+  const loadBlocks = (nextBlocks: BuilderBlock[]) => {
+    lastSavedRef.current = JSON.stringify(nextBlocks);
+    setBlocks(nextBlocks);
+    setSelectedBlockId(nextBlocks[0]?.id ?? '');
+    setHistory([]);
+    setFuture([]);
+    setSaveState('saved');
+  };
+
+  /** Switching pages must also swap the canvas content, otherwise the autosave
+   *  would write the previous page's blocks onto the newly selected page. */
+  const selectPage = (page: Page) => {
+    const pageBlocks = (page.content_json?.blocks as BuilderBlock[] | undefined) ?? [];
+    setSelectedPage(page);
+    loadBlocks(pageBlocks);
   };
 
   const updateSelectedBlock = (field: keyof BuilderBlock, value: string) => {
@@ -129,37 +170,78 @@ export function BuilderWorkspace() {
     updateBlocks(nextBlocks);
   };
 
+  const openSite = async (site: Site) => {
+    const sitePages = await apiService.getPages(site.id);
+    setSites((current) => (current.some((item) => item.id === site.id) ? current : [site, ...current]));
+    setSelectedSite(site);
+    setPages(sitePages);
+    const firstPage = sitePages[0] ?? null;
+    setSelectedPage(firstPage);
+    loadBlocks((firstPage?.content_json?.blocks as BuilderBlock[] | undefined) ?? []);
+    setStep('editor');
+  };
+
   const createSite = async () => {
     if (!window.localStorage.getItem('kleelab_access_token')) {
+      setAuthMode('register');
       setShowAuth(true);
       return;
     }
-    const name = siteName || 'My new website';
+    if (!selectedTemplate) {
+      // Signing in without choosing a template must not dead-end: send the
+      // person back to the picker instead of crashing on a null template.
+      setStep('templates');
+      setNotice('Pick a template to start your new site.');
+      return;
+    }
+
+    const name = siteName.trim() || 'My new website';
+    setIsCreatingSite(true);
+    setError(null);
     try {
-      const site = await apiService.createSite({ name, subdomain: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), template_id: selectedTemplate?.id });
-      const initialBlocks = blocksFromTemplate(selectedTemplate!);
+      const site = await apiService.createSite({ name, subdomain: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), template_id: selectedTemplate.id });
+      const initialBlocks = blocksFromTemplate(selectedTemplate);
       const page = await apiService.createPage(site.id, { title: 'Home', slug: '/', content_json: { version: 1, blocks: initialBlocks } });
       setSites((current) => [site, ...current]);
       setSelectedSite(site);
       setPages([page]);
       setSelectedPage(page);
-      setBlocks(initialBlocks);
-      setSelectedBlockId(initialBlocks[0]?.id || '');
+      loadBlocks(initialBlocks);
+      setNotice(null);
       setStep('editor');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to create your site');
+    } finally {
+      setIsCreatingSite(false);
     }
   };
 
   const authenticate = async () => {
+    if (!authEmail.trim() || !authPassword) {
+      setError('Enter your email and password to continue.');
+      return;
+    }
+    setIsSubmittingAuth(true);
+    setError(null);
     try {
-      if (authMode === 'register') await apiService.register({ full_name: authName, email: authEmail, password: authPassword });
-      await apiService.login(authEmail, authPassword);
+      if (authMode === 'register') {
+        await apiService.register({ full_name: authName.trim(), email: authEmail.trim(), password: authPassword });
+      }
+      await apiService.login(authEmail.trim(), authPassword);
       setShowAuth(false);
-      setError(null);
+
+      // If this account already has sites, jump straight back into the editor.
+      const existingSites = await apiService.getSites().catch(() => [] as Site[]);
+      setSites(existingSites);
+      if (existingSites.length > 0) {
+        await openSite(existingSites[0]);
+        return;
+      }
       await createSite();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to authenticate');
+    } finally {
+      setIsSubmittingAuth(false);
     }
   };
 
@@ -185,8 +267,7 @@ export function BuilderWorkspace() {
       const page = await apiService.createPage(selectedSite.id, { title: `Page ${pages.length + 1}`, slug: `/page-${pages.length + 1}`, content_json: { version: 1, blocks: [] } });
       setPages((current) => [...current, page]);
       setSelectedPage(page);
-      setBlocks([]);
-      setSelectedBlockId('');
+      loadBlocks([]);
       setNotice('New page created.');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to create page');
@@ -213,35 +294,252 @@ export function BuilderWorkspace() {
       setError('Preview was blocked. Allow pop-ups for this site and try again.');
       return;
     }
-    preview.document.write(`<html><head><title>${selectedPage?.title || 'KleeLab preview'}</title><style>body{margin:0;font-family:system-ui,sans-serif;color:#17231c}section{padding:64px 10%}button{padding:12px 20px;border:0;border-radius:999px;background:#e25d3f;color:white}</style></head><body>${blocks.map((block) => `<section style="background:${block.type === 'hero' ? '#d8e2d2' : block.type === 'contact' ? '#17231c' : '#fff'};color:${block.type === 'contact' ? '#f6f7f2' : '#17231c'}"><small>${block.eyebrow || ''}</small><h1>${block.title || ''}</h1><p>${block.body || ''}</p>${block.cta ? `<button>${block.cta}</button>` : ''}</section>`).join('')}</body></html>`);
+    const body = blocks.map((block) => {
+      const background = block.type === 'hero' ? '#d8e2d2' : block.type === 'contact' ? '#17231c' : '#fff';
+      const color = block.type === 'contact' ? '#f6f7f2' : '#17231c';
+      return `<section style="background:${background};color:${color}"><small>${escapeHtml(block.eyebrow || '')}</small><h1>${escapeHtml(block.title || '')}</h1><p>${escapeHtml(block.body || '')}</p>${block.cta ? `<button>${escapeHtml(block.cta)}</button>` : ''}</section>`;
+    }).join('');
+    preview.document.write(`<html><head><title>${escapeHtml(selectedPage?.title || 'KleeLab preview')}</title><style>body{margin:0;font-family:system-ui,sans-serif;color:#17231c}section{padding:64px 10%}button{padding:12px 20px;border:0;border-radius:999px;background:#e25d3f;color:white}</style></head><body>${body}</body></html>`);
     preview.document.close();
   };
 
+  const openAuth = (mode: 'login' | 'register') => {
+    setAuthMode(mode);
+    setError(null);
+    setNotice(null);
+    setShowAuth(true);
+  };
+
   if (step === 'editor') {
-    return <EditorCanvas site={selectedSite} pages={pages} selectedPage={selectedPage} blocks={blocks} selectedBlock={selectedBlock} selectedBlockId={selectedBlockId} viewport={viewport} saveState={saveState} notice={notice} error={error} isPublishing={isPublishing} onBack={() => setStep('templates')} onPreview={openPreview} onPublish={publishSite} onCreatePage={createPage} onSelectPage={setSelectedPage} onSelectBlock={setSelectedBlockId} onAddBlock={addBlock} onUpdateBlock={updateSelectedBlock} onMoveBlock={moveBlock} onUndo={undo} onRedo={redo} onViewportChange={setViewport} />;
+    return <EditorCanvas site={selectedSite} pages={pages} selectedPage={selectedPage} blocks={blocks} selectedBlock={selectedBlock} selectedBlockId={selectedBlockId} viewport={viewport} saveState={saveState} notice={notice} error={error} isPublishing={isPublishing} onBack={() => setStep('templates')} onPreview={openPreview} onPublish={publishSite} onCreatePage={createPage} onSelectPage={selectPage} onSelectBlock={setSelectedBlockId} onAddBlock={addBlock} onUpdateBlock={updateSelectedBlock} onMoveBlock={moveBlock} onUndo={undo} onRedo={redo} onViewportChange={setViewport} />;
   }
 
+  const feedback = (
+    <>
+      {error && (
+        <div role="alert" className="animate-rise mt-6 flex items-start gap-3 rounded-xl border border-[#f0c3b7] bg-[#fdf1ed] px-4 py-3 text-sm text-[#a63d24]">
+          <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs font-bold underline underline-offset-2">Dismiss</button>
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="animate-rise mt-6 flex items-start gap-3 rounded-xl border border-[#bcd8c2] bg-[#eef6f0] px-4 py-3 text-sm text-[#2c5540]">
+          <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{notice}</span>
+          <button onClick={() => setNotice(null)} className="text-xs font-bold underline underline-offset-2">Dismiss</button>
+        </div>
+      )}
+    </>
+  );
+
   if (showAuth) {
-    return <main className="grid min-h-screen place-items-center bg-[#f6f7f2] px-6 text-[#17231c]"><section className="w-full max-w-md rounded-2xl border border-[#d8e0d5] bg-white p-8 shadow-[0_18px_50px_rgba(23,35,28,.08)]"><button onClick={() => setShowAuth(false)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#627067]"><ArrowLeftIcon className="h-4 w-4" /> Back to setup</button><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e25d3f]">Save your work</p><h1 className="mt-3 font-serif text-4xl tracking-[-0.04em]">Create your KleeLab account.</h1><p className="mt-3 text-sm leading-6 text-[#627067]">Your site and edits will be saved to your account.</p>{authMode === 'register' && <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Full name" className="mt-7 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />}<input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email address" type="email" className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" /><input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" type="password" className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />{error && <p className="mt-3 text-sm text-[#c94d32]">{error}</p>}<button onClick={authenticate} className="mt-5 w-full rounded-lg bg-[#17231c] px-4 py-3 text-sm font-bold text-white">{authMode === 'register' ? 'Create account' : 'Sign in'}</button><button onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')} className="mt-5 w-full text-sm text-[#627067]">{authMode === 'register' ? 'Already have an account? Sign in' : 'Need an account? Create one'}</button></section></main>;
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f6f7f2] px-6 text-[#17231c]">
+        <section className="animate-rise w-full max-w-md rounded-2xl border border-[#d8e0d5] bg-white p-8 shadow-[0_18px_50px_rgba(23,35,28,.08)]">
+          <button onClick={() => setShowAuth(false)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#627067] hover:text-[#17231c]">
+            <ArrowLeftIcon className="h-4 w-4" /> Back to setup
+          </button>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#e25d3f]">Save your work</p>
+          <h1 className="mt-3 font-serif text-4xl tracking-[-0.04em]">
+            {authMode === 'register' ? 'Create your KleeLab account.' : 'Welcome back.'}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-[#627067]">
+            {authMode === 'register' ? 'Your site and edits will be saved to your account.' : 'Sign in to keep building where you left off.'}
+          </p>
+
+          <form
+            className="mt-7"
+            onSubmit={(event) => { event.preventDefault(); void authenticate(); }}
+          >
+            {authMode === 'register' && (
+              <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Full name" autoComplete="name" className="w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />
+            )}
+            <input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email address" type="email" autoComplete="email" required className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />
+            <input value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} required className="mt-3 w-full rounded-lg border border-[#ccd8ca] px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" />
+
+            {error && (
+              <p role="alert" className="mt-3 rounded-lg bg-[#fdf1ed] px-3 py-2 text-sm text-[#a63d24]">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmittingAuth}
+              aria-busy={isSubmittingAuth}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#17231c] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a3a30] disabled:opacity-60"
+            >
+              {isSubmittingAuth && <span className="spinner" aria-hidden />}
+              {isSubmittingAuth
+                ? 'Please wait...'
+                : authMode === 'register' ? 'Create account' : 'Sign in'}
+            </button>
+          </form>
+
+          <button onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setError(null); }} className="mt-5 w-full text-sm text-[#627067] hover:text-[#17231c]">
+            {authMode === 'register' ? 'Already have an account? Sign in' : 'Need an account? Create one'}
+          </button>
+        </section>
+      </main>
+    );
   }
 
   if (step === 'welcome' || step === 'templates') {
     return (
       <main className="min-h-screen bg-[#f6f7f2] text-[#17231c]">
         <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-7 lg:px-12">
-          <header className="flex items-center justify-between"><div className="flex items-center gap-3 text-sm font-semibold tracking-tight"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#17231c] text-[#f6f7f2]"><SparklesIcon className="h-5 w-5" /></span>KleeLab</div><button onClick={() => { setAuthMode('login'); setShowAuth(true); }} className="text-sm text-[#627067]">Already have a site? <span className="font-semibold text-[#17231c]">Sign in</span></button></header>
-          {step === 'welcome' ? <section className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.1fr_.9fr]"><div className="max-w-2xl"><p className="mb-6 text-xs font-bold uppercase tracking-[0.22em] text-[#e25d3f]">Your corner of the internet</p><h1 className="font-serif text-6xl leading-[.96] tracking-[-0.04em] sm:text-8xl">Build a site with a point of view.</h1><p className="mt-8 max-w-lg text-lg leading-8 text-[#627067]">A calm, capable place to turn an idea into a website. Start with a template, make it yours, and publish when it feels right.</p><button onClick={() => setStep('templates')} className="mt-10 inline-flex items-center gap-3 rounded-full bg-[#e25d3f] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#c94d32]">Start building <ArrowPathIcon className="h-4 w-4 rotate-45" /></button></div><div className="relative min-h-[430px] overflow-hidden rounded-[2rem] bg-[#d8e2d2] p-5 shadow-[0_24px_60px_rgba(23,35,28,.12)]"><div className="absolute -right-12 -top-12 h-56 w-56 rounded-full border-[28px] border-[#e25d3f]" /><div className="relative flex h-full flex-col justify-between rounded-[1.5rem] bg-[#f6f7f2] p-8"><div className="flex items-center justify-between text-xs font-bold"><span>studio / 01</span><span className="text-[#e25d3f]">preview</span></div><div><p className="text-sm font-semibold text-[#e25d3f]">A small practice in</p><h2 className="mt-3 max-w-sm font-serif text-5xl leading-none tracking-[-0.04em]">Making good things visible.</h2></div><div className="flex items-end justify-between border-t border-[#d8e2d2] pt-5 text-xs text-[#627067]"><span>Designed by you</span><span>Scroll to explore</span></div></div></div></section> : <section className="flex-1 py-16"><button onClick={() => setStep('welcome')} className="mb-12 inline-flex items-center gap-2 text-sm font-semibold text-[#627067]"><ArrowLeftIcon className="h-4 w-4" /> Back</button><div className="mb-10 max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e25d3f]">Choose your starting point</p><h1 className="mt-3 font-serif text-5xl tracking-[-0.04em]">What are you making?</h1><p className="mt-4 text-[#627067]">Pick a direction. You can change every word and section later.</p></div><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">{templateChoices.map((template) => <button key={template.id} onClick={() => { setSelectedTemplate(template); setSiteName(`${template.title} site`); }} className={`group overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-1 hover:shadow-xl ${selectedTemplate?.id === template.id ? 'border-[#e25d3f] ring-2 ring-[#e25d3f]/20' : 'border-[#dce4da]'}`}><div className="aspect-[1.2] overflow-hidden bg-[#d8e2d2]"><img src={template.thumbnail_url} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /></div><div className="p-5"><p className="text-xs font-bold uppercase tracking-wider text-[#e25d3f]">{template.category}</p><h2 className="mt-2 font-serif text-2xl">{template.title}</h2><p className="mt-2 text-sm leading-6 text-[#627067]">{template.description}</p></div></button>)}</div><div className="mt-12 max-w-xl"><label className="text-sm font-bold">Name your site</label><div className="mt-3 flex gap-3"><input value={siteName} onChange={(event) => setSiteName(event.target.value)} placeholder="e.g. Maya Carter Studio" className="min-w-0 flex-1 rounded-xl border border-[#ccd8ca] bg-white px-4 py-3 text-sm outline-none focus:border-[#e25d3f]" /><button onClick={createSite} className="inline-flex items-center gap-2 rounded-xl bg-[#17231c] px-5 py-3 text-sm font-bold text-white disabled:opacity-30" disabled={!selectedTemplate || !siteName}>Create site <ArrowPathIcon className="h-4 w-4 rotate-45" /></button></div></div></section>}
+          <header className="flex items-center justify-between">
+            <div className="flex items-center gap-3 text-sm font-semibold tracking-tight">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#17231c] text-[#f6f7f2]"><SparklesIcon className="h-5 w-5" /></span>
+              KleeLab
+            </div>
+            {sites.length > 0 ? (
+              <button onClick={() => { void openSite(sites[0]); }} className="rounded-full border border-[#ccd8ca] bg-white px-4 py-2 text-sm font-semibold text-[#17231c] hover:border-[#17231c]">
+                Continue editing {sites[0].name}
+              </button>
+            ) : (
+              <button onClick={() => openAuth('login')} className="text-sm text-[#627067] hover:text-[#17231c]">
+                Already have a site? <span className="font-semibold text-[#17231c]">Sign in</span>
+              </button>
+            )}
+          </header>
+
+          {feedback}
+
+          {step === 'welcome' ? (
+            <section className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.1fr_.9fr]">
+              <div className="max-w-2xl">
+                <p className="mb-6 text-xs font-bold uppercase tracking-[0.22em] text-[#e25d3f]">Your corner of the internet</p>
+                <h1 className="font-serif text-6xl leading-[.96] tracking-[-0.04em] sm:text-8xl">Build a site with a point of view.</h1>
+                <p className="mt-8 max-w-lg text-lg leading-8 text-[#627067]">A calm, capable place to turn an idea into a website. Start with a template, make it yours, and publish when it feels right.</p>
+                <button onClick={() => setStep('templates')} className="mt-10 inline-flex items-center gap-3 rounded-full bg-[#e25d3f] px-6 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(226,93,63,.28)] hover:bg-[#c94d32] active:bg-[#b24529]">
+                  Start building <ArrowPathIcon className="h-4 w-4 rotate-45" />
+                </button>
+              </div>
+              <div className="relative min-h-[430px] overflow-hidden rounded-[2rem] bg-[#d8e2d2] p-5 shadow-[0_24px_60px_rgba(23,35,28,.12)]">
+                <div className="absolute -right-12 -top-12 h-56 w-56 rounded-full border-[28px] border-[#e25d3f]" />
+                <div className="relative flex h-full flex-col justify-between rounded-[1.5rem] bg-[#f6f7f2] p-8">
+                  <div className="flex items-center justify-between text-xs font-bold"><span>studio / 01</span><span className="text-[#e25d3f]">preview</span></div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#e25d3f]">A small practice in</p>
+                    <h2 className="mt-3 max-w-sm font-serif text-5xl leading-none tracking-[-0.04em]">Making good things visible.</h2>
+                  </div>
+                  <div className="flex items-end justify-between border-t border-[#d8e2d2] pt-5 text-xs text-[#627067]"><span>Designed by you</span><span>Scroll to explore</span></div>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="flex-1 py-16">
+              <button onClick={() => setStep('welcome')} className="mb-12 inline-flex items-center gap-2 text-sm font-semibold text-[#627067] hover:text-[#17231c]">
+                <ArrowLeftIcon className="h-4 w-4" /> Back
+              </button>
+              <div className="mb-10 max-w-2xl">
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e25d3f]">Choose your starting point</p>
+                <h1 className="mt-3 font-serif text-5xl tracking-[-0.04em]">What are you making?</h1>
+                <p className="mt-4 text-[#627067]">Pick a direction. You can change every word and section later.</p>
+              </div>
+
+              {isLoadingTemplates ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" aria-busy="true" aria-live="polite">
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index} className="overflow-hidden rounded-2xl border border-[#dce4da] bg-white">
+                      <div className="aspect-[1.2] animate-pulse bg-[#e5ebe2]" />
+                      <div className="space-y-3 p-5">
+                        <div className="h-3 w-20 animate-pulse rounded bg-[#e5ebe2]" />
+                        <div className="h-5 w-32 animate-pulse rounded bg-[#e5ebe2]" />
+                        <div className="h-3 w-full animate-pulse rounded bg-[#edf1eb]" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[#ccd8ca] bg-white p-10 text-center">
+                  <p className="font-serif text-2xl">No templates loaded</p>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#627067]">
+                    {error || 'The template library is empty right now.'}
+                  </p>
+                  <button onClick={() => void loadTemplates()} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#17231c] px-5 py-3 text-sm font-bold text-white hover:bg-[#2a3a30]">
+                    <ArrowPathIcon className="h-4 w-4" /> Try again
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {templates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => { setSelectedTemplate(template); setSiteName(`${template.title} site`); setNotice(null); }}
+                      aria-pressed={selectedTemplate?.id === template.id}
+                      className={`group overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-1 hover:shadow-xl ${selectedTemplate?.id === template.id ? 'border-[#e25d3f] ring-2 ring-[#e25d3f]/20' : 'border-[#dce4da]'}`}
+                    >
+                      <div className="aspect-[1.2] overflow-hidden bg-[#d8e2d2]">
+                        {template.thumbnail_url ? (
+                          <img src={template.thumbnail_url} alt={`${template.title} template preview`} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#d8e2d2] to-[#b9cbb6] text-[#17231c]">
+                            <span className="font-serif text-5xl opacity-70">{template.title.charAt(0).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-5">
+                        <p className="text-xs font-bold uppercase tracking-wider text-[#e25d3f]">{template.category}</p>
+                        <h2 className="mt-2 font-serif text-2xl">{template.title}</h2>
+                        <p className="mt-2 text-sm leading-6 text-[#627067]">{template.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-12 max-w-xl">
+                <label htmlFor="site-name" className="text-sm font-bold">Name your site</label>
+                <div className="mt-3 flex gap-3">
+                  <input
+                    id="site-name"
+                    value={siteName}
+                    onChange={(event) => setSiteName(event.target.value)}
+                    placeholder="e.g. Maya Carter Studio"
+                    className="min-w-0 flex-1 rounded-xl border border-[#ccd8ca] bg-white px-4 py-3 text-sm outline-none focus:border-[#e25d3f]"
+                  />
+                  <button
+                    onClick={() => void createSite()}
+                    disabled={!selectedTemplate || !siteName.trim() || isCreatingSite}
+                    aria-busy={isCreatingSite}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#17231c] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#2a3a30] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isCreatingSite ? <span className="spinner" aria-hidden /> : null}
+                    {isCreatingSite ? 'Creating...' : 'Create site'} <ArrowPathIcon className="h-4 w-4 rotate-45" />
+                  </button>
+                </div>
+                {!selectedTemplate && <p className="mt-3 text-xs text-[#627067]">Select a template above to enable this.</p>}
+                {sites.length > 0 && (
+                  <div className="mt-6 border-t border-[#d8e0d5] pt-5">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#627067]">Your sites</p>
+                    <div className="grid gap-2">
+                      {sites.map((site) => (
+                        <button key={site.id} onClick={() => { void openSite(site); }} className="flex items-center justify-between rounded-lg border border-[#dce4da] bg-white px-4 py-3 text-left text-sm hover:border-[#17231c]">
+                          <span className="font-semibold">{site.name}</span>
+                          <span className="text-xs text-[#627067]">{site.is_published ? 'Published' : 'Draft'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </main>
     );
   }
 
-  return <main className="flex h-screen flex-col overflow-hidden bg-[#eef1eb] text-[#17231c]"><header className="flex h-16 shrink-0 items-center justify-between border-b border-[#d8e0d5] bg-[#f6f7f2] px-5"><div className="flex items-center gap-4"><button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-[#e5ebe2]"><ArrowLeftIcon className="h-4 w-4" /></button><span className="text-sm font-bold">{selectedSite?.name || 'My website'}</span><span className="rounded-full bg-[#d8e2d2] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#4e6654]">Draft</span></div><div className="flex items-center gap-3"><span className="hidden text-xs text-[#627067] sm:inline">{saveState === 'saving' ? 'Saving changes...' : 'All changes saved'}</span><button className="inline-flex items-center gap-2 rounded-lg border border-[#ccd8ca] bg-white px-3 py-2 text-xs font-bold"><EyeIcon className="h-4 w-4" /> Preview</button><button className="inline-flex items-center gap-2 rounded-lg bg-[#e25d3f] px-4 py-2 text-xs font-bold text-white"><RocketLaunchIcon className="h-4 w-4" /> Publish</button></div></header><div className="flex min-h-0 flex-1"><aside className="hidden w-64 shrink-0 border-r border-[#d8e0d5] bg-[#f6f7f2] p-4 lg:block"><div className="mb-6 flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-[#627067]">Pages</span><button className="rounded-md p-1 hover:bg-[#e5ebe2]"><PlusIcon className="h-4 w-4" /></button></div>{(pages.length ? pages : [{ id: 'home', title: 'Home' } as Page]).map((page) => <button key={page.id} onClick={() => setSelectedPage(page)} className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm ${selectedPage?.id === page.id ? 'bg-[#d8e2d2] font-bold' : 'text-[#627067] hover:bg-[#edf1eb]'}`}><span>{page.title}</span><ChevronRightIcon className="h-4 w-4" /></button>)}<div className="mt-8 border-t border-[#d8e0d5] pt-5"><p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#627067]">Site tools</p>{['Design system', 'Assets', 'Store', 'Settings'].map((item) => <button key={item} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-[#627067] hover:bg-[#edf1eb]"><Squares2X2Icon className="h-4 w-4" />{item}</button>)}</div></aside><section className="flex min-w-0 flex-1 flex-col"><div className="flex h-12 shrink-0 items-center justify-center gap-1 border-b border-[#d8e0d5] bg-[#f6f7f2]"><button onClick={undo} disabled={!history.length} className="rounded-md p-2 text-[#627067] disabled:opacity-30" title="Undo"><ArrowPathIcon className="h-4 w-4 -scale-x-100" /></button><button onClick={redo} disabled={!future.length} className="rounded-md p-2 text-[#627067] disabled:opacity-30" title="Redo"><ArrowPathIcon className="h-4 w-4" /></button><span className="mx-3 h-5 w-px bg-[#d8e0d5]" />{([['desktop', ComputerDesktopIcon], ['tablet', DeviceTabletIcon], ['mobile', DevicePhoneMobileIcon]] as const).map(([size, Icon]) => <button key={size} onClick={() => setViewport(size)} className={`rounded-md p-2 ${viewport === size ? 'bg-[#d8e2d2]' : 'text-[#627067]'}`} title={`${size} preview`}><Icon className="h-4 w-4" /></button>)}</div><div className="flex-1 overflow-auto p-8"><div className={`mx-auto overflow-hidden rounded-xl bg-white shadow-[0_12px_35px_rgba(23,35,28,.09)] transition-all ${canvasWidth}`}><div className="flex items-center justify-between border-b border-[#edf0ea] px-7 py-5 text-xs font-bold"><span>north / studio</span><div className="hidden gap-5 text-[#627067] sm:flex"><span>Work</span><span>About</span><span>Contact</span></div><Bars3Icon className="h-5 w-5 sm:hidden" /></div>{blocks.map((block) => <button key={block.id} onClick={() => setSelectedBlockId(block.id)} className={`group block w-full text-left transition ring-inset ${selectedBlockId === block.id ? 'ring-2 ring-[#e25d3f]' : 'hover:ring-2 hover:ring-[#d8e2d2]'}`}><BlockPreview block={block} /></button>)}<button onClick={() => addBlock('text')} className="flex w-full items-center justify-center gap-2 border-t border-dashed border-[#ccd8ca] py-6 text-xs font-bold text-[#627067]"><PlusIcon className="h-4 w-4" /> Add section</button></div></div></section><aside className="hidden w-80 shrink-0 border-l border-[#d8e0d5] bg-[#f6f7f2] xl:block"><div className="flex h-12 items-center justify-between border-b border-[#d8e0d5] px-5"><span className="text-xs font-bold uppercase tracking-wider">Edit section</span><button className="rounded-md p-1 text-[#627067]"><XMarkIcon className="h-4 w-4" /></button></div><div className="border-b border-[#d8e0d5] p-5"><p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#627067]">Add to page</p><div className="grid gap-2">{blockCatalog.slice(0, 4).map((item) => <button key={item.type} onClick={() => addBlock(item.type)} className="flex items-center gap-3 rounded-lg border border-[#d8e0d5] bg-white p-3 text-left hover:border-[#e25d3f]"><PlusIcon className="h-4 w-4 text-[#e25d3f]" /><span><span className="block text-sm font-bold">{item.label}</span><span className="block text-xs text-[#627067]">{item.description}</span></span></button>)}</div></div>{selectedBlock && <div className="space-y-5 p-5"><div><label className="text-xs font-bold uppercase tracking-wider text-[#627067]">Headline</label><textarea value={selectedBlock.title || ''} onChange={(event) => updateSelectedBlock('title', event.target.value)} rows={2} className="mt-2 w-full resize-none rounded-lg border border-[#ccd8ca] bg-white p-3 text-sm outline-none focus:border-[#e25d3f]" /></div><div><label className="text-xs font-bold uppercase tracking-wider text-[#627067]">Supporting copy</label><textarea value={selectedBlock.body || ''} onChange={(event) => updateSelectedBlock('body', event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-lg border border-[#ccd8ca] bg-white p-3 text-sm outline-none focus:border-[#e25d3f]" /></div>{selectedBlock.type === 'hero' && <div><label className="text-xs font-bold uppercase tracking-wider text-[#627067]">Button label</label><input value={selectedBlock.cta || ''} onChange={(event) => updateSelectedBlock('cta', event.target.value)} className="mt-2 w-full rounded-lg border border-[#ccd8ca] bg-white p-3 text-sm outline-none focus:border-[#e25d3f]" /></div>}<div className="flex gap-2 border-t border-[#d8e0d5] pt-5"><button onClick={() => moveBlock(-1)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#ccd8ca] py-2 text-xs font-bold"><ChevronLeftIcon className="h-4 w-4" /> Move up</button><button onClick={() => moveBlock(1)} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#ccd8ca] py-2 text-xs font-bold">Move down <ChevronRightIcon className="h-4 w-4" /></button></div></div>}</aside></div></main>;
-}
-
-function BlockPreview({ block }: { block: BuilderBlock }) {
-  if (block.type === 'hero') return <div className="bg-[#d8e2d2] px-8 py-16 sm:px-12 sm:py-24"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e25d3f]">{block.eyebrow}</p><h2 className="mt-4 max-w-xl font-serif text-5xl leading-[.95] tracking-[-0.04em] sm:text-6xl">{block.title}</h2><p className="mt-6 max-w-md text-sm leading-6 text-[#627067]">{block.body}</p><span className="mt-8 inline-flex rounded-full bg-[#17231c] px-5 py-3 text-xs font-bold text-white">{block.cta}</span></div>;
-  if (block.type === 'features') return <div className="px-8 py-14 sm:px-12"><p className="max-w-lg font-serif text-3xl leading-tight tracking-[-0.03em]">{block.title}</p><p className="mt-4 max-w-md text-sm leading-6 text-[#627067]">{block.body}</p><div className="mt-10 grid gap-3 sm:grid-cols-3">{(block.items || []).map((item) => <div key={item} className="border-t-2 border-[#e25d3f] pt-3 text-xs font-bold">{item}</div>)}</div></div>;
-  if (block.type === 'contact') return <div className="bg-[#17231c] px-8 py-14 text-[#f6f7f2] sm:px-12"><p className="max-w-lg font-serif text-4xl leading-none tracking-[-0.03em]">{block.title}</p><p className="mt-4 max-w-md text-sm leading-6 text-[#b7c4b7]">{block.body}</p><span className="mt-8 inline-flex rounded-full bg-[#e25d3f] px-5 py-3 text-xs font-bold">Start a conversation</span></div>;
-  return <div className="px-8 py-14 sm:px-12"><p className="font-serif text-3xl tracking-[-0.03em]">{block.title}</p><p className="mt-4 max-w-lg text-sm leading-6 text-[#627067]">{block.body}</p></div>;
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f6f7f2] px-6 text-[#17231c]">
+      <section className="w-full max-w-md rounded-2xl border border-[#d8e0d5] bg-white p-8 text-center shadow-[0_18px_50px_rgba(23,35,28,.08)]">
+        <h1 className="font-serif text-3xl tracking-[-0.03em]">Something went off track</h1>
+        <p className="mt-3 text-sm leading-6 text-[#627067]">{error || 'Return to the start and try again.'}</p>
+        <button onClick={() => { setError(null); setStep('welcome'); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#17231c] px-5 py-3 text-sm font-bold text-white hover:bg-[#2a3a30]">
+          <ArrowLeftIcon className="h-4 w-4" /> Back to start
+        </button>
+      </section>
+    </main>
+  );
 }

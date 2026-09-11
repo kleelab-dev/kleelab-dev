@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,20 +16,34 @@ from kleelab.core.database import get_db
 from kleelab.models.user import User
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# bcrypt only considers the first 72 bytes of a password and raises ValueError
+# beyond that. Callers validate this up front (see routers/auth.py), but we
+# truncate defensively so hashing can never blow up with a 500.
+BCRYPT_MAX_BYTES = 72
+
+
+def _password_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_BYTES]
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against its bcrypt hash."""
 
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            _password_bytes(plain_password), hashed_password.encode("utf-8")
+        )
+    except (ValueError, TypeError):
+        # Malformed/legacy hash - treat as a failed login instead of a 500.
+        return False
 
 
 def get_password_hash(password: str) -> str:
     """Hash a plaintext password with bcrypt."""
 
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(

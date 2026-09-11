@@ -8,20 +8,22 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from kleelab.core.config import settings
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Allow a strict limit for login/signup traffic and a looser default for authenticated routes."""
 
-    def __init__(self, app, limit: int = 100, window_seconds: int = 3600):
+    def __init__(self, app, limit: int | None = None, window_seconds: int = 3600):
         super().__init__(app)
-        self.limit = limit
+        self.limit = limit if limit is not None else settings.RATE_LIMIT_PER_HOUR
         self.window_seconds = window_seconds
         self.requests: dict[str, deque[float]] = defaultdict(deque)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
         if path in {"/api/auth/login", "/api/auth/register"}:
-            limit = 8
+            limit = settings.AUTH_RATE_LIMIT_PER_MINUTE
             window_seconds = 60
         else:
             limit = self.limit

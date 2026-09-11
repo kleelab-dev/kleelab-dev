@@ -1,14 +1,15 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kleelab.core.time import utcnow
 from kleelab.models.analytics import AnalyticsEvent
 
 
 async def get_site_stats(site_id: UUID, db: AsyncSession, days: int = 30) -> dict:
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = utcnow() - timedelta(days=days)
     events = list((await db.execute(select(AnalyticsEvent).where(AnalyticsEvent.site_id == site_id, AnalyticsEvent.created_at >= since))).scalars().all())
     daily = await db.execute(select(func.date(AnalyticsEvent.created_at), func.count()).where(AnalyticsEvent.site_id == site_id, AnalyticsEvent.created_at >= since).group_by(func.date(AnalyticsEvent.created_at)).order_by(func.date(AnalyticsEvent.created_at)))
     top_pages = await db.execute(select(AnalyticsEvent.path, func.count()).where(AnalyticsEvent.site_id == site_id, AnalyticsEvent.created_at >= since).group_by(AnalyticsEvent.path).order_by(func.count().desc()).limit(10))

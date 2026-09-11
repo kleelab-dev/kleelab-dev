@@ -46,7 +46,9 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) ->
         password_hash=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         provider="email",
-        is_verified=False,
+        # Locally (AUTO_VERIFY_EMAILS=true) accounts are usable immediately because
+        # email delivery is not configured. Production keeps the verification gate.
+        is_verified=settings.AUTO_VERIFY_EMAILS,
     )
     db.add(user)
     await db.commit()

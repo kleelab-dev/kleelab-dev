@@ -1,6 +1,5 @@
 """Site CRUD and publishing API routes."""
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
+from kleelab.core.time import utcnow
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.schemas.site import SiteCreate, SiteOut, SiteUpdate
@@ -141,7 +141,7 @@ async def publish_site(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification required before publishing")
     site = await get_owned_site(site_id, current_user, db)
     site.is_published = True
-    site.published_at = datetime.now(timezone.utc)
+    site.published_at = utcnow()
     result = await generate_static_site(site.id, db)
     await db.commit()
     return {"message": "Site published", "url": result["url"]}
