@@ -560,7 +560,47 @@ Database check afterwards: 5 orders, every one carrying a currency and an item s
 
 **Frontend types now match reality.** `Product`, `Order`, `OrderLine` and `OrderStatus` match the API; `PublicProduct`/`PublicOrder` were added for the storefront; and the phantom `Subscription`, `DashboardStats`, `ActivityItem` and `TabType` types were removed — nothing imported them, since the dead dashboard tabs they belonged to were deleted in R0.
 
-**Still to do in R6:** storefront blocks in the document schema (R6.3), cart and checkout UI on published sites (R6.4), and a frontend deploy target — `render.yaml` still deploys only the API (R6.5).
+**Still to do in R6 (part 2, below):** storefront blocks, cart and checkout UI, and a frontend deploy target — `render.yaml` still deploys only the API.
+
+---
+
+### R6 Progress Log (2026-09-12) — part 2: storefront blocks and checkout
+
+**Two new node types, in the canonical schema.** `product_grid` and `cart_button` were added to `NODE_TYPES`, so they are first-class blocks: they travel in the document, appear in the palette, and get inspector controls. Because the editor canvas renders through the same `NODE_REGISTRY` as the published site, the keystone still holds — one component, two places.
+
+**Catalogue data arrives by context, not props.** The storefront nodes sit *inside* the document tree, so nothing can pass them data directly. A `StorefrontProvider` supplies the site's currency and products, and `CartProvider` supplies the basket. **No provider means "editor"**, which is exactly what makes the same component work in both places: in the builder the grid and cart render an honest placeholder rather than an empty grid that looks broken.
+
+**The cart is client-side and per subdomain.** A shopper has no KleeLab account — that is the entire point of a storefront — so the basket lives in `localStorage` under `kleelab_cart_{subdomain}`. Two shops open in one browser do not share a basket, and stored lines are re-validated on load because storage is user-editable.
+
+**Honest failure states.** `fetchPublicProducts` throws rather than returning `[]`, and the page catches that into `null`. "This shop sells nothing" and "we could not reach the catalogue" look identical to a visitor otherwise, and for a shop that difference matters. A line whose product has been withdrawn is dropped from the cart with a visible note rather than rendered as a broken row.
+
+**The checkout form cannot influence the price.** Verified by capturing the actual request:
+
+```
+UI payload keys : ["customer_email","customer_name","note","items"]
+price fields sent: []                      (none at all)
+server computed : 8.00 GBP for 1 x Field Notebook
+```
+
+**Verified end to end in the browser** against the running stack:
+
+| Step | Result |
+|------|--------|
+| Published shop renders | heading, cart button, 3 products with `£12.50` / `£8.00` / `£15.00` |
+| Withdrawn product hidden, sold-out shown | retired product absent; tote disabled as "Sold out" |
+| Add to cart | badge updates to "contains 2 items" |
+| Open cart | line, `£12.50 each`, subtotal `£25.00`, quantity control, remove |
+| Checkout → place order | `201`, server total `25.00 GBP`, item snapshot returned |
+| Confirmation | shows the **server's** total, cart cleared |
+| Editor, same document | renders the placeholder for both blocks — no product names leak |
+| Database | 2 orders, both with currency and snapshot; stock `3→1` and `10→9`; no negative stock |
+
+**Two testing traps worth recording.** First, `page.reload()` left the page server-rendered but not hydrated, so clicks hit dead buttons while `__reactProps` looked attached; navigating fresh fixed it, and invoking the handler directly proved the component was correct all along — the harness was wrong, not the app. Second, when the end-of-run database counts came in above baseline I investigated instead of "restoring" them: the extra rows were a **real user account** (`kleelab247@gmail.com`, "Cafe site") created during the session. Deleting toward a remembered baseline would have destroyed someone's work.
+
+**Gaps this leaves open, deliberately:**
+- **No product management UI.** Products can only be created through the API or directly in the database. A storefront block therefore shows an empty shop with no way for the owner to fill it — this is the next thing R6 needs.
+- **No payment provider** (decision D6). Orders are records with a `pending` status.
+- **`render.yaml` still deploys only the API**, so none of this is reachable in production yet.
 
 ---
 

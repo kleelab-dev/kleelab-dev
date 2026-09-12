@@ -72,6 +72,31 @@ function AreaField({
   );
 }
 
+/** Boolean prop, rendered as a checkbox rather than a Yes/No dropdown. */
+function ToggleField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Field label={label}>
+      <span className="flex items-center gap-2.5 text-xs text-ink">
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={(event) => onChange(event.target.checked)}
+          className="h-4 w-4 rounded border-line accent-accent"
+        />
+        {value ? 'Shown' : 'Hidden'}
+      </span>
+    </Field>
+  );
+}
+
 function SelectField<T extends string>({
   label,
   value,
@@ -214,6 +239,26 @@ function ContentControls({ node, siteId }: { node: Node; siteId: string | null }
       );
     case 'nav':
       return <TextField label="Brand" value={asString(node.props.brand)} onChange={(brand) => set({ brand })} />;
+    case 'product_grid':
+      return (
+        <>
+          <SelectField
+            label="Columns"
+            value={String(asNumber(node.props.columns, 3)) as '1' | '2' | '3' | '4'}
+            options={['1', '2', '3', '4'] as const}
+            onChange={(columns) => set({ columns: columns ? Number(columns) : 3 })}
+          />
+          <ToggleField
+            label="Prices"
+            value={node.props.showPrices !== false}
+            onChange={(showPrices) => set({ showPrices })}
+          />
+        </>
+      );
+    case 'cart_button':
+      return (
+        <TextField label="Label" value={asString(node.props.label)} onChange={(label) => set({ label })} />
+      );
     case 'footer':
       return <TextField label="Text" value={asString(node.props.text)} onChange={(text) => set({ text })} />;
     case 'form':

@@ -1,3 +1,5 @@
+import type { PublicProduct } from '@/types/api';
+
 /**
  * Server-side access to the public site API.
  *
@@ -11,11 +13,17 @@ export type PublicSiteResponse = {
   name: string;
   subdomain: string | null;
   custom_domain: string | null;
+  currency: string;
   pages: { title: string; slug: string }[];
 };
 
 export type PublicPageResponse = {
-  site: { name: string; subdomain: string | null; custom_domain: string | null };
+  site: {
+    name: string;
+    subdomain: string | null;
+    custom_domain: string | null;
+    currency: string;
+  };
   page: {
     id: string;
     title: string;
@@ -24,7 +32,9 @@ export type PublicPageResponse = {
     seo: { title?: string | null; description?: string | null; image?: string | null };
   };
 };
+export type { PublicProduct };
 
+/** A product as a shopper sees it. Note: no stock count, only availability. */
 export async function fetchPublicSite(subdomain: string): Promise<PublicSiteResponse | null> {
   const response = await fetch(
     `${API_URL}/api/public/sites/${encodeURIComponent(subdomain)}`,
@@ -52,4 +62,21 @@ export async function fetchPublicPage(
 export function publicPathForSlug(subdomain: string, slug: string, origin: string): string {
   const suffix = !slug || slug === '/' ? '' : slug.startsWith('/') ? slug : `/${slug}`;
   return `${origin}/s/${subdomain}${suffix}`;
+}
+
+/**
+ * A published site's catalogue.
+ *
+ * Throws rather than returning an empty list: "this shop sells nothing" and
+ * "we could not reach the catalogue" look identical to a visitor otherwise, and
+ * for a shop that difference matters.
+ */
+export async function fetchPublicProducts(subdomain: string): Promise<PublicProduct[]> {
+  const response = await fetch(
+    `${API_URL}/api/public/sites/${encodeURIComponent(subdomain)}/products`,
+    { cache: 'no-store' },
+  );
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Failed to load products (${response.status})`);
+  return (await response.json()) as PublicProduct[];
 }

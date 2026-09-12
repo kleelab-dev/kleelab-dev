@@ -32,6 +32,10 @@ export const NODE_TYPES = [
   'nav',
   'footer',
   'html',
+  // Storefront. These render the site's own catalogue, which the published page
+  // supplies as data; in the editor they show a placeholder instead.
+  'product_grid',
+  'cart_button',
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];

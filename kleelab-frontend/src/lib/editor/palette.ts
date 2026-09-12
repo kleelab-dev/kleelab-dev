@@ -31,6 +31,8 @@ export const PALETTE: PaletteEntry[] = [
     { label: 'About', href: '#' },
   ] } },
   { type: 'footer', label: 'Footer', hint: 'Closing line', props: { text: '© KleeLab' } },
+  { type: 'product_grid', label: 'Products', hint: 'Your catalogue, for sale', props: { columns: 3, showPrices: true } },
+  { type: 'cart_button', label: 'Cart', hint: 'Basket button with item count', props: { label: 'Cart' } },
 ];
 
 export const PALETTE_BY_TYPE: Record<string, PaletteEntry> = Object.fromEntries(

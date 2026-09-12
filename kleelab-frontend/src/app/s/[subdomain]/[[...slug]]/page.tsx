@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocumentRenderer } from '@/components/render/registry';
+import { CartDrawer } from '@/components/storefront/CartDrawer';
+import { CartProvider } from '@/components/storefront/CartProvider';
+import { StorefrontProvider } from '@/components/storefront/StorefrontProvider';
 import { parseDocument } from '@/lib/document';
-import { fetchPublicPage } from '@/lib/publicApi';
+import { fetchPublicPage, fetchPublicProducts } from '@/lib/publicApi';
 
 /**
  * Published sites, rendered from the stored document.
@@ -45,9 +48,20 @@ export default async function PublishedPage({ params }: { params: Promise<Params
 
   const document = parseDocument(data.page.content, data.page.title);
 
+  // A missing catalogue must not take the page down; `null` lets the grid say
+  // "unavailable" instead of "nothing for sale", which are different things.
+  const products = await fetchPublicProducts(subdomain).catch(() => null);
+
   return (
-    <main className="min-h-screen bg-paper text-ink">
-      <DocumentRenderer document={document} />
-    </main>
+    <StorefrontProvider
+      value={{ subdomain, currency: data.site.currency || 'GBP', products }}
+    >
+      <CartProvider subdomain={subdomain}>
+        <main className="min-h-screen bg-paper text-ink">
+          <DocumentRenderer document={document} />
+        </main>
+        <CartDrawer />
+      </CartProvider>
+    </StorefrontProvider>
   );
 }

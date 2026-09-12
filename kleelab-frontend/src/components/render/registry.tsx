@@ -6,6 +6,8 @@
 import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { nodeClasses, type Node, type NodeType } from '@/lib/document';
+import { CartButton } from '@/components/storefront/CartButton';
+import { ProductGrid } from '@/components/storefront/ProductGrid';
 
 /**
  * The shared render registry.
@@ -228,6 +230,25 @@ function HtmlNode({ node }: NodeComponentProps) {
   return <div className={clsx('whitespace-pre-wrap text-xs text-muted', nodeClasses(node))}>{text(node.props.html)}</div>;
 }
 
+function ProductGridNode({ node }: NodeComponentProps) {
+  return (
+    <div className={nodeClasses(node)}>
+      <ProductGrid
+        columns={num(node.props.columns, 3)}
+        showPrices={node.props.showPrices !== false}
+      />
+    </div>
+  );
+}
+
+function CartButtonNode({ node }: NodeComponentProps) {
+  return (
+    <div className={nodeClasses(node)}>
+      <CartButton label={text(node.props.label, 'Cart')} />
+    </div>
+  );
+}
+
 /** Tolerant fallback so unknown or future node types never crash a page. */
 function UnknownNode({ node, children }: NodeComponentProps) {
   return (
@@ -257,6 +278,8 @@ export const NODE_REGISTRY: Record<NodeType, React.ComponentType<NodeComponentPr
   nav: NavNode,
   footer: FooterNode,
   html: HtmlNode,
+  product_grid: ProductGridNode,
+  cart_button: CartButtonNode,
 };
 
 export function NodeRenderer({ node }: { node: Node }) {

@@ -98,6 +98,7 @@ async def public_site(subdomain: str, db: AsyncSession = Depends(get_db)) -> dic
         "name": site.name,
         "subdomain": site.subdomain,
         "custom_domain": site.custom_domain,
+        "currency": site.currency,
         "pages": [{"title": page.title, "slug": page.slug} for page in pages],
     }
 
@@ -129,6 +130,7 @@ async def public_page(
             "name": site.name,
             "subdomain": site.subdomain,
             "custom_domain": site.custom_domain,
+            "currency": site.currency,
         },
         "page": serialize_page(page),
     }
