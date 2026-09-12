@@ -98,6 +98,7 @@ async def upload_asset(
         file_type=content_type,
         file_size=len(data),
         url=url,
+        public_id=(result.get("public_id") or None),
     )
     db.add(asset)
     await db.commit()
@@ -116,5 +117,11 @@ async def delete_asset(
     asset = await db.scalar(select(Asset).where(Asset.id == asset_id, Asset.site_id == site_id))
     if asset is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    # Read the identifier before the row goes away, then reclaim the remote file
+    # after the database agrees the asset is gone.
+    public_id = asset.public_id
     await db.delete(asset)
     await db.commit()
+
+    await storage.destroy_images([public_id])

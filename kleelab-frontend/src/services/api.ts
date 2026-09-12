@@ -8,6 +8,21 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 const TOKEN_KEY = 'kleelab_access_token';
 const REFRESH_KEY = 'kleelab_refresh_token';
 
+/**
+ * Endpoints that must never trigger a token refresh.
+ *
+ * Excluding every `/api/auth/*` path looked tidy but broke the 15-minute access
+ * token: `/api/auth/me` would return 401 and, instead of rotating, the dashboard
+ * simply errored. Only the calls that establish or end a session are excluded
+ * here, so refreshing cannot recurse into itself.
+ */
+const NO_REFRESH_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/refresh',
+  '/api/auth/logout',
+]);
+
 function readStorage(key: string): string | null {
   return typeof window === 'undefined' ? null : window.localStorage.getItem(key);
 }
@@ -88,7 +103,7 @@ async function request<T>(
 
   // A short-lived access token expiring is the normal case, not an error:
   // rotate once and replay the request.
-  if (response.status === 401 && allowRefresh && !path.startsWith('/api/auth/')) {
+  if (response.status === 401 && allowRefresh && !NO_REFRESH_PATHS.has(path)) {
     if (await refreshSession()) return request<T>(path, options, false);
   }
 
@@ -168,6 +183,25 @@ export const apiService = {
 
   async getCurrentUser(): Promise<User> {
     return request<User>('/api/auth/me');
+  },
+
+  /** Exchange an emailed verification link token for a verified account. */
+  async verifyEmail(token: string): Promise<void> {
+    return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Ask for a fresh verification link.
+   *
+   * `delivered` is false when no email provider is configured, in which case the
+   * backend writes the link to its log rather than pretending it was sent.
+   */
+  async resendVerification(): Promise<{ status: string; delivered: boolean }> {
+    return request<{ status: string; delivered: boolean }>('/api/auth/resend-verification', {
+      method: 'POST',
+    });
   },
 
   async getTemplates(): Promise<Template[]> {

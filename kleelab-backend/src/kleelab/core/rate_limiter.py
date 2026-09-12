@@ -25,6 +25,12 @@ AUTH_PATHS = {"/api/auth/login", "/api/auth/register", "/api/auth/refresh"}
 
 DEFAULT_MAX_TRACKED_CLIENTS = 10_000
 
+# A store outage must not cost a connection attempt (and a traceback) on every
+# request. After this many consecutive failures the store is skipped for the
+# cooldown, then tried again.
+REDIS_FAILURE_THRESHOLD = 3
+REDIS_COOLDOWN_SECONDS = 30.0
+
 
 def client_ip(request: Request) -> str:
     """Best-effort client address, honouring proxy headers when trusted.
@@ -79,6 +85,13 @@ class RedisStore:
     def __init__(self, url: str) -> None:
         self._url = url
         self._client = None
+        self._failures = 0
+        self._disabled_until = 0.0
+
+    def available(self) -> bool:
+        """False while backing off from a recent outage."""
+
+        return time.monotonic() >= self._disabled_until
 
     async def _connection(self):
         if self._client is None:
@@ -88,18 +101,41 @@ class RedisStore:
             self._client = redis.from_url(self._url, decode_responses=True)
         return self._client
 
+    def _record_failure(self) -> None:
+        self._failures += 1
+        if self._failures < REDIS_FAILURE_THRESHOLD:
+            return
+
+        self._failures = 0
+        self._disabled_until = time.monotonic() + REDIS_COOLDOWN_SECONDS
+        # Force a fresh connection when the cooldown ends.
+        self._client = None
+        logger.warning(
+            "Rate-limit store failed %d times; falling back to in-process limits for "
+            "%.0fs (set REDIS_URL to a reachable instance to restore shared limits)",
+            REDIS_FAILURE_THRESHOLD,
+            REDIS_COOLDOWN_SECONDS,
+        )
+
     async def allow(self, key: str, limit: int, window: float) -> tuple[bool, int]:
-        client = await self._connection()
-        bucket = int(time.time() // window)
-        redis_key = f"rl:{key}:{bucket}"
+        try:
+            client = await self._connection()
+            bucket = int(time.time() // window)
+            redis_key = f"rl:{key}:{bucket}"
 
-        count = await client.incr(redis_key)
-        if count == 1:
-            await client.expire(redis_key, int(window) + 1)
+            count = await client.incr(redis_key)
+            if count == 1:
+                await client.expire(redis_key, int(window) + 1)
 
-        if count > limit:
-            ttl = await client.ttl(redis_key)
-            return False, max(int(ttl), 1)
+            if count > limit:
+                ttl = await client.ttl(redis_key)
+                return False, max(int(ttl), 1)
+        except Exception:
+            self._record_failure()
+            raise
+
+        # Recovered (or simply healthy); a later outage starts counting afresh.
+        self._failures = 0
         return True, 0
 
 
@@ -119,6 +155,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "Rate limiting is in-process only; set REDIS_URL to share limits "
                 "across instances."
             )
+        else:
+            logger.info("Rate limiting uses the shared store at %s", settings.REDIS_URL)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
@@ -131,7 +169,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         key = f"{client_ip(request)}:{'auth' if is_auth else 'general'}"
 
         allowed, retry_after = True, 0
-        if self._redis is not None:
+        if self._redis is not None and self._redis.available():
             try:
                 allowed, retry_after = await self._redis.allow(key, limit, window)
             except Exception:  # noqa: BLE001 - never fail closed on a store outage

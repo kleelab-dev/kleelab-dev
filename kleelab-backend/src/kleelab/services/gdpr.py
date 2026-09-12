@@ -10,6 +10,7 @@ from kleelab.models.page import Page
 from kleelab.models.product import Product
 from kleelab.models.site import Site
 from kleelab.models.user import User
+from kleelab.services import storage
 
 
 async def export_user_data(user_id: UUID, db: AsyncSession) -> dict:
@@ -29,6 +30,11 @@ async def delete_user_data(user_id: UUID, db: AsyncSession) -> bool:
     if site_ids:
         user_assets.extend((await db.execute(select(Asset).where(Asset.site_id.in_(site_ids)))).scalars().all())
 
+    # Collect provider handles before the rows (and with them the only reference to
+    # the uploaded files) are removed. Erasing an account must reclaim storage, not
+    # just forget about it.
+    public_ids = list({asset.public_id for asset in user_assets if asset.public_id})
+
     for asset in list(dict.fromkeys(user_assets)):
         await db.delete(asset)
 
@@ -38,4 +44,6 @@ async def delete_user_data(user_id: UUID, db: AsyncSession) -> bool:
     await db.execute(delete(Site).where(Site.user_id == user_id))
     await db.execute(delete(User).where(User.id == user_id))
     await db.commit()
+
+    await storage.destroy_images(public_ids)
     return True

@@ -8,12 +8,18 @@ extra dependency is required. Configuration comes from the conventional
 import base64
 import hashlib
 import json
+import logging
 import time
+from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+from starlette.concurrency import run_in_threadpool
+
 from kleelab.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 UPLOAD_TIMEOUT_SECONDS = 30
 ALLOWED_IMAGE_TYPES = {
@@ -85,17 +91,15 @@ def upload_image(data: bytes, content_type: str, folder: str | None = None) -> d
 
     timestamp = int(time.time())
     signed = {"folder": target_folder, "timestamp": timestamp}
-    to_sign = "&".join(f"{key}={signed[key]}" for key in sorted(signed))
-    signature = hashlib.sha1(f"{to_sign}{api_secret}".encode()).hexdigest()
 
-    body = urlencode(
-        {
-            **signed,
-            "api_key": api_key,
-            "signature": signature,
+    body = _signed_body(
+        signed,
+        api_key,
+        api_secret,
+        extra={
             "file": f"data:{content_type};base64,{base64.b64encode(data).decode()}",
-        }
-    ).encode()
+        },
+    )
 
     request = Request(
         f"https://api.cloudinary.com/v1_1/{cloud_name}/image/upload",
@@ -109,3 +113,77 @@ def upload_image(data: bytes, content_type: str, folder: str | None = None) -> d
             return json.loads(response.read().decode())
     except Exception as error:  # noqa: BLE001 - normalised for the API layer
         raise StorageUploadFailed(f"Upload failed: {error}") from error
+
+
+def _signed_body(
+    params: dict[str, Any],
+    api_key: str,
+    api_secret: str,
+    extra: dict[str, Any] | None = None,
+) -> bytes:
+    """Build a signed application/x-www-form-urlencoded request body.
+
+    Only `params` are signed. Cloudinary's signature covers the sorted parameters
+    verbatim, so `extra` (e.g. the multipart-free base64 `file`) is appended after
+    signing - which is exactly how a plain form upload presents it.
+    """
+
+    to_sign = "&".join(f"{key}={params[key]}" for key in sorted(params))
+    signature = hashlib.sha1(f"{to_sign}{api_secret}".encode()).hexdigest()
+    return urlencode(
+        {**params, "api_key": api_key, "signature": signature, **(extra or {})}
+    ).encode()
+
+
+def destroy_image(public_id: str) -> bool:
+    """Remove an asset from Cloudinary.
+
+    Returns True when the asset is gone, including the "not found" case: a file
+    that is already absent has still reached the desired state.
+    """
+
+    api_key, api_secret, cloud_name = _credentials()
+    body = _signed_body(
+        {"public_id": public_id, "timestamp": int(time.time())}, api_key, api_secret
+    )
+
+    request = Request(
+        f"https://api.cloudinary.com/v1_1/{cloud_name}/image/destroy",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=UPLOAD_TIMEOUT_SECONDS) as response:
+            result = json.loads(response.read().decode())
+    except Exception as error:  # noqa: BLE001 - normalised for the API layer
+        raise StorageUploadFailed(f"Delete failed: {error}") from error
+
+    return result.get("result") in {"ok", "not found"}
+
+
+async def destroy_images(public_ids: Iterable[str | None]) -> int:
+    """Delete several assets, best effort.
+
+    Deliberately never raises. Once the database rows are gone the reference is
+    lost, so a provider outage here costs a stray file - which is far cheaper
+    than failing a user's delete request because a third party is unavailable.
+    """
+
+    candidates = [public_id for public_id in public_ids if public_id]
+    if not candidates or not is_configured():
+        return 0
+
+    destroyed = 0
+    for public_id in candidates:
+        try:
+            if await run_in_threadpool(destroy_image, public_id):
+                destroyed += 1
+        except Exception:  # noqa: BLE001 - see docstring
+            logger.warning(
+                "Could not delete Cloudinary asset %s; it may need removing manually",
+                public_id,
+                exc_info=True,
+            )
+    return destroyed

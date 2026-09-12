@@ -14,16 +14,20 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { apiService, getToken } from '@/services/api';
-import type { Site } from '@/types/api';
+import type { Site, User } from '@/types/api';
 
 type Status = 'checking' | 'signed-out' | 'ready';
+type ResendState = 'idle' | 'sending' | 'done' | 'failed';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [sites, setSites] = useState<Site[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<Status>('checking');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<ResendState>('idle');
+  const [resendNote, setResendNote] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -39,10 +43,18 @@ export default function DashboardPage() {
 
     apiService
       .getSites()
-      .then((data) => {
+      .then(async (data) => {
         if (!active) return;
         setSites(data);
         setStatus('ready');
+        // Verification state only drives a banner, so a failure here must not
+        // take the page down with it.
+        try {
+          const me = await apiService.getCurrentUser();
+          if (active) setUser(me);
+        } catch {
+          if (active) setUser(null);
+        }
       })
       .catch((reason: Error) => {
         if (!active) return;
@@ -54,6 +66,23 @@ export default function DashboardPage() {
       active = false;
     };
   }, []);
+
+  const resendVerification = async () => {
+    setResendState('sending');
+    setResendNote(null);
+    try {
+      const result = await apiService.resendVerification();
+      setResendState('done');
+      setResendNote(
+        result.delivered
+          ? 'Verification email sent. Check your inbox.'
+          : 'No email provider is configured, so the link was written to the server log.',
+      );
+    } catch (reason) {
+      setResendState('failed');
+      setResendNote(reason instanceof Error ? reason.message : 'Could not send the email.');
+    }
+  };
 
   const togglePublish = async (site: Site) => {
     setBusyId(site.id);
@@ -141,6 +170,34 @@ export default function DashboardPage() {
         )}
 
         {status === 'checking' && <p className="text-sm text-muted">Loading your sites…</p>}
+
+        {/* Publishing is blocked until the address is confirmed, so say so before
+            the user finds out by clicking Publish and getting a 403. */}
+        {status === 'ready' && user && !user.is_verified && (
+          <div className="mb-6 rounded-xl border border-line-strong bg-canvas px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <ExclamationTriangleIcon className="h-4 w-4 shrink-0 text-accent" />
+              <span className="flex-1">
+                Confirm <strong className="font-bold">{user.email}</strong> to publish your sites.
+              </span>
+              <button
+                type="button"
+                disabled={resendState === 'sending'}
+                onClick={() => void resendVerification()}
+                className="rounded-lg bg-ink px-3 py-2 text-xs font-bold text-paper hover:bg-ink-soft disabled:opacity-40"
+              >
+                {resendState === 'sending' ? 'Sending…' : 'Resend email'}
+              </button>
+            </div>
+            {resendNote && (
+              <p
+                className={`mt-2 pl-7 text-xs ${resendState === 'failed' ? 'text-danger' : 'text-muted'}`}
+              >
+                {resendNote}
+              </p>
+            )}
+          </div>
+        )}
 
         {status === 'signed-out' && (
           <div className="rounded-2xl border border-line bg-white p-8 text-center">

@@ -10,9 +10,11 @@ from kleelab.core.config import settings
 from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
 from kleelab.core.time import utcnow
+from kleelab.models.asset import Asset
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.schemas.site import SiteCreate, SiteOut, SiteUpdate
+from kleelab.services import storage
 
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
@@ -141,8 +143,19 @@ async def delete_site(
     """Delete one site owned by the authenticated user."""
 
     site = await get_owned_site(site_id, current_user, db)
+
+    # Deleting the site cascades the asset rows away, which would strand every
+    # uploaded file in the provider. Collect the handles first.
+    public_ids = list(
+        (
+            await db.execute(select(Asset.public_id).where(Asset.site_id == site.id))
+        ).scalars().all()
+    )
+
     await db.delete(site)
     await db.commit()
+
+    await storage.destroy_images(public_ids)
 
 
 @router.post("/{site_id}/publish")

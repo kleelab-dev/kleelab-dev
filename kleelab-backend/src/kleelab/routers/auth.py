@@ -131,25 +131,37 @@ async def logout_all(
 @router.post("/resend-verification")
 async def resend_verification(
     current_user: User = Depends(get_current_user),
-) -> dict[str, str]:
+) -> dict[str, str | bool]:
     """Send a fresh email-verification link to the authenticated user."""
 
     if current_user.is_verified:
-        return {"status": "already_verified"}
+        return {"status": "already_verified", "delivered": False}
 
     token = create_signed_token(
         {"user_id": str(current_user.id), "purpose": "email_verification"},
         timedelta(hours=24),
     )
+
     try:
-        send_verification_email(current_user.email, token)
+        delivered = send_verification_email(current_user.email, token)
     except Exception as error:  # noqa: BLE001 - surfaced to the caller
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Email delivery is not configured, so a verification link cannot be sent.",
+            detail="The email provider rejected the request. Please try again shortly.",
         ) from error
 
-    return {"status": "verification_email_sent"}
+    if delivered:
+        return {"status": "verification_email_sent", "delivered": True}
+
+    # No provider configured. Say so instead of reporting success, and in
+    # development the message (with its link) is in the server log.
+    if settings.ENVIRONMENT == "development":
+        return {"status": "verification_email_logged", "delivered": False}
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Email delivery is not configured, so a verification link cannot be sent.",
+    )
 
 
 @router.post("/verify-email")

@@ -21,4 +21,7 @@ class Asset(Base):
     file_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
+    # Provider-side identifier, required to delete the remote object. Rows created
+    # before this column existed have none, so the stored file cannot be reclaimed.
+    public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

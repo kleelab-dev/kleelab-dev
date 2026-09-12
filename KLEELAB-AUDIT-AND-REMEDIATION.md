@@ -401,8 +401,8 @@ All test data was removed afterwards (`DELETE /api/users/me`); row counts return
 | Task | Status | Notes |
 |------|--------|-------|
 | **R4.1** Token model | ✅ | 15-min access + rotating refresh + revoke |
-| **R4.2** Email verification dead-end | ⚠️ Partial | gate exists and is checked; masked in dev |
-| **R4.3** Rate limiting + security headers | ✅ | in-memory verified; Redis path untested |
+| **R4.2** Email verification dead-end | ✅ | gate enforced end-to-end; link is now clickable |
+| **R4.3** Rate limiting + security headers | ✅ | in-process verified; store outage degrades safely |
 | **R4.4** `tally.py` | N/A | no waitlist UI exists in this codebase |
 
 **R4.1 — implemented.** Access tokens are short-lived and carry an `iat` claim; refresh tokens are opaque, stored only as a SHA-256 hash, and **rotated on every use**. Reusing a spent refresh token is treated as theft: the whole token family for that user is revoked (`revoke_all_for_user`), which logs the attacker *and* the victim out rather than silently accepting the replay. Three new endpoints: `/refresh` (unauthenticated — the refresh token is the credential), `/logout` (revokes one family), `/logout-all` (revokes every session). `/verify-email` no longer requires a bearer token, since the emailed token already identifies the user — previously a brand-new user could not verify without logging in first.
@@ -423,14 +423,47 @@ Rotation, replay detection with family revocation, and logout revocation all pas
 **Cloudinary upload — verified for the first time.** `CLOUDINARY_URL` is now configured, and a real upload returned **201** with a `res.cloudinary.com/.../image/png` URL, and the asset listed. Previously this path returned 503 and was unverified.
 
 **Known gaps (deliberate, not oversights):**
-- **R4.2 is masked, not solved.** `AUTO_VERIFY_EMAILS=true` in `.env` means the gate is never exercised locally, so the "new user cannot publish" experience has never been observed end-to-end. With `CLOUDINARY_URL` and now mail configured, the remaining question is whether Resend delivery actually lands.
-- **Deleting an asset removes the database row but not the remote Cloudinary file**, because no `public_id` is persisted. Reclaiming storage requires storing that id and calling `destroy`. Flagged rather than half-fixed.
-- **The Redis rate-limit path is unexercised** — `REDIS_URL` is unset, so only the in-memory fallback is proven.
 - **`.env` overrides code defaults silently.** This cost real debugging time twice. Any future TTL/limit change must be made in `.env`, not just `config.py`.
+- **Rows uploaded before `public_id` existed cannot be reclaimed** — their remote files are unreachable by the API. Only test data is affected (none remains).
+- **No frontend deploy target.** `render.yaml` deploys the API only, which mattered less before publishing worked and matters more now.
 
 Test users were removed with a scoped `DELETE` (`email LIKE '%@kleelabverify.dev'`) after first listing the matches; counts returned to baseline (users 6, sites 4, pages 3, assets 0, refresh_tokens 0, templates 15), confirming the `ON DELETE CASCADE` chain works.
 
-**Release gate:** `eslint` 0 problems · `tsc --noEmit` clean · `next build` clean (all 10 routes) · backend `compileall` OK · import smoke OK (74 routes).
+**Release gate:** `eslint` 0 problems · `tsc --noEmit` clean · `next build` clean (all 11 routes) · backend `compileall` OK · import smoke OK (74 routes).
+
+---
+
+### R4 Gap Closure (2026-09-12)
+
+The three gaps recorded above are now closed. All were verified against the real stack, not by inspection.
+
+**1. Remote files are actually reclaimed.** Uploads never stored Cloudinary's `public_id`, so deleting an asset dropped the database row and left the file in the bucket forever — the row was the *only* reference to it. Added `assets.public_id` (migration `add_asset_public_id`), capture it on upload, and destroy the remote object after the database agrees the asset is gone. Wired into all three deletion paths, because asset rows disappear by cascade as well as by direct delete: the asset endpoint, **site deletion**, and **account erasure** (`delete_user_data`). Upload and destroy now share one signing helper instead of duplicating the signature logic.
+
+Verified by URL, which is the only end-to-end proof: upload → `200`; delete the asset → **`404`** on the first probe. Deleting a whole site → **`404`**. A control asset left in place still returns `200`, so the `404`s are deletion rather than a broken check. Note the first attempt *looked* like a failure (`200` after delete) — that was Cloudinary's CDN serving the copy fetched **before** deletion. Never pre-fetch an asset whose deletion is being tested.
+
+**2. The verification gate is enforced and passable.** Two independent defects hid the gate: `_send` returned nothing either way, so the API reported "verification email sent" while discarding the message, and the email contained a bare token with **no page to enter it into** — the gate could never be passed even in principle. `_send` now reports whether a provider accepted the message, `resend-verification` says "logged" instead of lying when none is configured, emails carry a `/verify-email?token=` link, and `AUTO_VERIFY_EMAILS` is now **`false`** in `.env` so the gate is exercised rather than masked.
+
+```
+{"registeredIsVerified":false,"publishWhileUnverified":403,
+ "publishDetail":"Email verification required before publishing",
+ "resendStatus":200,"resendBody":{"status":"verification_email_logged","delivered":false},
+ "isVerifiedAfterLink":true,"publishAfterVerify":200,
+ "otherUserPublishStatus":403}
+```
+
+Opening the emailed link shows "Email confirmed", publish then returns `200`, and a *second* unverified account still gets `403` — so verification is doing the work, not bypassed. Without `RESEND_API_KEY` the message is written to the server log **in development only** (the body holds single-use tokens); production logs the failure without the body.
+
+**3. A store outage degrades instead of spamming.** The Redis path already fell back to in-process limits, but it attempted a fresh connection *and logged a full traceback on every request* while the store was unreachable. Added a circuit breaker (3 consecutive failures → skip for 30s), proven by pointing `REDIS_URL` at a dead port with no `redis` package installed:
+
+```
+WARNING Rate-limit store failed 3 times; falling back to in-process limits for 30s
+```
+
+After tripping, the tracebacks stop for the cooldown and **every request still returned its normal status** — register `201`, login `200`, publish `403`, resend `200`, upload `201`, deletes `204`. Limits degrade to per-process; the API never fails.
+
+**Caught while fixing this:** excluding every `/api/auth/*` path from refresh meant `/api/auth/me` returned `401` instead of rotating. With access tokens now at 15 minutes, the dashboard would have broken every 15 minutes. The exclusion is now an explicit list of session-establishing calls.
+
+**New route:** `/verify-email`.
 
 ---
 
