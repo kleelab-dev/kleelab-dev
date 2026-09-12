@@ -3,19 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 241, 245, 249;
-  --background-start-rgb: 11, 15, 23;
-  --background-end-rgb: 15, 23, 42;
+  /* RGB triplet tokens mirrored from tailwind.config.js so raw CSS can
+     reference the same palette (e.g. rgb(var(--accent))). */
+  --paper: 246 247 242;
+  --canvas: 238 241 235;
+  --ink: 23 35 28;
+  --muted: 98 112 103;
+  --line: 216 224 213;
+  --mint: 216 226 210;
+  --accent: 226 93 63;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: rgb(var(--ink));
+  background-color: rgb(var(--paper));
   min-height: 100vh;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
@@ -45,7 +46,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid #e25d3f;
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
 }
 
@@ -97,18 +98,18 @@ select:focus-visible,
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b0f17;
+  background: rgb(var(--canvas));
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: rgb(var(--line));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgb(var(--muted));
 }
 
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(246, 247, 242, 0.75);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgb(var(--line));
 }

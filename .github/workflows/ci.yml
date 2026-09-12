@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kleelab-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: kleelab-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          # Only used by the /api/* rewrite target; no backend is needed to build.
+          API_URL: http://localhost:8000
+
+  backend:
+    name: Backend (import + compile)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kleelab-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: kleelab-backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import smoke test
+        # Importing the app exercises every router/schema without touching a database.
+        run: python -c "from kleelab.main import app; print('routes:', len(app.openapi()['paths']))"
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production
+
+      - name: Compile check
+        run: python -m compileall -q src

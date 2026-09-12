@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "KleeLab Control Center",
-  description: "Enterprise Digital Site Builder & E-Commerce Management Platform",
+  title: {
+    default: "KleeLab",
+    template: "%s · KleeLab",
+  },
+  description: "We build cute, secure digital products.",
 };
 
 export default function RootLayout({
@@ -15,10 +18,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-slate-950 text-slate-100 antialiased selection:bg-sky-500 selection:text-white min-h-screen`}>
-        {children}
-      </body>
+    <html lang="en" className={inter.variable}>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

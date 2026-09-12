@@ -1,35 +1,43 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
-  darkMode: 'class',
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
+      // KleeLab editorial palette. This is the single source of truth for
+      // colour - components must use these tokens, never raw hex values.
       colors: {
-        brand: {
-          50: '#f0f7ff',
-          100: '#e0effe',
-          200: '#bae0fd',
-          300: '#7cc7fb',
-          400: '#36a9f7',
-          500: '#0c8de4',
-          600: '#026fc2',
-          700: '#03589e',
-          800: '#074b83',
-          900: '#0c3f6e',
-          950: '#082849',
+        paper: '#f6f7f2',
+        canvas: '#eef1eb',
+        ink: {
+          DEFAULT: '#17231c',
+          soft: '#2a3a30',
         },
-        slate: {
-          850: '#141e2e',
-          950: '#0b0f17',
-        }
+        muted: '#627067',
+        line: {
+          DEFAULT: '#d8e0d5',
+          strong: '#ccd8ca',
+          soft: '#edf0ea',
+        },
+        mint: '#d8e2d2',
+        accent: {
+          DEFAULT: '#e25d3f',
+          dark: '#c94d32',
+        },
+        danger: {
+          DEFAULT: '#a63d24',
+          surface: '#fdf1ed',
+          line: '#f0c3b7',
+        },
+        success: {
+          DEFAULT: '#2c5540',
+          surface: '#eef6f0',
+          line: '#bcd8c2',
+        },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-      }
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['ui-serif', 'Georgia', 'Cambria', '"Times New Roman"', 'serif'],
+      },
     },
   },
   plugins: [],
