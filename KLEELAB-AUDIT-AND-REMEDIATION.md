@@ -297,6 +297,25 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 
 **R0 incidentally resolved:** F0.5 (env files are properly git-ignored).
 
+### R1 Progress Log
+
+**2026-09-12 — R1 core complete**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| R1.1 Canonical schema | ✅ Done | Frontend `src/lib/document.ts`: zod `documentSchema`/`nodeSchema`, `Style` token model, factories, `parseDocument`. Backend `schemas/document.py` mirrors it and is enforced on page create/update **only when `content.document` is present** (422 otherwise), so legacy writes still work. |
+| R1.2 Shared registry | ✅ Done | `src/components/render/registry.tsx` — one `NODE_REGISTRY` covering all 17 node types, plus `NodeRenderer`/`DocumentRenderer`. A client component (event handlers) that still server-renders for SEO. |
+| R1.3 Data migration | 🔀 **Re-sequenced into R2** | Migrating data before the *writer* changes is pointless — the editor still writes legacy `blocks`. Instead the renderer does a non-destructive **read-time** migration (`parseDocument`), so both shapes work today. The Alembic backfill + dropping legacy keys moves to R2, when the editor starts writing documents. |
+| R1.4 Delete server renderer | ✅ Done | `services/static_generator.py` (R0) and `services/renderer.py` (R1) are both gone. `publish_site` no longer generates anything: it marks the site published and returns a real frontend URL (`{FRONTEND_URL}/s/{subdomain}`). |
+| R1.5 Public read API | ✅ Done (added) | New `routers/public.py`: `GET /api/public/sites/{subdomain}` and `.../page?slug=` — published sites only. API went 38 → 40 routes. |
+| R1.6 Published route | ✅ Done | `src/app/s/[subdomain]/[[...slug]]/page.tsx` — dynamic, rendered through the shared registry, with `generateMetadata` from the SEO fields. |
+
+**Verification:** lint 0 errors · build routes `/`, `/_not-found`, `ƒ /s/[subdomain]/[[...slug]]` · typecheck clean · backend import 40 routes, `compileall` 0. The schema, migrator, and style resolver were exercised at runtime with a throwaway Node script: legacy `blocks` (hero/features/contact) and legacy `sections` (hero/gallery) both convert correctly, responsive overrides resolve (`max-md:text-center max-md:py-4`), and invalid documents are rejected.
+
+**Not yet proven end-to-end:** rendering a live published page needs a running database (no DB/fixtures in this environment). Belongs to R3 verification.
+
+**Editor adoption:** the canvas still edits legacy `blocks`. R2 rewires it onto the document model and deletes the legacy path.
+
 ---
 
 ## 9. Decisions (Locked)

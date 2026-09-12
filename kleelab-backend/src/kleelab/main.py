@@ -23,6 +23,7 @@ from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.pages import router as pages_router
 from kleelab.routers.products import router as products_router
 from kleelab.routers.orders import router as orders_router
+from kleelab.routers.public import router as public_router
 from kleelab.routers.seo import router as seo_router
 from kleelab.routers.sites import router as sites_router
 from kleelab.routers.templates import router as templates_router
@@ -54,6 +55,7 @@ app.include_router(gdpr_router)
 app.include_router(sites_router)
 app.include_router(pages_router)
 app.include_router(products_router)
+app.include_router(public_router)
 app.include_router(orders_router)
 app.include_router(seo_router)
 app.include_router(templates_router)

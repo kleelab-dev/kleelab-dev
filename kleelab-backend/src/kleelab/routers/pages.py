@@ -12,6 +12,7 @@ from kleelab.models.page import Page
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.models.page_version import PageVersion
+from kleelab.schemas.document import validate_document_payload
 from kleelab.schemas.page import PageCreate, PageOut, PageUpdate
 
 
@@ -43,6 +44,17 @@ async def get_owned_page(
     return page
 
 
+def validate_content(content: dict | None) -> None:
+    """Reject a malformed document before it is persisted."""
+
+    try:
+        validate_document_payload(content)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
+
+
 @router.get("", response_model=list[PageOut])
 @router.get("/", response_model=list[PageOut], include_in_schema=False)
 async def list_pages(
@@ -64,7 +76,9 @@ async def create_page(
     db: AsyncSession = Depends(get_db),
 ) -> Page:
     await verify_site_ownership(site_id, current_user, db)
-    page = Page(site_id=site_id, **page_data.model_dump())
+    payload = page_data.model_dump()
+    validate_content(payload.get("content"))
+    page = Page(site_id=site_id, **payload)
     db.add(page)
     await db.commit()
     await db.refresh(page)
@@ -92,6 +106,7 @@ async def update_page(
     page = await get_owned_page(site_id, page_id, current_user, db)
     updates = page_data.model_dump(exclude_unset=True)
     if "content" in updates:
+        validate_content(updates["content"])
         latest = await db.scalar(select(PageVersion.version).where(PageVersion.page_id == page.id).order_by(PageVersion.version.desc()).limit(1))
         db.add(PageVersion(page_id=page.id, content=updates["content"] or {}, version=(latest or 0) + 1))
     for field, value in updates.items():

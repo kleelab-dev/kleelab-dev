@@ -6,16 +6,32 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kleelab.core.config import settings
 from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
 from kleelab.core.time import utcnow
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.schemas.site import SiteCreate, SiteOut, SiteUpdate
-from kleelab.services.renderer import generate_static_site
 
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
+
+
+def public_site_url(site: Site) -> str:
+    """Where a published site is reachable.
+
+    Published sites are rendered on demand by the frontend from the stored
+    document, so this points at the frontend path rather than a generated
+    static bundle.
+    """
+
+    if site.custom_domain:
+        return f"https://{site.custom_domain}"
+    base = settings.FRONTEND_URL.rstrip("/")
+    if site.subdomain:
+        return f"{base}/s/{site.subdomain}"
+    return base
 
 
 async def get_owned_site(
@@ -142,9 +158,9 @@ async def publish_site(
     site = await get_owned_site(site_id, current_user, db)
     site.is_published = True
     site.published_at = utcnow()
-    result = await generate_static_site(site.id, db)
     await db.commit()
-    return {"message": "Site published", "url": result["url"]}
+    await db.refresh(site)
+    return {"message": "Site published", "url": public_site_url(site)}
 
 
 @router.put(
