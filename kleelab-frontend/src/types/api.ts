@@ -10,15 +10,16 @@ export interface User {
 export interface Site {
   id: string;
   name: string;
-  subdomain: string;
+  subdomain: string | null;
   custom_domain?: string | null;
   is_published: boolean;
-  owner_id: string;
   template_id?: string | null;
+  // Optional: present only on endpoints that join extra data.
+  owner_id?: string;
   pages_count?: number;
   products_count?: number;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Page {

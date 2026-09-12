@@ -325,9 +325,10 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 | R2.2 Document store | ✅ Done | `src/lib/editor/tree.ts` (immutable tree ops: find/insert/move/remove/clone, self-descendant guard) + `src/lib/editor/store.ts` (Zustand: document, selection, 50-step history, device, per-breakpoint style targets). |
 | R2.3 Nested drag-and-drop | ✅ Core done | `@dnd-kit` with a palette (13 blocks) and a recursive sortable canvas. Custom collision detection (pointer-based, deepest-node preference) plus edge-aware `before / after / inside` placement. |
 | R2.4 Properties panel | ✅ Done | `Inspector.tsx`: per-type content controls (heading/text/button/link/image/list/spacer/nav/footer) and layout tokens (background, colour, align, size, padding, gap, radius, shadow, max-width) targeting **all / tablet / mobile**. |
-| R2.1 Real routes | 🟡 Partial | `/builder/[siteId]/edit` live and reachable from the site picker **and** straight after site creation. Still to come: `/builder/dashboard`, `/builder/new`, `/preview`, `/settings`. |
-| R2.5 Media manager + assets upload | ⬜ Not started | Needs a backend assets router; image blocks currently take a URL. |
-| R2.6 Templates as documents | ⬜ Not started | Templates still seed legacy blocks; `parseDocument` migrates them on first open. |
+| R2.1 Real routes | ✅ Done | `/builder/dashboard` (sites list, publish/unpublish, open editor, settings, delete, sign out), `/builder/new` (template onboarding), `/builder/[siteId]/settings` (name, subdomain, custom domain, per-page SEO, publish, delete). Editor + settings reachable from the dashboard; editor toolbar links back to it. |
+| R2.5 Media manager + assets upload | ⬜ **Remaining** | Needs a backend assets router **and a storage decision** (S3/R2 credentials). Image blocks take a URL for now. |
+| R2.6 Templates as documents | ✅ Done | `src/lib/templates.ts` builds a full canonical document per template category (`config.document` wins when a template record ships one). New sites are now seeded with a **document**, not legacy blocks. |
+| Page switching | ✅ Done (added) | `PagesBar` + `openPage`/`createPage` in the editor. Switching **flushes the pending autosave first**, so edits cannot be lost when changing pages. |
 
 **The original complaint is now fixed:** drag-and-drop exists and works.
 
@@ -339,6 +340,10 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 - build / lint / typecheck all green; routes `/`, `/_not-found`, `ƒ /builder/[siteId]/edit`, `ƒ /s/[subdomain]/[[...slug]]`
 
 **Bug found and fixed during verification:** applying `closestCenter` alone resolved drops onto the page root whenever a node was dragged by its own handle (element-centre vs cursor), so moves silently did nothing. Replaced with pointer-based collision detection preferring the deepest droppable.
+
+**Second bug found and fixed:** `api.updatePage` always sent a `content` key, so any metadata-only update (site settings, SEO) would have **overwritten the stored page document with `{}`**. Content is now only sent when explicitly supplied. This is exactly the class of silent data-loss the original editor/renderer mismatch caused.
+
+**Routes after R2:** `/`, `/_not-found`, `○ /builder/dashboard`, `○ /builder/new`, `ƒ /builder/[siteId]/edit`, `ƒ /builder/[siteId]/settings`, `ƒ /s/[subdomain]/[[...slug]]`. Browser-verified: dashboard renders its signed-out state, `/builder/new` renders the template onboarding, and the editor shows the new `PAGES / Add page` bar alongside the palette.
 
 **Known gaps**
 - The palette and inspector are `lg:`/`xl:`-only, so narrow viewports show canvas alone. Needs a collapsible/mobile treatment.

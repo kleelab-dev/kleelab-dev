@@ -17,12 +17,13 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { apiService } from '@/services/api';
-import { parseDocument, type NodeType } from '@/lib/document';
+import { createDocument, parseDocument, type KleeLabDocument, type NodeType } from '@/lib/document';
 import { useEditorStore } from '@/lib/editor/store';
 import { canHaveChildren, findNode, findParent } from '@/lib/editor/tree';
 import { nodeFromPalette, nodeLabel, PALETTE_BY_TYPE } from '@/lib/editor/palette';
 import type { Page, Site } from '@/types/api';
 import { Canvas } from './Canvas';
+import { PagesBar } from './PagesBar';
 import { Palette } from './Palette';
 import { Inspector } from './Inspector';
 import { EditorBanner, Toolbar } from './Toolbar';
@@ -99,6 +100,25 @@ export function EditorShell({ siteId }: { siteId: string }) {
     };
   }, [siteId]);
 
+  const pending = useRef<{ signature: string; pageId: string; document: KleeLabDocument } | null>(null);
+
+  /** Write any queued change immediately. Used before switching pages. */
+  const saveNow = useCallback(async () => {
+    const queued = pending.current;
+    if (!queued) return;
+    pending.current = null;
+    const store = useEditorStore.getState();
+    store.setSaveState('saving');
+    try {
+      await apiService.saveDocument(siteId, queued.pageId, queued.document);
+      lastSaved.current = queued.signature;
+      store.setSaveState('saved');
+    } catch (reason) {
+      store.setError(reason instanceof Error ? reason.message : 'Unable to save changes');
+      store.setSaveState('error');
+    }
+  }, [siteId]);
+
   // Autosave. State is only touched from the debounce callback, never
   // synchronously in the effect body.
   useEffect(() => {
@@ -106,23 +126,44 @@ export function EditorShell({ siteId }: { siteId: string }) {
     const signature = JSON.stringify(document);
     if (signature === lastSaved.current) return;
 
+    pending.current = { signature, pageId, document };
     const timer = window.setTimeout(() => {
-      const store = useEditorStore.getState();
-      store.setSaveState('saving');
-      apiService
-        .saveDocument(siteId, pageId, document)
-        .then(() => {
-          lastSaved.current = signature;
-          store.setSaveState('saved');
-        })
-        .catch((reason: Error) => {
-          store.setError(reason.message);
-          store.setSaveState('error');
-        });
+      void saveNow();
     }, 800);
 
     return () => window.clearTimeout(timer);
-  }, [document, loaded, pageId, siteId]);
+  }, [document, loaded, pageId, saveNow]);
+
+  /** Load a page into the canvas, saving the current one first. */
+  const openPage = useCallback(
+    async (page: Page) => {
+      await saveNow();
+      const doc = parseDocument(page.content_json, page.title);
+      pending.current = null;
+      lastSaved.current = JSON.stringify(doc);
+      useEditorStore.getState().load(doc);
+      setPageId(page.id);
+    },
+    [saveNow],
+  );
+
+  const createPage = useCallback(async () => {
+    const title = `Page ${pages.length + 1}`;
+    try {
+      await saveNow();
+      const created = await apiService.createPage(siteId, {
+        title,
+        slug: `/page-${pages.length + 1}`,
+        content_json: { document: createDocument(title) },
+      });
+      setPages((current) => [...current, created]);
+      await openPage(created);
+    } catch (reason) {
+      useEditorStore.getState().setError(
+        reason instanceof Error ? reason.message : 'Unable to create page',
+      );
+    }
+  }, [openPage, pages.length, saveNow, siteId]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const data = event.active.data.current as DragData | undefined;
@@ -220,8 +261,6 @@ export function EditorShell({ siteId }: { siteId: string }) {
       .finally(() => setIsPublishing(false));
   }, [siteId]);
 
-  const currentPage = pages.find((page) => page.id === pageId);
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       <Toolbar
@@ -230,7 +269,8 @@ export function EditorShell({ siteId }: { siteId: string }) {
         saveState={saveState}
         isPublishing={isPublishing}
         onPublish={publish}
-        onBack={() => router.push('/')}
+        onBack={() => router.push('/builder/dashboard')}
+        onSettings={() => router.push(`/builder/${siteId}/settings`)}
       />
       <EditorBanner
         error={error}
@@ -239,6 +279,14 @@ export function EditorShell({ siteId }: { siteId: string }) {
           setError(null);
           setNotice(null);
         }}
+      />
+
+      <PagesBar
+        pages={pages}
+        currentPageId={pageId}
+        busy={!loaded}
+        onSelect={openPage}
+        onCreate={createPage}
       />
 
       <DndContext
@@ -260,11 +308,6 @@ export function EditorShell({ siteId }: { siteId: string }) {
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      <footer className="flex items-center justify-between border-t border-line bg-paper px-4 py-2 text-[10px] text-muted">
-        <span>Editing “{currentPage?.title ?? '—'}”</span>
-        <span>{pages.length} page{pages.length === 1 ? '' : 's'}</span>
-      </footer>
     </div>
   );
 }

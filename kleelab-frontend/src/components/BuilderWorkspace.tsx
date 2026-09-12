@@ -10,6 +10,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { apiService } from '@/services/api';
+import { documentFromTemplate } from '@/lib/templates';
 import { BuilderBlock, BlockType, Page, Site, Template } from '@/types/api';
 import { EditorCanvas } from '@/components/EditorCanvas';
 
@@ -22,22 +23,6 @@ const blockCatalog: Array<{ type: BlockType; label: string; description: string 
   { type: 'contact', label: 'Contact form', description: 'Make it easy for people to reach you' },
 ];
 
-function blocksFromTemplate(template: Template): BuilderBlock[] {
-  const sections = Array.isArray(template.config?.sections) ? template.config.sections : ['hero', 'text', 'form'];
-  return sections.map((section, index) => {
-    const type = String(section) === 'form' ? 'contact' : blockCatalog.some((item) => item.type === section) ? section as BlockType : 'text';
-    const catalogItem = blockCatalog.find((item) => item.type === type)!;
-    return {
-      id: `${type}-${index}`,
-      type,
-      eyebrow: type === 'hero' ? template.category : undefined,
-      title: type === 'hero' ? `Your ${template.title} starts here` : catalogItem.label,
-      body: catalogItem.description,
-      cta: type === 'hero' ? 'Learn more' : undefined,
-      items: type === 'features' ? ['First point', 'Second point', 'Third point'] : undefined,
-    };
-  });
-}
 
 /** Escape user-authored copy before writing it into the preview window. */
 function escapeHtml(value: string): string {
@@ -217,13 +202,12 @@ export function BuilderWorkspace() {
     setError(null);
     try {
       const site = await apiService.createSite({ name, subdomain: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), template_id: selectedTemplate.id });
-      const initialBlocks = blocksFromTemplate(selectedTemplate);
-      const page = await apiService.createPage(site.id, { title: 'Home', slug: '/', content_json: { version: 1, blocks: initialBlocks } });
+      const initialDocument = documentFromTemplate(selectedTemplate);
+      const page = await apiService.createPage(site.id, { title: 'Home', slug: '/', content_json: { document: initialDocument } });
       setSites((current) => [site, ...current]);
       setSelectedSite(site);
       setPages([page]);
       setSelectedPage(page);
-      loadBlocks(initialBlocks);
       setNotice(null);
       router.push(`/builder/${site.id}/edit`);
     } catch (reason) {

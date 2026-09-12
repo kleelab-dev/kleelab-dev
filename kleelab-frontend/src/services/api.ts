@@ -53,6 +53,21 @@ function normalizePage(page: Record<string, unknown>): Page {
   return { ...page, content_json: page.content || {} } as Page;
 }
 
+/**
+ * Translate the frontend Page shape into the backend payload.
+ *
+ * `content` is only included when `content_json` was supplied — otherwise a
+ * metadata-only update would overwrite the stored document with `{}`.
+ */
+function serializePagePayload(pageData: Partial<Page>, isCreate = false): Record<string, unknown> {
+  const { content_json, ...rest } = pageData;
+  const payload: Record<string, unknown> = { ...rest };
+  if (content_json !== undefined || isCreate) {
+    payload.content = content_json ?? {};
+  }
+  return payload;
+}
+
 function normalizeTemplate(template: Record<string, unknown>): Template {
   const config = (template.config || {}) as Record<string, unknown>;
   return {
@@ -98,18 +113,40 @@ export const apiService = {
     return request<Site>('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   },
 
+  async updateSite(siteId: string, data: Partial<Site>): Promise<Site> {
+    return request<Site>(`/api/sites/${siteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  },
+
+  async deleteSite(siteId: string): Promise<void> {
+    return request<void>(`/api/sites/${siteId}`, { method: 'DELETE' });
+  },
+
+  async unpublishSite(siteId: string): Promise<void> {
+    return request<void>(`/api/sites/${siteId}/unpublish`, { method: 'POST' });
+  },
+
   async getPages(siteId: string): Promise<Page[]> {
     const pages = await request<Record<string, unknown>[]>(`/api/sites/${siteId}/pages`);
     return pages.map(normalizePage);
   },
 
   async createPage(siteId: string, pageData: Partial<Page>): Promise<Page> {
-    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...pageData, content: pageData.content_json || {} }) });
+    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializePagePayload(pageData, true)) });
     return normalizePage(page);
   },
 
   async updatePage(siteId: string, pageId: string, pageData: Partial<Page>): Promise<Page> {
-    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages/${pageId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...pageData, content: pageData.content_json || {} }) });
+    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages/${pageId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializePagePayload(pageData)) });
+    return normalizePage(page);
+  },
+
+  /** Update SEO metadata without touching page content. */
+  async updatePageSeo(
+    siteId: string,
+    pageId: string,
+    seo: { meta_title?: string; meta_description?: string },
+  ): Promise<Page> {
+    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages/${pageId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seo) });
     return normalizePage(page);
   },
 

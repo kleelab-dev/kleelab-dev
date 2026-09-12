@@ -5,6 +5,7 @@ import {
   ArrowPathIcon,
   ArrowUturnLeftIcon,
   CheckCircleIcon,
+  Cog6ToothIcon,
   ComputerDesktopIcon,
   DevicePhoneMobileIcon,
   DeviceTabletIcon,
@@ -27,6 +28,7 @@ type Props = {
   isPublishing: boolean;
   onPublish: () => void;
   onBack: () => void;
+  onSettings: () => void;
 };
 
 const SAVE_LABEL: Record<SaveState, string> = {
@@ -36,7 +38,7 @@ const SAVE_LABEL: Record<SaveState, string> = {
   error: 'Save failed',
 };
 
-export function Toolbar({ siteName, publicUrl, saveState, isPublishing, onPublish, onBack }: Props) {
+export function Toolbar({ siteName, publicUrl, saveState, isPublishing, onPublish, onBack, onSettings }: Props) {
   const device = useEditorStore((state) => state.device);
   const setDevice = useEditorStore((state) => state.setDevice);
   const undo = useEditorStore((state) => state.undo);
@@ -118,6 +120,14 @@ export function Toolbar({ siteName, publicUrl, saveState, isPublishing, onPublis
         >
           {isPublishing ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <RocketLaunchIcon className="h-4 w-4" />}
           {isPublishing ? 'Publishing…' : 'Publish'}
+        </button>
+        <button
+          type="button"
+          onClick={onSettings}
+          className="rounded-lg border border-line-strong bg-white p-2 text-muted hover:border-ink hover:text-ink"
+          title="Site settings"
+        >
+          <Cog6ToothIcon className="h-4 w-4" />
         </button>
       </div>
     </header>
