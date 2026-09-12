@@ -1,4 +1,4 @@
-import { BuilderBlock, Page, Site, Template, User } from '@/types/api';
+import { Asset, BuilderBlock, Page, Site, Template, User } from '@/types/api';
 
 // Preferred path: leave this empty so requests go to the relative /api/* routes
 // and Next.js proxies them to the backend (see `rewrites` in next.config.mjs).
@@ -166,5 +166,18 @@ export const apiService = {
     meta: Partial<Pick<Page, 'title' | 'seo_title' | 'seo_description'>> = {},
   ): Promise<Page> {
     return this.updatePage(siteId, pageId, { content_json: { document }, ...meta });
+  },
+
+  async getAssets(siteId: string): Promise<Asset[]> {
+    return request<Asset[]>(`/api/sites/${siteId}/assets`);
+  },
+
+  /** Upload an image (as a base64 data URL) and return the stored asset. */
+  async uploadAsset(siteId: string, payload: { filename: string; data: string }): Promise<Asset> {
+    return request<Asset>(`/api/sites/${siteId}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  },
+
+  async deleteAsset(siteId: string, assetId: string): Promise<void> {
+    return request<void>(`/api/sites/${siteId}/assets/${assetId}`, { method: 'DELETE' });
   },
 };

@@ -16,6 +16,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { AdjustmentsHorizontalIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 import { apiService } from '@/services/api';
 import { createDocument, parseDocument, type KleeLabDocument, type NodeType } from '@/lib/document';
 import { useEditorStore } from '@/lib/editor/store';
@@ -59,6 +60,7 @@ export function EditorShell({ siteId }: { siteId: string }) {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [panel, setPanel] = useState<'none' | 'blocks' | 'inspector'>('none');
 
   const document = useEditorStore((state) => state.document);
   const loaded = useEditorStore((state) => state.loaded);
@@ -295,10 +297,28 @@ export function EditorShell({ siteId }: { siteId: string }) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
+        {/* The sidebars are unavailable below lg/xl, so offer a drawer instead. */}
+        <div className="flex items-center gap-2 border-b border-line bg-paper px-3 py-2 xl:hidden">
+          <button
+            type="button"
+            onClick={() => setPanel('blocks')}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-white px-3 py-1.5 text-xs font-bold hover:border-ink lg:hidden"
+          >
+            <Squares2X2Icon className="h-3.5 w-3.5" /> Blocks
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanel('inspector')}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-white px-3 py-1.5 text-xs font-bold hover:border-ink"
+          >
+            <AdjustmentsHorizontalIcon className="h-3.5 w-3.5" /> Inspector
+          </button>
+        </div>
+
         <div className="flex min-h-0 flex-1">
-          <Palette />
+          <Palette className="hidden lg:flex" />
           <Canvas />
-          <Inspector />
+          <Inspector className="hidden xl:flex" siteId={siteId} />
         </div>
         <DragOverlay>
           {dragging ? (
@@ -307,6 +327,34 @@ export function EditorShell({ siteId }: { siteId: string }) {
             </span>
           ) : null}
         </DragOverlay>
+
+        {panel !== 'none' && (
+          <div className="fixed inset-0 z-50 flex justify-end xl:hidden">
+            <button
+              type="button"
+              aria-label="Close panel"
+              onClick={() => setPanel('none')}
+              className="flex-1 bg-ink/40"
+            />
+            <div className="flex h-full w-[85vw] max-w-sm flex-col bg-paper shadow-2xl">
+              <div className="flex items-center justify-between border-b border-line px-4 py-3">
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+                  {panel === 'blocks' ? 'Blocks' : 'Inspector'}
+                </span>
+                <button type="button" onClick={() => setPanel('none')} className="text-xs font-bold underline underline-offset-2">
+                  Done
+                </button>
+              </div>
+              <div className="flex min-h-0 flex-1 overflow-hidden">
+                {panel === 'blocks' ? (
+                  <Palette className="w-full border-r-0" onPick={() => setPanel('none')} />
+                ) : (
+                  <Inspector className="w-full border-l-0" siteId={siteId} />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </DndContext>
     </div>
   );

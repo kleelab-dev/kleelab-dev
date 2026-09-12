@@ -316,6 +316,26 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 
 **Editor adoption:** the canvas still edits legacy `blocks`. R2 rewires it onto the document model and deletes the legacy path.
 
+### Cleanup, Responsive Editor & R3 Routing (2026-09-12)
+
+| Item | Result |
+|------|--------|
+| Trim superseded editor | `BuilderWorkspace` rewritten as pure onboarding (site picker + template chooser); `EditorCanvas.tsx` **deleted**; every hardcoded hex replaced with design tokens. **Lint is now completely clean (0 problems).** |
+| Responsive editor | `Palette`/`Inspector` accept a `className`; the shell adds a mobile panel switcher and drawer, so both are reachable below `lg`/`xl` instead of being unreachable. |
+| Host routing | New `src/proxy.ts` (Next 16's renamed middleware): `{sub}.kleelab.com` → `/s/{sub}`; custom domains resolved through `GET /api/public/resolve` with a 60 s cache. |
+| Sitemap / robots | Per-site `robots.txt` and `sitemap.xml` route handlers; an app-level `robots.ts` disallows `/builder` and `/api`. |
+| Cache invalidation | **Deliberately not added.** Published pages render with `cache: 'no-store'`, so content is always fresh and there is nothing to invalidate. Tag-based caching is the optimisation path once traffic justifies it (`revalidateTag(tag, 'max')` / `updateTag`). |
+
+**Verified by spoofing `Host` headers against the running stack:**
+- `Host: {sub}.kleelab.com` → 200 serving the published site (subdomain rewrite)
+- `Host: {custom-domain}` → 200 serving the published site (resolution via the API)
+- `/s/{sub}/robots.txt` → 200 with the `Sitemap:` line
+- `/s/{sub}/sitemap.xml` → 200, valid XML listing both pages
+
+> `next build` prints the sitemap route as `/s/-/sitemap.xml`. That is Next's placeholder for a dynamic metadata route — the live path and output are correct.
+
+The frontend `Asset` type (previously fictional — `file_name`/`file_url`/`mime_type`) now matches the backend `AssetOut`.
+
 ### R2 Progress Log
 
 **2026-09-12 — R2 core (drag-and-drop editor) working**
@@ -326,7 +346,7 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 | R2.3 Nested drag-and-drop | ✅ Core done | `@dnd-kit` with a palette (13 blocks) and a recursive sortable canvas. Custom collision detection (pointer-based, deepest-node preference) plus edge-aware `before / after / inside` placement. |
 | R2.4 Properties panel | ✅ Done | `Inspector.tsx`: per-type content controls (heading/text/button/link/image/list/spacer/nav/footer) and layout tokens (background, colour, align, size, padding, gap, radius, shadow, max-width) targeting **all / tablet / mobile**. |
 | R2.1 Real routes | ✅ Done | `/builder/dashboard` (sites list, publish/unpublish, open editor, settings, delete, sign out), `/builder/new` (template onboarding), `/builder/[siteId]/settings` (name, subdomain, custom domain, per-page SEO, publish, delete). Editor + settings reachable from the dashboard; editor toolbar links back to it. |
-| R2.5 Media manager + assets upload | ⬜ **Remaining** | Needs a backend assets router **and a storage decision** (S3/R2 credentials). Image blocks take a URL for now. |
+| R2.5 Media manager + assets upload | ✅ Done (provider pending) | Cloudinary chosen. New `routers/assets.py` (list/upload/delete; uploads are JSON data-URLs, avoiding a multipart dependency), `services/storage.py` (signed REST upload using only the standard library), `schemas/asset.py`. The inspector gained an image picker with an upload control. Verified: list `200`, a valid image returns a clear **503** while `CLOUDINARY_URL` is unset, and a bad type returns **422**. **A real upload stays unverified until credentials exist.** |
 | R2.6 Templates as documents | ✅ Done | `src/lib/templates.ts` builds a full canonical document per template category (`config.document` wins when a template record ships one). New sites are now seeded with a **document**, not legacy blocks. |
 | Page switching | ✅ Done (added) | `PagesBar` + `openPage`/`createPage` in the editor. Switching **flushes the pending autosave first**, so edits cannot be lost when changing pages. |
 

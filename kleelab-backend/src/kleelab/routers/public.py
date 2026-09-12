@@ -62,6 +62,28 @@ def serialize_page(page: Page) -> dict[str, Any]:
     }
 
 
+@router.get("/resolve")
+async def resolve_host(host: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    """Map a custom domain to the published site that claims it.
+
+    Used by the frontend's request proxy to serve a site on its own domain.
+    """
+
+    normalized = host.strip().lower().split(":")[0]
+    site = await db.scalar(
+        select(Site).where(
+            Site.custom_domain == normalized,
+            Site.is_published.is_(True),
+        )
+    )
+    if site is None or not site.subdomain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No published site for that host",
+        )
+    return {"subdomain": site.subdomain}
+
+
 @router.get("/sites/{subdomain}")
 async def public_site(subdomain: str, db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     """Return a published site's metadata and page list."""

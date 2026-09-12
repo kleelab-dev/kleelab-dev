@@ -18,6 +18,7 @@ from kleelab.core.middleware import RateLimitMiddleware
 from kleelab.core.config import settings
 from kleelab.routers.auth import router as auth_router
 from kleelab.routers.analytics import router as analytics_router
+from kleelab.routers.assets import router as assets_router
 from kleelab.routers.dashboard import router as dashboard_router
 from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.pages import router as pages_router
@@ -49,6 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth_router)
+app.include_router(assets_router)
 app.include_router(analytics_router)
 app.include_router(dashboard_router)
 app.include_router(gdpr_router)

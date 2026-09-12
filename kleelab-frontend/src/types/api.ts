@@ -82,11 +82,11 @@ export interface Order {
 
 export interface Asset {
   id: string;
-  site_id: string;
-  file_name: string;
-  file_url: string;
+  site_id: string | null;
+  filename: string;
+  file_type: string;
   file_size: number;
-  mime_type: string;
+  url: string;
   created_at: string;
 }
 

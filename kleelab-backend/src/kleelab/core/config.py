@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str | None = None
     SENDGRID_FROM_EMAIL: str = "noreply@kleelab.com"
     SLACK_WEBHOOK_URL: str | None = None
+    # Cloudinary credential, supplied in the conventional URI form:
+    # cloudinary://<api_key>:<api_secret>@<cloud_name>
+    CLOUDINARY_URL: str | None = None
+    CLOUDINARY_FOLDER: str = "kleelab"
+    # Upload guard rails for site media.
+    MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env",

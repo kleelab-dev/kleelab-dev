@@ -1,5 +1,9 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element -- previews arbitrary user-supplied
+   and Cloudinary-hosted image URLs. */
+
+import { useState } from 'react';
 import { DocumentDuplicateIcon, TrashIcon } from '@heroicons/react/24/outline';
 import {
   ALIGNMENTS,
@@ -14,6 +18,7 @@ import {
   type Style,
 } from '@/lib/document';
 import { useEditorStore, type StyleTarget } from '@/lib/editor/store';
+import { apiService } from '@/services/api';
 import { useSelectedNode } from '@/components/editor/Canvas';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -102,8 +107,65 @@ const asNumber = (value: unknown, fallback: number): number =>
 const asLines = (value: unknown): string =>
   Array.isArray(value) ? value.filter((item) => typeof item === 'string').join('\n') : '';
 
+/** Image source plus an upload control backed by the assets API. */
+function ImageControls({ node, siteId }: { node: Node; siteId: string | null }) {
+  const updateProps = useEditorStore((state) => state.updateProps);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const src = asString(node.props.src);
+
+  const upload = async (file: File | undefined) => {
+    if (!file || !siteId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read that file.'));
+        reader.readAsDataURL(file);
+      });
+      const asset = await apiService.uploadAsset(siteId, { filename: file.name, data: dataUrl });
+      updateProps(node.id, { src: asset.url, alt: asString(node.props.alt) || file.name });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-3">
+      <TextField
+        label="Image URL"
+        value={src}
+        onChange={(value) => updateProps(node.id, { src: value })}
+      />
+      <TextField
+        label="Alt text"
+        value={asString(node.props.alt)}
+        onChange={(alt) => updateProps(node.id, { alt })}
+      />
+      <Field label="Upload from your device">
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+          disabled={busy || !siteId}
+          onChange={(event) => void upload(event.target.files?.[0])}
+          className="w-full text-[11px]"
+        />
+      </Field>
+      {busy && <p className="text-[10px] text-muted">Uploading…</p>}
+      {error && <p className="text-[10px] leading-4 text-danger">{error}</p>}
+      {src && (
+        <img src={src} alt="" className="h-24 w-full rounded-lg object-cover ring-1 ring-line" />
+      )}
+    </div>
+  );
+}
+
 /** Content controls depend on the node type. */
-function ContentControls({ node }: { node: Node }) {
+function ContentControls({ node, siteId }: { node: Node; siteId: string | null }) {
   const updateProps = useEditorStore((state) => state.updateProps);
   const set = (patch: Record<string, unknown>) => updateProps(node.id, patch);
 
@@ -131,12 +193,7 @@ function ContentControls({ node }: { node: Node }) {
         </>
       );
     case 'image':
-      return (
-        <>
-          <TextField label="Image URL" value={asString(node.props.src)} onChange={(src) => set({ src })} />
-          <TextField label="Alt text" value={asString(node.props.alt)} onChange={(alt) => set({ alt })} />
-        </>
-      );
+      return <ImageControls node={node} siteId={siteId} />;
     case 'list':
       return (
         <AreaField
@@ -223,14 +280,14 @@ function LayoutControls({ node }: { node: Node }) {
   );
 }
 
-export function Inspector() {
+export function Inspector({ className = '', siteId }: { className?: string; siteId: string | null }) {
   const node = useSelectedNode();
   const duplicateNode = useEditorStore((state) => state.duplicateNode);
   const removeNode = useEditorStore((state) => state.removeNode);
 
   if (!node) {
     return (
-      <aside className="hidden w-72 shrink-0 border-l border-line bg-paper p-4 xl:block">
+      <aside className={`w-72 shrink-0 border-l border-line bg-paper p-4 ${className}`}>
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">Inspector</p>
         <p className="mt-3 text-xs leading-5 text-muted">
           Select a block on the canvas to edit its content and layout.
@@ -242,7 +299,7 @@ export function Inspector() {
   const isRoot = node.type === 'page';
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto border-l border-line bg-paper p-4 xl:flex">
+    <aside className={`flex w-72 shrink-0 flex-col overflow-y-auto border-l border-line bg-paper p-4 ${className}`}>
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
           {node.type}
@@ -270,7 +327,7 @@ export function Inspector() {
       </div>
 
       <div className="mt-4 grid gap-3 border-b border-line pb-4">
-        <ContentControls node={node} />
+        <ContentControls node={node} siteId={siteId} />
       </div>
 
       <div className="mt-4">
