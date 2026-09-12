@@ -55,7 +55,7 @@ kleelab-dev/
 | **F0.1** | P2 | `render.yaml` deploys **only** `kleelab-api` + `kleelab-db`. There is **no frontend deployment target**. The site has no home in production. |
 | **F0.2** | P2 | No CI workflow, no test suite anywhere (backend or frontend). `npm run build` / `pytest` are never gated. |
 | **F0.3** | P2 | `graphify-out/` is committed cache (AST hashes). Harmless but should be git-ignored if not intentionally versioned. |
-| **F0.4** | **P0** | **`next@14.2.35` carries a large vulnerability cluster, including critical advisories** (`npm audit`: 4 high, 1 critical) — unauthenticated RCE on Windows-hosted servers, RCE in the Image Optimization API (AVIF), SSRF in rewrites/Server Actions, cache poisoning, and multiple DoS vectors. Also `glob` (high) via `eslint-config-next`. **Fix requires upgrading to `next@16` — a breaking change.** This directly affects the D2 decision (publishing runs on Next.js), so it must be resolved before R3. |
+| **F0.4** | ✅ Resolved | `next@14.2.35` carried a critical vulnerability cluster (unauthenticated RCE, Image Optimizer RCE, SSRF, cache poisoning, DoS) plus a high `glob` advisory. **Upgraded to `next@16.3.5` / `react@19.3.0`; `npm audit` now reports 0 vulnerabilities.** See the R0.6 log entry. |
 | **F0.5** | ✅ Resolved | `.env` and `.env.local` **are** correctly listed in the root `.gitignore`, so they are not committed. No action needed. |
 
 ---
@@ -277,13 +277,23 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 | R0.2 Brand source of truth | ✅ Done | `tailwind.config.js`, `globals.css`, and `layout.tsx` rewritten to the light editorial theme with named tokens (`paper`, `canvas`, `ink`, `muted`, `line`, `mint`, `accent`, `danger`, `success`) plus CSS variables. Dark "Control Center" remnants removed. Component-level hex sweep folded into R2 (see note). |
 | R0.3 Tooling | ✅ Done | Added `zustand`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `zod`. |
 | R0.4 Types from OpenAPI | ✅ Done | Backend schema dumped (38 endpoints) → `openapi.json` contract snapshot at the frontend root → `src/types/api.gen.ts` (73 KB) generated via the new `types:api` script. **Adoption** of the generated types (replacing the hand-written/fictional ones) happens in R1/R2. |
-| R0.5 CI | ✅ Done | `.github/workflows/ci.yml` added: frontend `npm ci` → `typecheck` → `build`; backend `pip install` → import smoke → `compileall`. All steps verified locally. Added a `typecheck` script. |
+| R0.5 CI | ✅ Done | `.github/workflows/ci.yml` added: frontend `npm ci` → `lint` → `typecheck` → `build`; backend `pip install` → import smoke → `compileall`. All steps verified locally. |
+| R0.6 Next.js 16 upgrade | ✅ Done | `next@16.3.5`, `react`/`react-dom`@19.3.0, `@types/react(-dom)`@19, `eslint-config-next`@16, `eslint`@9. **`npm audit`: 0 vulnerabilities.** See details below. |
 
 **R0.2 deferral note:** the hex-sweep in `BuilderWorkspace.tsx` / `EditorCanvas.tsx` was **deliberately deferred into R2**, because both components are replaced by the freeform rebuild. `EditorCanvas.tsx` also contains 2,291-character lines that fall outside safe single-edit boundaries. Sweeping colours out of files that are about to be deleted is wasted churn; the tokens are in place for R1/R2 to consume.
 
-**Verification:** `npm run typecheck` clean; `next build` passes (`/` = 9.87 kB, 97.1 kB First Load JS); backend import smoke prints 38 routes; `compileall` exit 0.
+**Verification:** `npm run lint` (0 errors, 1 warning), `npm run typecheck` clean, `next build` passes, dev server serves `GET / 200`, backend import smoke prints 38 routes, `compileall` exit 0.
 
-**Blocker raised:** F0.4 — the Next.js version must be upgraded (14 → 16) before R3 publishing ships.
+**R0.6 — Next.js 16 upgrade notes** (the F0.4 blocker, now cleared):
+- Ran the upgrade **manually** rather than via the interactive codemod: every codemod migration was verified non-applicable (no `middleware.ts`, no `experimental.turbo` config, no `unstable_` APIs, no `experimental_ppr`).
+- **`next lint` is removed in 16**, and the project had **no ESLint config at all** (so it never actually ran). Added `eslint.config.mjs` (flat config, `core-web-vitals` + `typescript`) and changed the script to `eslint .`.
+- **`eslint@latest` resolved to v10, which `eslint-config-next`'s bundled `eslint-plugin-react` does not support yet** (crashed with `contextOrFilename.getFilename is not a function`). Pinned to `eslint@^9`.
+- Fixed the one real lint error: `react-hooks/set-state-in-effect` flagged the mount effect in `BuilderWorkspace`; the template fetch now updates state inside promise callbacks (which also added an unmount-safety `active` guard).
+- Next.js auto-adjusted `tsconfig.json` (`jsx: react-jsx`, `target: ES2017`, `.next/dev/types` include).
+- Added `turbopack.root` to `next.config.mjs` — Next had inferred the workspace root outside the repo (it warned about `~/pnpm-lock.yaml`).
+- Next 16 now auto-generates `AGENTS.md` + `CLAUDE.md` (agent docs); kept them, since `next dev` re-creates them and the official guide recommends the setup.
+- **Remaining lint warning (deliberate):** `@next/next/no-img-element` on the template thumbnail in `BuilderWorkspace` (line ~496). Template thumbnails are arbitrary remote URLs; `next/image` would require widening `images.remotePatterns` to all hosts. Resolved by R2's media manager.
+- **R3 implications:** host routing must be written as `proxy.ts` (not `middleware.ts`; Node runtime only), request APIs (`params`/`searchParams`/`cookies`) are async-only, and cache invalidation now uses `revalidateTag(tag, profile)` / `updateTag`.
 
 **R0 incidentally resolved:** F0.5 (env files are properly git-ignored).
 

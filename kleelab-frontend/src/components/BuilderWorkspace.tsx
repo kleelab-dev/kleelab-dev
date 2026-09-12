@@ -81,7 +81,9 @@ export function BuilderWorkspace() {
   const lastSavedRef = useRef<string>('');
 
   const loadTemplates = useCallback(async () => {
-    setIsLoadingTemplates(true);
+    // Deliberately does not set isLoadingTemplates(true) here: the state already
+    // starts as true, and setting it synchronously from the mount effect trips
+    // react-hooks/set-state-in-effect. The retry button sets it explicitly.
     try {
       setTemplates(await apiService.getTemplates());
       setError(null);
@@ -93,11 +95,30 @@ export function BuilderWorkspace() {
   }, []);
 
   useEffect(() => {
-    void loadTemplates();
+    // Fetch through promise callbacks rather than by calling the async loader
+    // directly: react-hooks/set-state-in-effect forbids setState that is
+    // reachable synchronously from an effect. The `active` flag also prevents
+    // state updates after unmount.
+    let active = true;
+    apiService.getTemplates()
+      .then((data) => {
+        if (!active) return;
+        setTemplates(data);
+        setError(null);
+      })
+      .catch((reason: Error) => {
+        if (active) setError(reason.message);
+      })
+      .finally(() => {
+        if (active) setIsLoadingTemplates(false);
+      });
     if (window.localStorage.getItem('kleelab_access_token')) {
-      apiService.getSites().then(setSites).catch((reason: Error) => setError(reason.message));
+      apiService.getSites()
+        .then((sites) => { if (active) setSites(sites); })
+        .catch((reason: Error) => { if (active) setError(reason.message); });
     }
-  }, [loadTemplates]);
+    return () => { active = false; };
+  }, []);
 
   const siteId = selectedSite?.id ?? null;
   const pageId = selectedPage?.id ?? null;
@@ -457,7 +478,7 @@ export function BuilderWorkspace() {
                   <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#627067]">
                     {error || 'The template library is empty right now.'}
                   </p>
-                  <button onClick={() => void loadTemplates()} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#17231c] px-5 py-3 text-sm font-bold text-white hover:bg-[#2a3a30]">
+                  <button onClick={() => { setIsLoadingTemplates(true); void loadTemplates(); }} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#17231c] px-5 py-3 text-sm font-bold text-white hover:bg-[#2a3a30]">
                     <ArrowPathIcon className="h-4 w-4" /> Try again
                   </button>
                 </div>
