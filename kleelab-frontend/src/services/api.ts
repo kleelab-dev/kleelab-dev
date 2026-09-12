@@ -90,6 +90,10 @@ export const apiService = {
     return request<Site[]>('/api/sites');
   },
 
+  async getSite(siteId: string): Promise<Site> {
+    return request<Site>(`/api/sites/${siteId}`);
+  },
+
   async createSite(data: Partial<Site>): Promise<Site> {
     return request<Site>('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   },
@@ -115,5 +119,15 @@ export const apiService = {
 
   async savePage(siteId: string, pageId: string, blocks: BuilderBlock[]): Promise<Page> {
     return this.updatePage(siteId, pageId, { content_json: { version: 1, blocks } });
+  },
+
+  /** Persist a canonical document as the page content. */
+  async saveDocument(
+    siteId: string,
+    pageId: string,
+    document: unknown,
+    meta: Partial<Pick<Page, 'title' | 'seo_title' | 'seo_description'>> = {},
+  ): Promise<Page> {
+    return this.updatePage(siteId, pageId, { content_json: { document }, ...meta });
   },
 };

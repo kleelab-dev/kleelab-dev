@@ -316,6 +316,36 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 
 **Editor adoption:** the canvas still edits legacy `blocks`. R2 rewires it onto the document model and deletes the legacy path.
 
+### R2 Progress Log
+
+**2026-09-12 — R2 core (drag-and-drop editor) working**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| R2.2 Document store | ✅ Done | `src/lib/editor/tree.ts` (immutable tree ops: find/insert/move/remove/clone, self-descendant guard) + `src/lib/editor/store.ts` (Zustand: document, selection, 50-step history, device, per-breakpoint style targets). |
+| R2.3 Nested drag-and-drop | ✅ Core done | `@dnd-kit` with a palette (13 blocks) and a recursive sortable canvas. Custom collision detection (pointer-based, deepest-node preference) plus edge-aware `before / after / inside` placement. |
+| R2.4 Properties panel | ✅ Done | `Inspector.tsx`: per-type content controls (heading/text/button/link/image/list/spacer/nav/footer) and layout tokens (background, colour, align, size, padding, gap, radius, shadow, max-width) targeting **all / tablet / mobile**. |
+| R2.1 Real routes | 🟡 Partial | `/builder/[siteId]/edit` live and reachable from the site picker **and** straight after site creation. Still to come: `/builder/dashboard`, `/builder/new`, `/preview`, `/settings`. |
+| R2.5 Media manager + assets upload | ⬜ Not started | Needs a backend assets router; image blocks currently take a URL. |
+| R2.6 Templates as documents | ⬜ Not started | Templates still seed legacy blocks; `parseDocument` migrates them on first open. |
+
+**The original complaint is now fixed:** drag-and-drop exists and works.
+
+**Browser-verified** (real Chromium, real pointer events, DOM order asserted after each step):
+- palette → canvas insert at a precise index (dropped a Divider on the heading's top edge → `H1,P,A` became `HR,H1,P,A`)
+- moving an **existing** node before a target (`HR,H1,P,A` → `HR,A,H1,P`)
+- **undo** reverts a move
+- selection drives the inspector; device toggle renders
+- build / lint / typecheck all green; routes `/`, `/_not-found`, `ƒ /builder/[siteId]/edit`, `ƒ /s/[subdomain]/[[...slug]]`
+
+**Bug found and fixed during verification:** applying `closestCenter` alone resolved drops onto the page root whenever a node was dragged by its own handle (element-centre vs cursor), so moves silently did nothing. Replaced with pointer-based collision detection preferring the deepest droppable.
+
+**Known gaps**
+- The palette and inspector are `lg:`/`xl:`-only, so narrow viewports show canvas alone. Needs a collapsible/mobile treatment.
+- Autosave now writes `{ document }` (the new format). The backend validates it, but end-to-end save/load is unverified — no database in this environment.
+- `BuilderWorkspace`'s old internal block editor is now unreachable (site open/creation navigate to the new editor); `EditorCanvas.tsx` is superseded and should be trimmed once the dashboard routes land.
+- Form-field editing and image upload are still to come.
+
 ---
 
 ## 9. Decisions (Locked)

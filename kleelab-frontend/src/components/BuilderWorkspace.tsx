@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -78,6 +79,7 @@ export function BuilderWorkspace() {
   // Signature of the content currently persisted on the server. Autosave only
   // fires when the in-memory blocks differ, which stops the old save -> state
   // update -> save loop that hammered the API and tripped the rate limiter.
+  const router = useRouter();
   const lastSavedRef = useRef<string>('');
 
   const loadTemplates = useCallback(async () => {
@@ -191,15 +193,9 @@ export function BuilderWorkspace() {
     updateBlocks(nextBlocks);
   };
 
-  const openSite = async (site: Site) => {
-    const sitePages = await apiService.getPages(site.id);
-    setSites((current) => (current.some((item) => item.id === site.id) ? current : [site, ...current]));
-    setSelectedSite(site);
-    setPages(sitePages);
-    const firstPage = sitePages[0] ?? null;
-    setSelectedPage(firstPage);
-    loadBlocks((firstPage?.content_json?.blocks as BuilderBlock[] | undefined) ?? []);
-    setStep('editor');
+  /** Opening a site hands off to the full document editor. */
+  const openSite = (site: Site) => {
+    router.push(`/builder/${site.id}/edit`);
   };
 
   const createSite = async () => {
@@ -229,7 +225,7 @@ export function BuilderWorkspace() {
       setSelectedPage(page);
       loadBlocks(initialBlocks);
       setNotice(null);
-      setStep('editor');
+      router.push(`/builder/${site.id}/edit`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to create your site');
     } finally {
