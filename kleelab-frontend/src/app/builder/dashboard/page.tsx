@@ -9,11 +9,14 @@ import {
   ExclamationTriangleIcon,
   GlobeAltIcon,
   PlusIcon,
+  ReceiptPercentIcon,
   RocketLaunchIcon,
+  ShoppingBagIcon,
   SparklesIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { apiService, getToken } from '@/services/api';
+import { Overview } from '@/components/dashboard/Overview';
 import type { Site, User } from '@/types/api';
 
 type Status = 'checking' | 'signed-out' | 'ready';
@@ -215,6 +218,8 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {status === 'ready' && user && <Overview />}
+
         {status === 'ready' && sites.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line-strong bg-white p-10 text-center">
             <p className="font-serif text-2xl">No sites yet</p>
@@ -290,7 +295,21 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/builder/${site.id}/products`)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-muted hover:bg-canvas hover:text-ink"
+                  >
+                    <ShoppingBagIcon className="h-3.5 w-3.5" /> Products
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/builder/${site.id}/orders`)}
+                    className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-muted hover:bg-canvas hover:text-ink"
+                  >
+                    <ReceiptPercentIcon className="h-3.5 w-3.5" /> Orders
+                  </button>
                   <button
                     type="button"
                     onClick={() => router.push(`/builder/${site.id}/settings`)}

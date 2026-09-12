@@ -1,4 +1,18 @@
-import { Asset, BuilderBlock, Page, Site, Template, User } from '@/types/api';
+import {
+  ActivityEvent,
+  Asset,
+  BuilderBlock,
+  DashboardStats,
+  Order,
+  OrderSeries,
+  OrderStatus,
+  Page,
+  Product,
+  ProductInput,
+  Site,
+  Template,
+  User,
+} from '@/types/api';
 
 // Preferred path: leave this empty so requests go to the relative /api/* routes
 // and Next.js proxies them to the backend (see `rewrites` in next.config.mjs).
@@ -298,5 +312,59 @@ export const apiService = {
 
   async deleteAsset(siteId: string, assetId: string): Promise<void> {
     return request<void>(`/api/sites/${siteId}/assets/${assetId}`, { method: 'DELETE' });
+  },
+
+  // ---- Dashboard -------------------------------------------------------
+
+  async getDashboardStats(): Promise<DashboardStats> {
+    return request<DashboardStats>('/api/dashboard/stats');
+  },
+
+  async getRecentActivity(): Promise<ActivityEvent[]> {
+    return request<ActivityEvent[]>('/api/dashboard/recent-activity');
+  },
+
+  async getOrderSeries(): Promise<OrderSeries> {
+    return request<OrderSeries>('/api/dashboard/chart-data');
+  },
+
+  // ---- Products --------------------------------------------------------
+
+  async getProducts(siteId: string): Promise<Product[]> {
+    return request<Product[]>(`/api/sites/${siteId}/products`);
+  },
+
+  async createProduct(siteId: string, data: ProductInput): Promise<Product> {
+    return request<Product>(`/api/sites/${siteId}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateProduct(siteId: string, productId: string, data: Partial<ProductInput>): Promise<Product> {
+    return request<Product>(`/api/sites/${siteId}/products/${productId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteProduct(siteId: string, productId: string): Promise<void> {
+    return request<void>(`/api/sites/${siteId}/products/${productId}`, { method: 'DELETE' });
+  },
+
+  // ---- Orders ----------------------------------------------------------
+
+  async getOrders(siteId: string): Promise<Order[]> {
+    return request<Order[]>(`/api/sites/${siteId}/orders`);
+  },
+
+  async updateOrderStatus(siteId: string, orderId: string, status: OrderStatus): Promise<Order> {
+    return request<Order>(`/api/sites/${siteId}/orders/${orderId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
   },
 };

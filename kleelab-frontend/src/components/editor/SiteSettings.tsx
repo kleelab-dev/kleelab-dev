@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeftIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   GlobeAltIcon,
   RocketLaunchIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
+import { SitePageShell } from '@/components/dashboard/SiteNav';
 import { apiService } from '@/services/api';
 import type { Page, Site } from '@/types/api';
 
@@ -137,25 +137,13 @@ export function SiteSettings({ siteId }: { siteId: string }) {
   };
 
   return (
-    <main className="min-h-screen bg-canvas text-ink">
-      <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-6 py-5">
-          <button
-            type="button"
-            onClick={() => router.push('/builder/dashboard')}
-            className="grid h-8 w-8 place-items-center rounded-lg hover:bg-canvas"
-            title="Back to your sites"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-          </button>
-          <div>
-            <p className="text-sm font-bold">{site?.name ?? 'Site settings'}</p>
-            <p className="text-xs text-muted">Settings &amp; publishing</p>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl px-6 py-8">
+    <SitePageShell
+      siteId={siteId}
+      siteName={site?.name ?? ''}
+      title="Settings"
+      description="Settings & publishing"
+    >
+      <div className="mx-auto max-w-3xl">
         {error && (
           <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-danger-line bg-danger-surface px-4 py-3 text-sm text-danger">
             <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
@@ -252,6 +240,6 @@ export function SiteSettings({ siteId }: { siteId: string }) {
           </div>
         )}
       </div>
-    </main>
+    </SitePageShell>
   );
 }

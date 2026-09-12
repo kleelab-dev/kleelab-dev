@@ -104,6 +104,46 @@ export interface Order {
   updated_at: string;
 }
 
+/** What the owner sends when creating or editing a product. */
+export interface ProductInput {
+  name: string;
+  description?: string | null;
+  price: number;
+  stock: number;
+  category?: string | null;
+  images?: string[] | null;
+  is_active?: boolean;
+}
+
+export interface DashboardStats {
+  site_count: number;
+  page_count: number;
+  product_count: number;
+  order_count: number;
+  total_revenue: number;
+  monthly_views: number;
+}
+
+export interface ActivityEvent {
+  type: 'order_received' | 'site_published' | 'page_updated';
+  title: string;
+  description: string;
+  /** Present on order events, so the client does the formatting. */
+  amount?: number;
+  currency?: string;
+  timestamp: string;
+}
+
+export interface OrderSeriesDay {
+  date: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface OrderSeries {
+  days: OrderSeriesDay[];
+}
+
 export interface Asset {
   id: string;
   site_id: string | null;

@@ -675,6 +675,36 @@ product_grid        renders the editor placeholder, as intended
 
 ---
 
+### R8 Progress Log (2026-09-12) — a real dashboard, plus products and orders UI
+
+The owner's report — *"no proper dashboard … a proper professional dashboard is needed"* — was accurate, and worse than it sounded: **orders were being recorded but there was no way to see them at all.**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F9.1** | **P0** | **Orders had no UI whatsoever.** The API to list and update them existed since R6, but nothing rendered it. Someone could place an order and the owner could never learn it existed. |
+| **F9.2** | **P0** | **There was no dashboard.** `/builder/dashboard` was a flat list of site cards. No counts, no revenue, no activity, no trend — nothing that tells an owner how their business is doing. |
+| **F9.3** | P1 | **`OrderChart` trusted its response shape.** It read `series.days.map(...)` directly, so any drift threw *during render* — and an uncaught render error unmounts the entire subtree, which is how one bad shape blanked the whole overview. |
+| **F9.4** | P2 | **Settings was the only per-site page with a bespoke header**, so it had no tab bar and was the sole page you could not navigate out of sideways. |
+| **F9.5** | P2 | The dashboard's `monthly_views` comes from `AnalyticsEvent`, which nothing writes to (R3.4 was never implemented). Showing a permanent `0` would read as a broken widget, so the metric is **omitted** rather than faked. |
+
+**What was built.** A `SiteNav` tab bar shared by every per-site page (`Editor · Products · Orders · Settings`) so navigation cannot be half-wired again; `ProductsManager` (list, create, edit, show/hide, delete with a confirm that explains existing orders are unaffected); `OrdersManager` (newest-first queue, per-order status control, "awaiting action" and "earned" summaries, and a disclosure showing the line-item snapshot); and an `Overview` on the dashboard with four real metrics, a hand-rolled monochrome SVG-free bar chart of the last 30 days, and a merged activity feed.
+
+Backend: `get_recent_activity` was rewritten from a stub into a real merge of orders, published sites and page edits; `get_order_series` was added and `/api/dashboard/chart-data` rewired to it. Quiet days are returned as explicit zeros so the chart does not silently compress the timeline.
+
+**Verified through the API and the browser**, not by writing fixtures into the database:
+
+```
+products   list 3  →  create "R8 Teapot" 201  →  4 items  →  toggle Shown→Hidden  →  delete  →  3 items
+orders     2 orders, newest first, "Awaiting action" 2 → 1, "Earned" £0.00 → £20.50 after marking one paid
+           line items £8.00×1 + £12.50×1 = £20.50 and £12.50×2 = £25.00, unit prices preserved
+dashboard  Sites 1 · Products 3 · Orders 2 · Revenue £20.50, chart peak £45.50, 4 merged activity events
+stock      Clover Mug 8 → 5, Field Notebook 20 → 19 — the public checkout really debited
+```
+
+**Two process notes worth keeping.** First, **a backend edit is not live until the process restarts** — the first run of this verification hit the *old* code and returned the old stub shapes, which is what exposed F9.3. A green import smoke test does not mean the running server has your change. Second, Playwright's actionability check never settles in this environment (it needs `requestAnimationFrame` ticks that a backgrounded tab does not get), so `click` times out with "not visible, enabled and stable" even when the element is provably visible, enabled, uncovered and static. Driving the click through the DOM still goes via React's event system and is the correct workaround — the app is not at fault, and it must not be "fixed" for this.
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |
