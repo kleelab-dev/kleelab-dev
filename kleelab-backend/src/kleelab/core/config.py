@@ -15,7 +15,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    # Short-lived access tokens, refreshed via rotating refresh tokens.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    # Honour X-Forwarded-For / X-Real-IP. Required behind a load balancer, where
+    # request.client.host is the proxy and every caller would share one bucket.
+    TRUST_PROXY: bool = True
+    # Optional shared rate-limit store. Without it limits are per-process.
+    REDIS_URL: str | None = None
     # Login/signup requests allowed per IP per minute. Keep this generous enough that a
     # few failed attempts during development cannot lock the API out.
     AUTH_RATE_LIMIT_PER_MINUTE: int = 20

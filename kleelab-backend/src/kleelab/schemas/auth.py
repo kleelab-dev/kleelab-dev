@@ -30,6 +30,17 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str | None = None
+    expires_in: int | None = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str | None = None
+    all_devices: bool = False
 
 
 class UserOut(BaseModel):
@@ -39,4 +50,5 @@ class UserOut(BaseModel):
     email: str
     full_name: str | None
     avatar_url: str | None
+    is_verified: bool
     created_at: datetime

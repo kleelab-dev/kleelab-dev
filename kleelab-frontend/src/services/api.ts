@@ -6,21 +6,76 @@ import { Asset, BuilderBlock, Page, Site, Template, User } from '@/types/api';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 const TOKEN_KEY = 'kleelab_access_token';
+const REFRESH_KEY = 'kleelab_refresh_token';
+
+function readStorage(key: string): string | null {
+  return typeof window === 'undefined' ? null : window.localStorage.getItem(key);
+}
 
 function authHeaders(): HeadersInit {
-  const token = typeof window === 'undefined' ? null : window.localStorage.getItem(TOKEN_KEY);
+  const token = readStorage(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export function getToken(): string | null {
-  return typeof window === 'undefined' ? null : window.localStorage.getItem(TOKEN_KEY);
+  return readStorage(TOKEN_KEY);
+}
+
+function getRefreshToken(): string | null {
+  return readStorage(REFRESH_KEY);
+}
+
+/** Persist a session. The refresh token is what lets the access token rotate. */
+export function setSession(accessToken: string, refreshToken?: string | null): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(TOKEN_KEY, accessToken);
+  if (refreshToken) window.localStorage.setItem(REFRESH_KEY, refreshToken);
 }
 
 export function clearToken(): void {
-  if (typeof window !== 'undefined') window.localStorage.removeItem(TOKEN_KEY);
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_KEY);
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/** Single in-flight refresh, so parallel 401s do not each rotate the token. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!response.ok) {
+        clearToken();
+        return false;
+      }
+      const data = (await response.json()) as { access_token: string; refresh_token?: string };
+      setSession(data.access_token, data.refresh_token ?? refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  allowRefresh = true,
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -29,6 +84,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
   } catch {
     throw new Error('Cannot reach the KleeLab API. Make sure the backend is running and API_URL is set correctly.');
+  }
+
+  // A short-lived access token expiring is the normal case, not an error:
+  // rotate once and replay the request.
+  if (response.status === 401 && allowRefresh && !path.startsWith('/api/auth/')) {
+    if (await refreshSession()) return request<T>(path, options, false);
   }
 
   if (!response.ok) {
@@ -84,11 +145,24 @@ export const apiService = {
   },
 
   async login(email: string, password: string): Promise<void> {
-    const result = await request<{ access_token: string }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    window.localStorage.setItem(TOKEN_KEY, result.access_token);
+    const result = await request<{ access_token: string; refresh_token?: string }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    setSession(result.access_token, result.refresh_token ?? null);
   },
 
-  logout(): void {
+  /** Revoke the session server-side, then clear it locally. */
+  async logout(): Promise<void> {
+    const refreshToken = getRefreshToken();
+    try {
+      if (refreshToken) {
+        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+      }
+    } catch {
+      // Signing out locally must succeed even when the API is unreachable.
+    }
     clearToken();
   },
 

@@ -2,14 +2,13 @@
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.config import settings
 from kleelab.core.database import get_db
 from kleelab.core.security import (
-    create_access_token,
     create_signed_token,
     decode_signed_token,
     get_current_user,
@@ -17,7 +16,8 @@ from kleelab.core.security import (
     verify_password,
 )
 from kleelab.models.user import User
-from kleelab.schemas.auth import Token, UserCreate, UserLogin, UserOut
+from kleelab.schemas.auth import LogoutRequest, RefreshRequest, Token, UserCreate, UserLogin, UserOut
+from kleelab.services import sessions
 from kleelab.services.email import send_verification_email, send_password_reset_email, send_welcome_email
 
 
@@ -64,8 +64,10 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)) -> Token:
-    """Authenticate a user and return a bearer token."""
+async def login(
+    user_data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)
+) -> Token:
+    """Authenticate a user and issue an access + refresh token pair."""
 
     ensure_password_supported(user_data.password)
     result = await db.execute(select(User).where(User.email == user_data.email))
@@ -76,26 +78,110 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)) -> Tok
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
-    access_token = create_access_token(
-        data={"user_id": str(user.id)},
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    tokens = await sessions.issue_tokens(user, db, request.headers.get("user-agent"))
+    return Token(**tokens)
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh(
+    payload: RefreshRequest, request: Request, db: AsyncSession = Depends(get_db)
+) -> Token:
+    """Exchange a refresh token for a new pair, rotating the old one."""
+
+    try:
+        _, tokens = await sessions.rotate(
+            payload.refresh_token, db, request.headers.get("user-agent")
+        )
+    except sessions.RefreshError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from error
+
+    return Token(**tokens)
+
+
+@router.post("/logout")
+async def logout(payload: LogoutRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    """Revoke a refresh token.
+
+    Deliberately unauthenticated: presenting the token is itself proof of
+    ownership, and signing out must still work once the access token has expired.
+    """
+
+    if payload.refresh_token:
+        await sessions.revoke(payload.refresh_token, db)
+    return {"status": "signed_out"}
+
+
+@router.post("/logout-all")
+async def logout_all(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> dict[str, str]:
+    """Revoke every active session for the authenticated user."""
+
+    await sessions.revoke_all_for_user(current_user.id, db)
+    return {"status": "signed_out_all"}
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    current_user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    """Send a fresh email-verification link to the authenticated user."""
+
+    if current_user.is_verified:
+        return {"status": "already_verified"}
+
+    token = create_signed_token(
+        {"user_id": str(current_user.id), "purpose": "email_verification"},
+        timedelta(hours=24),
     )
-    return Token(access_token=access_token)
+    try:
+        send_verification_email(current_user.email, token)
+    except Exception as error:  # noqa: BLE001 - surfaced to the caller
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Email delivery is not configured, so a verification link cannot be sent.",
+        ) from error
+
+    return {"status": "verification_email_sent"}
 
 
 @router.post("/verify-email")
-async def verify_email(token: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict[str, str]:
-    """Verify the current user's email using a signed JWT token."""
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    """Verify an email address from a signed link.
+
+    Unauthenticated on purpose: the link is opened from an inbox, so there may be
+    no session. The signed, single-purpose token identifies the user.
+    """
 
     payload = decode_signed_token(token)
     if payload.get("purpose") != "email_verification":
         raise HTTPException(status_code=400, detail="Invalid verification token")
-    if str(current_user.id) != payload.get("user_id"):
-        raise HTTPException(status_code=400, detail="Token does not match the active user")
-    current_user.is_verified = True
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+
+    user = await db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_verified = True
     await db.commit()
     return {"status": "verified"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(email: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    """Alias for /request-password-reset."""
+
+    return await request_password_reset(email, db)
 
 
 @router.post("/request-password-reset")

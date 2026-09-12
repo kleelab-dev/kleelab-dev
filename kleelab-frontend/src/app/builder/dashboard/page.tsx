@@ -13,7 +13,7 @@ import {
   SparklesIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { apiService, clearToken, getToken } from '@/services/api';
+import { apiService, getToken } from '@/services/api';
 import type { Site } from '@/types/api';
 
 type Status = 'checking' | 'signed-out' | 'ready';
@@ -115,7 +115,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => {
-                clearToken();
+                void apiService.logout();
                 setStatus('signed-out');
               }}
               className="rounded-lg border border-line-strong bg-white px-3 py-2 text-xs font-bold hover:border-ink"

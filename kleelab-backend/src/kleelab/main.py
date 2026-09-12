@@ -15,6 +15,7 @@ from kleelab.core.database import engine
 from kleelab.core.exceptions import register_exception_handlers
 from kleelab.core.logging import RequestLoggingMiddleware, configure_logging
 from kleelab.core.middleware import RateLimitMiddleware
+from kleelab.core.security_headers import SecurityHeadersMiddleware
 from kleelab.core.config import settings
 from kleelab.routers.auth import router as auth_router
 from kleelab.routers.analytics import router as analytics_router
@@ -49,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Added last so it is the outermost layer, meaning headers are present even on
+# responses produced by the rate limiter or CORS preflight.
+app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(auth_router)
 app.include_router(assets_router)
 app.include_router(analytics_router)

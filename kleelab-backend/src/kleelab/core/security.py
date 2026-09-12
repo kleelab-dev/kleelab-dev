@@ -1,5 +1,7 @@
 """Password hashing and JWT authentication helpers."""
 
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -49,15 +51,16 @@ def get_password_hash(password: str) -> str:
 def create_access_token(
     data: dict[str, Any], expires_delta: timedelta | None = None
 ) -> str:
-    """Create a signed JWT with an expiration claim."""
+    """Create a signed JWT with issued-at and expiration claims."""
 
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
+    now = datetime.now(timezone.utc)
+    expire = now + (
         expires_delta
         if expires_delta is not None
         else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({"iat": now, "exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -67,6 +70,25 @@ def create_signed_token(data: dict[str, Any], expires_delta: timedelta) -> str:
     to_encode = data.copy()
     to_encode.update({"exp": datetime.now(timezone.utc) + expires_delta})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+# --- Refresh tokens -------------------------------------------------------
+# Opaque random strings rather than JWTs, so they can be revoked and rotated.
+# Only the hash is persisted.
+
+REFRESH_TOKEN_BYTES = 48
+
+
+def generate_refresh_token() -> str:
+    """Create a new opaque refresh token."""
+
+    return secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token for storage and lookup."""
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def decode_signed_token(token: str) -> dict[str, Any]:

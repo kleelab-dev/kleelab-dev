@@ -396,6 +396,44 @@ All test data was removed afterwards (`DELETE /api/users/me`); row counts return
 
 ---
 
+### R4 Progress Log (2026-09-12)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| **R4.1** Token model | ✅ | 15-min access + rotating refresh + revoke |
+| **R4.2** Email verification dead-end | ⚠️ Partial | gate exists and is checked; masked in dev |
+| **R4.3** Rate limiting + security headers | ✅ | in-memory verified; Redis path untested |
+| **R4.4** `tally.py` | N/A | no waitlist UI exists in this codebase |
+
+**R4.1 — implemented.** Access tokens are short-lived and carry an `iat` claim; refresh tokens are opaque, stored only as a SHA-256 hash, and **rotated on every use**. Reusing a spent refresh token is treated as theft: the whole token family for that user is revoked (`revoke_all_for_user`), which logs the attacker *and* the victim out rather than silently accepting the replay. Three new endpoints: `/refresh` (unauthenticated — the refresh token is the credential), `/logout` (revokes one family), `/logout-all` (revokes every session). `/verify-email` no longer requires a bearer token, since the emailed token already identifies the user — previously a brand-new user could not verify without logging in first.
+
+**R4.3 — implemented.** The rate limiter now has an explicit `TRUST_PROXY` switch: behind a load balancer the old code read the *proxy's* address for every request, so all callers shared one bucket and the limit was both useless (one user could exhaust it for everyone) and trivially bypassed. It also prunes stale entries instead of leaking a deque per IP forever. An optional Redis store is selected automatically when `REDIS_URL` is set; otherwise it logs that limits are per-process, which is honest rather than silently wrong. Security headers registered as the outermost middleware; HSTS is deliberately withheld in development.
+
+**Verification (browser, real stack, real Neon):**
+
+```
+{"loginStatus":200,"expiresIn":900,"accessTokenLifetimeSeconds":900,
+ "protectedWithAccess":200,"refreshStatus":200,"gotNewPair":true,
+ "refreshTokenChanged":true,"reuseOldStatus":401,"newTokenAfterReuseStatus":401,
+ "logoutStatus":200,"afterLogoutStatus":401}
+```
+
+Rotation, replay detection with family revocation, and logout revocation all pass. The first run returned `expiresIn: 86400`; the cause was **not** the code default but `ACCESS_TOKEN_EXPIRE_MINUTES=1440` sitting in `.env`, which overrode it — and `accessTokenLifetimeSeconds` was `null` because `iat` was missing from the JWT. Both are fixed, and the lifetime is now asserted rather than assumed.
+
+**Cloudinary upload — verified for the first time.** `CLOUDINARY_URL` is now configured, and a real upload returned **201** with a `res.cloudinary.com/.../image/png` URL, and the asset listed. Previously this path returned 503 and was unverified.
+
+**Known gaps (deliberate, not oversights):**
+- **R4.2 is masked, not solved.** `AUTO_VERIFY_EMAILS=true` in `.env` means the gate is never exercised locally, so the "new user cannot publish" experience has never been observed end-to-end. With `CLOUDINARY_URL` and now mail configured, the remaining question is whether Resend delivery actually lands.
+- **Deleting an asset removes the database row but not the remote Cloudinary file**, because no `public_id` is persisted. Reclaiming storage requires storing that id and calling `destroy`. Flagged rather than half-fixed.
+- **The Redis rate-limit path is unexercised** — `REDIS_URL` is unset, so only the in-memory fallback is proven.
+- **`.env` overrides code defaults silently.** This cost real debugging time twice. Any future TTL/limit change must be made in `.env`, not just `config.py`.
+
+Test users were removed with a scoped `DELETE` (`email LIKE '%@kleelabverify.dev'`) after first listing the matches; counts returned to baseline (users 6, sites 4, pages 3, assets 0, refresh_tokens 0, templates 15), confirming the `ON DELETE CASCADE` chain works.
+
+**Release gate:** `eslint` 0 problems · `tsc --noEmit` clean · `next build` clean (all 10 routes) · backend `compileall` OK · import smoke OK (74 routes).
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |
