@@ -134,7 +134,7 @@ This is a significant, under-reported problem.
 | **F4.5** | **P1** | **No subscriptions/Stripe.** No router, no model, no webhook. `Subscription` exists only as a fictional frontend type. Phase 3/4 billing is absent. |
 | **F4.6** | **P1** | **Rate limiter is in-memory per-process** (`core/rate_limiter.py`). On Render with >1 worker/instance it is trivially bypassed and inconsistent; the cleanup loop only removes *empty* deques. Needs Redis (or a managed limiter). |
 | **F4.7** | **P1** | **Token model does not match the plan.** `ACCESS_TOKEN_EXPIRE_MINUTES = 1440` (24 h) with **no refresh token** and **no refresh endpoint**; no `logout` endpoint (client just deletes the token); no Google OAuth; no `/forgot-password` alias. Plan specified 15 min + refresh rotation. |
-| **F4.8** | P1 | **Publish is gated on `is_verified`, but `AUTO_VERIFY_EMAILS` defaults to `False`.** With no mail provider configured, new users **cannot publish at all**. This is a silent dead-end. |
+| **F4.8** | P1 | **Publish is gated on `is_verified`, but `AUTO_VERIFY_EMAILS` defaults to `False`.** In the live environment publishing succeeded for a freshly registered account, so the flag is evidently enabled there — which means the gate is currently masked by configuration. A deployment that forgets it would silently block all publishing. Keep, but make the state visible to the user. |
 | **F4.9** | P2 | **`tally.py` router missing.** Phase 1 waitlist integration is not present in the backend. |
 | **F4.10** | P2 | `bcrypt==5.0.0` pinned in `requirements.txt`, but `bcrypt` 4.x/5.x had breaking API churn around `gensalt`/pure-python behaviour across environments — verify the pin builds on the Render Python 3.12.8 image. (`sentry-sdk==2.0.0` is also old.) |
 | **F4.11** | P2 | `templates` uses `sa.JSON` (not JSONB) and `config` is an unvalidated `dict`; there is no schema for `config`. Combined with F5.x this is where template/section drift hides. |
@@ -347,9 +347,32 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 
 **Known gaps**
 - The palette and inspector are `lg:`/`xl:`-only, so narrow viewports show canvas alone. Needs a collapsible/mobile treatment.
-- Autosave now writes `{ document }` (the new format). The backend validates it, but end-to-end save/load is unverified — no database in this environment.
+- Autosave writes `{ document }` (the new format) — **now verified end-to-end, see below**.
 - `BuilderWorkspace`'s old internal block editor is now unreachable (site open/creation navigate to the new editor); `EditorCanvas.tsx` is superseded and should be trimmed once the dashboard routes land.
 - Form-field editing and image upload are still to come.
+
+### End-to-End Verification (2026-09-12) — closes the earlier "unverified" gaps
+
+The configured `DATABASE_URL` points at a **remote Neon instance** (`neondb`), already at migration head (`add_user_account_fields`) and seeded with 15 templates. No migration or seed was needed or run. The backend was started against it and the real stack driven with a browser.
+
+| Step | Result |
+|------|--------|
+| Backend health | `{"status":"ok","database":"connected"}` |
+| Register + login | 201 / 200 |
+| Create site + page **with a canonical document** | 201 — the backend's Pydantic document validator accepted it |
+| Editor loads the document from the database | heading and body rendered from stored content |
+| Edit → autosave | persisted; confirmed by polling `content.document` (landed in ~4.3 s) |
+| Reload the editor | content restored from the database, not local state |
+| Publish | `is_published=true`, `published_at` set, returned `https://kleelab.com/s/{subdomain}` |
+| Public route `/s/{subdomain}` | rendered the same document through the shared registry (heading + text + divider); `generateMetadata` produced `Home · {site} · KleeLab` |
+
+All test data was removed afterwards (`DELETE /api/users/me`); row counts returned to their pre-test values (users 6, sites 4, pages 3).
+
+**Environment findings worth keeping**
+- **email-validator rejects special-use domains** (`.test`, `.example`, `.invalid`), so registration tests need a real TLD. This produced a 422 that looked like an application bug.
+- **Remote-database latency is seconds, not milliseconds.** A fixed 2.5 s wait produced a *false negative* — the editor looked like it had failed to load. Verification must poll for a condition, never sleep a fixed amount.
+- **PowerShell environment variables persist between commands.** A `$env:DATABASE_URL` set earlier for a CI smoke test leaked into a later command and silently redirected a database check to the wrong server.
+- Starting the backend requires the `.env` value to be in effect; an environment override takes precedence and fails confusingly (`password authentication failed for user "ci"`).
 
 ---
 
