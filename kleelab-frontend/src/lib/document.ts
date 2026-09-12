@@ -57,17 +57,107 @@ export const CONTAINER_TYPES: readonly NodeType[] = [
 // ---------------------------------------------------------------------------
 
 export const SPACE_SCALE = ['none', 'xs', 'sm', 'md', 'lg', 'xl'] as const;
-export const BACKGROUND_TONES = ['default', 'paper', 'canvas', 'ink', 'mint', 'accent'] as const;
-export const TEXT_TONES = ['ink', 'muted', 'paper', 'accent'] as const;
 export const ALIGNMENTS = ['left', 'center', 'right'] as const;
 export const TEXT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'] as const;
 export const RADII = ['none', 'sm', 'md', 'lg', 'full'] as const;
 export const SHADOWS = ['none', 'sm', 'md', 'lg'] as const;
 export const MAX_WIDTHS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
+export const BORDER_WIDTHS = ['none', 'thin', 'medium', 'thick'] as const;
+
+// ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
+
+/**
+ * Named colour slots in a site theme.
+ *
+ * A style value may be one of these slot names *or* any CSS colour. Slot names
+ * resolve to a CSS variable so changing the theme restyles everything that uses
+ * it; a literal colour is used as-is, which is what gives per-element freedom.
+ */
+export const THEME_SLOTS = [
+  'paper',
+  'surface',
+  'canvas',
+  'mint',
+  'ink',
+  'muted',
+  'accent',
+  'line',
+] as const;
+export type ThemeSlot = (typeof THEME_SLOTS)[number];
+
+/**
+ * Neutral defaults.
+ *
+ * Deliberately greyscale: a new site must not arrive dressed in KleeLab's brand.
+ * The previous model mapped these slots straight onto KleeLab's Tailwind colours,
+ * so every customer site was permanently rendered in the studio's palette.
+ */
+export const DEFAULT_THEME: Record<ThemeSlot, string> = {
+  paper: '#ffffff',
+  surface: '#ffffff',
+  canvas: '#f4f4f5',
+  mint: '#e4e4e7',
+  ink: '#111113',
+  muted: '#6b7280',
+  accent: '#111113',
+  line: '#e4e4e7',
+};
+
+export type SiteTheme = Record<ThemeSlot, string>;
+
+export function resolveTheme(tokens: Record<string, string> | undefined): SiteTheme {
+  const theme = { ...DEFAULT_THEME };
+  for (const slot of THEME_SLOTS) {
+    const value = tokens?.[slot];
+    if (typeof value === 'string' && value.trim()) theme[slot] = value.trim();
+  }
+  return theme;
+}
+
+const CSS_COLOUR = /^(#[0-9a-fA-F]{3,8}$|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/;
+
+/**
+ * Turn a style value into something CSS will accept.
+ *
+ * A theme slot becomes `var(--kl-<slot>)`; anything else is passed through as a
+ * literal colour. Unrecognised values are dropped rather than guessed at, so a
+ * typo leaves an element unstyled instead of painting it the wrong colour.
+ */
+export function resolveColour(value: string | undefined | null): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if ((THEME_SLOTS as readonly string[]).includes(trimmed)) return `var(--kl-${trimmed})`;
+  if (CSS_COLOUR.test(trimmed)) return trimmed;
+  return undefined;
+}
+
+/** CSS custom properties for a theme, to be set on the document root. */
+export function themeVariables(tokens: Record<string, string> | undefined): Record<string, string> {
+  const theme = resolveTheme(tokens);
+  return Object.fromEntries(THEME_SLOTS.map((slot) => [`--kl-${slot}`, theme[slot]]));
+}
+
+/** The style a node's colour choices produce. */
+export function nodeColourStyle(node: Node): Record<string, string> {
+  const style: Record<string, string> = {};
+  const background = resolveColour(node.style?.background as string | undefined);
+  const colour = resolveColour(node.style?.color as string | undefined);
+  const borderColour = resolveColour(node.style?.borderColor as string | undefined);
+  if (background) style.backgroundColor = background;
+  if (colour) style.color = colour;
+  if (borderColour) style.borderColor = borderColour;
+  return style;
+}
 
 export const styleSchema = z.object({
-  background: z.enum(BACKGROUND_TONES).optional(),
-  color: z.enum(TEXT_TONES).optional(),
+  // Free-form: a theme slot name, a hex value, or any CSS colour function.
+  background: z.string().optional(),
+  color: z.string().optional(),
+  borderColor: z.string().optional(),
+  borderWidth: z.enum(BORDER_WIDTHS).optional(),
   align: z.enum(ALIGNMENTS).optional(),
   size: z.enum(TEXT_SIZES).optional(),
   padding: z.enum(SPACE_SCALE).optional(),
@@ -175,20 +265,11 @@ export function createDocument(title = 'Home'): KleeLabDocument {
 // Style -> Tailwind classes
 // ---------------------------------------------------------------------------
 
-const BACKGROUND_CLASSES: Record<(typeof BACKGROUND_TONES)[number], string> = {
-  default: '',
-  paper: 'bg-paper',
-  canvas: 'bg-canvas',
-  ink: 'bg-ink',
-  mint: 'bg-mint',
-  accent: 'bg-accent',
-};
-
-const TEXT_TONE_CLASSES: Record<(typeof TEXT_TONES)[number], string> = {
-  ink: 'text-ink',
-  muted: 'text-muted',
-  paper: 'text-paper',
-  accent: 'text-accent',
+const BORDER_WIDTH_CLASSES: Record<(typeof BORDER_WIDTHS)[number], string> = {
+  none: '',
+  thin: 'border',
+  medium: 'border-2',
+  thick: 'border-4',
 };
 
 const ALIGN_CLASSES: Record<(typeof ALIGNMENTS)[number], string> = {
@@ -267,7 +348,13 @@ const MAX_WIDTH_CLASSES: Record<(typeof MAX_WIDTHS)[number], string> = {
   full: 'max-w-none',
 };
 
-/** Translate a style object into Tailwind classes, optionally breakpoint-prefixed. */
+/**
+ * Translate a style object into Tailwind classes, optionally breakpoint-prefixed.
+ *
+ * Colours are deliberately absent: they can be any CSS value now, so they are
+ * emitted as inline styles by `nodeColourStyle` instead of being constrained to
+ * a fixed set of brand classes.
+ */
 export function styleClasses(style: Style | undefined, prefix = ''): string {
   if (!style) return '';
   const classes: string[] = [];
@@ -275,8 +362,6 @@ export function styleClasses(style: Style | undefined, prefix = ''): string {
     if (value) classes.push(`${prefix}${value}`);
   };
 
-  if (style.background) push(BACKGROUND_CLASSES[style.background]);
-  if (style.color) push(TEXT_TONE_CLASSES[style.color]);
   if (style.align) push(ALIGN_CLASSES[style.align]);
   if (style.size) push(SIZE_CLASSES[style.size]);
   if (style.padding) push(PADDING_CLASSES[style.padding]);
@@ -286,6 +371,7 @@ export function styleClasses(style: Style | undefined, prefix = ''): string {
   if (style.radius) push(RADIUS_CLASSES[style.radius]);
   if (style.shadow) push(SHADOW_CLASSES[style.shadow]);
   if (style.maxWidth) push(MAX_WIDTH_CLASSES[style.maxWidth]);
+  if (style.borderWidth) push(BORDER_WIDTH_CLASSES[style.borderWidth]);
 
   return classes.filter(Boolean).join(' ');
 }

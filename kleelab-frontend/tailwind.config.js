@@ -3,35 +3,41 @@ module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
-      // KleeLab editorial palette. This is the single source of truth for
-      // colour - components must use these tokens, never raw hex values.
+      // KleeLab's palette: monochrome - ink, paper and ash.
+      //
+      // Note this is the *studio's* palette, used by the marketing site and the
+      // builder's own chrome. Customer sites no longer share it: their colours
+      // live in a per-site theme (see THEME_SLOTS in src/lib/document.ts).
       colors: {
-        paper: '#f6f7f2',
-        canvas: '#eef1eb',
+        paper: '#ffffff',
+        canvas: '#f4f4f5',
         ink: {
-          DEFAULT: '#17231c',
-          soft: '#2a3a30',
+          DEFAULT: '#0a0a0a',
+          soft: '#3f3f46',
         },
-        muted: '#627067',
+        muted: '#71717a',
         line: {
-          DEFAULT: '#d8e0d5',
-          strong: '#ccd8ca',
-          soft: '#edf0ea',
+          DEFAULT: '#e4e4e7',
+          strong: '#d4d4d8',
+          soft: '#f4f4f5',
         },
-        mint: '#d8e2d2',
+        mint: '#f4f4f5',
         accent: {
-          DEFAULT: '#e25d3f',
-          dark: '#c94d32',
+          DEFAULT: '#0a0a0a',
+          dark: '#3f3f46',
         },
+        // Status tones are greyscale too, to keep the palette honest. Errors and
+        // confirmations are told apart by their icon, weight and border rather
+        // than by hue - which is also what WCAG 1.4.1 asks for.
         danger: {
-          DEFAULT: '#a63d24',
-          surface: '#fdf1ed',
-          line: '#f0c3b7',
+          DEFAULT: '#18181b',
+          surface: '#fafafa',
+          line: '#a1a1aa',
         },
         success: {
-          DEFAULT: '#2c5540',
-          surface: '#eef6f0',
-          line: '#bcd8c2',
+          DEFAULT: '#18181b',
+          surface: '#fafafa',
+          line: '#d4d4d8',
         },
       },
       fontFamily: {

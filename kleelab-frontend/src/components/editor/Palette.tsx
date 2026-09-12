@@ -6,6 +6,7 @@ import type { NodeType } from '@/lib/document';
 import { PALETTE, nodeFromPalette, type PaletteEntry } from '@/lib/editor/palette';
 import { useEditorStore } from '@/lib/editor/store';
 import { canHaveChildren, findNode, findParent } from '@/lib/editor/tree';
+import { ThemePanel } from '@/components/editor/ThemePanel';
 
 function PaletteItem({ entry, onPick }: { entry: PaletteEntry; onPick?: () => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -52,6 +53,7 @@ function PaletteItem({ entry, onPick }: { entry: PaletteEntry; onPick?: () => vo
 export function Palette({ className = '', onPick }: { className?: string; onPick?: () => void }) {
   return (
     <aside className={`flex w-56 shrink-0 flex-col overflow-y-auto border-r border-line bg-paper p-3 ${className}`}>
+      <ThemePanel />
       <p className="px-1 pb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted">
         Blocks
       </p>

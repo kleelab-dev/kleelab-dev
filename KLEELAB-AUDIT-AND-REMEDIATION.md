@@ -604,16 +604,59 @@ server computed : 8.00 GBP for 1 x Field Notebook
 
 ---
 
+### R7 Progress Log (2026-09-12) — colour, and a monochrome studio
+
+**Reported by the owner:** after signing in the site still offered "Sign in"; every site they built came out in KleeLab's colours; the studio's own site should be monochrome; the dashboard is not a real dashboard; design tools are incomplete.
+
+**The colour complaint was architectural, not a missing control.** `styleClasses()` mapped style tones onto *KleeLab's own Tailwind classes* — `{ paper: 'bg-paper', canvas: 'bg-canvas', ink: 'bg-ink', mint: 'bg-mint', accent: 'bg-accent' }` — and `PageNode` hardcoded `bg-paper text-ink`. Choosing "Accent" gave you **KleeLab's accent**. There was no way to express "my brand is navy", so every published site was permanently dressed in the studio's clothes. Fixing the picker alone would not have changed that.
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F8.1** | **P0** | A site's colours were bound to the studio's Tailwind tokens. Customer sites could not have their own palette at all. |
+| **F8.2** | P1 | `PageNode` hardcoded `bg-paper text-ink`, and the published `<main>` hardcoded the studio background — so even the page background was the studio's. |
+| **F8.3** | P1 | The header offered "Sign in" unconditionally, including to signed-in users. |
+| **F8.4** | P2 | Style tones were a closed enum (`'mint'`, `'accent'`), so no arbitrary colour was representable. |
+
+**What replaced it.** Colours now flow through CSS custom properties set once on the document root:
+
+- A **site theme** of eight named slots (`paper`, `surface`, `canvas`, `mint`, `ink`, `muted`, `accent`, `line`) stored in the document's existing `tokens` field — no migration needed.
+- Defaults are **neutral greyscale**, so a new site arrives un-branded. The previous behaviour made KleeLab's cream page the default for every customer.
+- A style value may be a **slot name** (resolved to `var(--kl-slot)`, so a theme change restyles everything using it) **or any CSS colour** (used verbatim). That is the freeform part: full per-element control, while keeping a single place to rebrand.
+- The inspector's two tone dropdowns became a **colour control** with the palette as swatches, a native picker, and a text field that accepts a slot name or a hex value.
+- Colours are edited on the "All" tab only, and the panel says so: they cannot be expressed as breakpoint classes, and offering them per breakpoint would have silently done nothing.
+
+**Verified against a real fixture** — a site with its own theme (`paper #fdf6e3`, `ink #0b1f3a`, `accent #c1121f`) and three sections:
+
+```
+page background     rgb(253, 246, 227)   -> the owner's theme, not the studio's
+legacy slot 'mint'  rgb(228, 228, 231)   -> neutral default, no longer KleeLab's green
+custom hex          rgb(0, 255, 0)       -> freeform colour honoured
+slot 'accent'       rgb(193, 18, 31)     -> follows the theme
+text colour         rgb(0, 0, 255)       -> per-element override
+button (no colour)  rgb(193, 18, 31)     -> inherits the theme accent
+```
+
+Old documents keep working: legacy slot names still resolve, but to the **neutral** default rather than the studio's palette.
+
+**The studio's own site is now monochrome** (`paper #ffffff`, `ink #0a0a0a`, `accent #0a0a0a`, ash borders), verified by computed style — body `rgb(255,255,255)`, CTA and headings `rgb(10,10,10)`, every sample pure grey. Status tones are greyscale too, which means errors and confirmations are distinguished by **icon, weight and border rather than hue** — that is also what WCAG 1.4.1 asks for, but it is worth knowing it was a deliberate call rather than an oversight.
+
+**Header fixed.** It decides after mount, because the token lives in `localStorage` and deciding during render would mismatch hydration. Signed-in visitors see "Your sites" instead of "Sign in".
+
+**Still open from the same feedback:** the dashboard is still a flat site list, there is no product management UI, orders have no UI at all, and the design tools are missing weight, line-height, letter-spacing and per-breakpoint colour.
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |
 |---|----------|--------|-------------|
 | **D1** | Builder engine | ✅ **`@dnd-kit` + custom Zustand tree store** | We own the nested-DnD implementation; budget a dedicated prototype milestone (highest-risk item) |
 | **D2** | Publish model | ✅ **Next.js renders from schema (shared registry)** | `services/renderer.py` and `static_generator.py` both get deleted; no object storage needed for v1 |
-| **D3** | Brand source of truth | ✅ **Light editorial theme** (`#f6f7f2`/`#17231c`/`#e25d3f`, serif) | `layout.tsx`/`globals.css`/`tailwind.config.js` must be rewritten to match; plan's clover-green is dropped |
+| **D3** | Brand source of truth | ⬛ **Superseded by D7** | Was: light editorial `#f6f7f2`/`#17231c`/`#e25d3f`. The studio palette is now monochrome |
 | **D4** | Backend fate | ✅ **Keep + repair** | Keep auth/ownership/models; replace rendering/publishing; add assets + refresh tokens + Redis limiter |
 | **D5** | Templates | ✅ **Full canonical documents** | Required for real template-driven design (R2.6) |
 | **D6** | Payments | ✅ **Deferred — no Stripe in R6** | Orders are records with a `pending` status. The money path is made correct first, so adding a payment provider later is an integration rather than a rewrite. Chosen because Stripe keys were unavailable, and unverified payment code is worse than absent payment code |
+| **D7** | Colour | ✅ **Monochrome studio brand; per-site themes for customers** | KleeLab's own site is ink/paper/ash. A customer site's colours live in its own document theme, with freeform per-element overrides on top. These are deliberately separate concerns — a customer must never inherit the studio's palette |
 
 ---
 

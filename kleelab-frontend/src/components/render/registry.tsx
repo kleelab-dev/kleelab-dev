@@ -5,7 +5,14 @@
    The R2 media manager will move uploads to a known host. */
 import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
-import { nodeClasses, type Node, type NodeType } from '@/lib/document';
+import {
+  nodeClasses,
+  nodeColourStyle,
+  themeVariables,
+  type KleeLabDocument,
+  type Node,
+  type NodeType,
+} from '@/lib/document';
 import { CartButton } from '@/components/storefront/CartButton';
 import { ProductGrid } from '@/components/storefront/ProductGrid';
 
@@ -44,17 +51,34 @@ function sectionDefaults(node: Node): string {
 }
 
 function PageNode({ node, children }: NodeComponentProps) {
-  return <div className={clsx('min-h-full bg-paper text-ink', nodeClasses(node))}>{children}</div>;
+  return (
+    <div
+      className={clsx('min-h-full', nodeClasses(node))}
+      style={{
+        backgroundColor: 'var(--kl-paper)',
+        color: 'var(--kl-ink)',
+        ...nodeColourStyle(node),
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function SectionNode({ node, children }: NodeComponentProps) {
   return (
-    <section className={clsx(sectionDefaults(node), nodeClasses(node))}>{children}</section>
+    <section className={clsx(sectionDefaults(node), nodeClasses(node))} style={nodeColourStyle(node)}>
+      {children}
+    </section>
   );
 }
 
 function ContainerNode({ node, children }: NodeComponentProps) {
-  return <div className={clsx('mx-auto w-full max-w-4xl', nodeClasses(node))}>{children}</div>;
+  return (
+    <div className={clsx('mx-auto w-full max-w-4xl', nodeClasses(node))} style={nodeColourStyle(node)}>
+      {children}
+    </div>
+  );
 }
 
 const GRID_COLUMN_CLASSES: Record<number, string> = {
@@ -67,7 +91,10 @@ const GRID_COLUMN_CLASSES: Record<number, string> = {
 function GridNode({ node, children }: NodeComponentProps) {
   const columns = Math.min(Math.max(num(node.props.columns, 1), 1), 4);
   return (
-    <div className={clsx('grid grid-cols-1 gap-6', GRID_COLUMN_CLASSES[columns], nodeClasses(node))}>
+    <div
+      className={clsx('grid grid-cols-1 gap-6', GRID_COLUMN_CLASSES[columns], nodeClasses(node))}
+      style={nodeColourStyle(node)}
+    >
       {children}
     </div>
   );
@@ -85,7 +112,10 @@ function HeadingNode({ node }: NodeComponentProps) {
   const level = Math.min(Math.max(num(node.props.level, 2), 1), 4);
   const Tag = HEADING_TAGS[level as keyof typeof HEADING_TAGS] ?? 'h2';
   return (
-    <Tag className={clsx('font-serif tracking-[-0.03em]', HEADING_SIZES[level], nodeClasses(node))}>
+    <Tag
+      className={clsx('font-serif tracking-[-0.03em]', HEADING_SIZES[level], nodeClasses(node))}
+      style={nodeColourStyle(node)}
+    >
       {text(node.props.text)}
     </Tag>
   );
@@ -93,7 +123,12 @@ function HeadingNode({ node }: NodeComponentProps) {
 
 function TextNode({ node }: NodeComponentProps) {
   return (
-    <p className={clsx('text-sm leading-6 text-muted', nodeClasses(node))}>{text(node.props.text)}</p>
+    <p
+      className={clsx('text-sm leading-6', nodeClasses(node))}
+      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+    >
+      {text(node.props.text)}
+    </p>
   );
 }
 
@@ -109,9 +144,14 @@ function ButtonNode({ node }: NodeComponentProps) {
     <a
       href={href}
       className={clsx(
-        'inline-flex items-center rounded-full bg-accent px-5 py-3 text-xs font-bold text-white hover:bg-accent-dark',
+        'inline-flex items-center rounded-full px-5 py-3 text-xs font-bold',
         nodeClasses(node),
       )}
+      style={{
+        backgroundColor: 'var(--kl-accent)',
+        color: 'var(--kl-paper)',
+        ...nodeColourStyle(node),
+      }}
     >
       {text(node.props.label, 'Learn more')}
     </a>
@@ -120,14 +160,23 @@ function ButtonNode({ node }: NodeComponentProps) {
 
 function LinkNode({ node }: NodeComponentProps) {
   return (
-    <a href={text(node.props.href, '#')} className={clsx('text-accent underline', nodeClasses(node))}>
+    <a
+      href={text(node.props.href, '#')}
+      className={clsx('underline', nodeClasses(node))}
+      style={{ color: 'var(--kl-accent)', ...nodeColourStyle(node) }}
+    >
       {text(node.props.label, 'Link')}
     </a>
   );
 }
 
 function DividerNode({ node }: NodeComponentProps) {
-  return <hr className={clsx('my-6 border-line', nodeClasses(node))} />;
+  return (
+    <hr
+      className={clsx('my-6', nodeClasses(node))}
+      style={{ borderColor: 'var(--kl-line)', ...nodeColourStyle(node) }}
+    />
+  );
 }
 
 const SPACER_HEIGHTS: Record<string, string> = {
@@ -141,7 +190,13 @@ const SPACER_HEIGHTS: Record<string, string> = {
 
 function SpacerNode({ node }: NodeComponentProps) {
   const size = text(node.props.size, 'md');
-  return <div aria-hidden className={clsx(SPACER_HEIGHTS[size] ?? 'h-8', nodeClasses(node))} />;
+  return (
+    <div
+      aria-hidden
+      className={clsx(SPACER_HEIGHTS[size] ?? 'h-8', nodeClasses(node))}
+      style={nodeColourStyle(node)}
+    />
+  );
 }
 
 function ListNode({ node, children }: NodeComponentProps) {
@@ -149,12 +204,15 @@ function ListNode({ node, children }: NodeComponentProps) {
   const ordered = node.props.ordered === true;
   const Tag = ordered ? 'ol' : 'ul';
   const body = items.map((item, index) => (
-    <li key={`${node.id}-item-${index}`} className="text-sm leading-6 text-muted">
+    <li key={`${node.id}-item-${index}`} className="text-sm leading-6" style={{ color: 'var(--kl-muted)' }}>
       {item}
     </li>
   ));
   return (
-    <Tag className={clsx('ml-5 list-outside space-y-1', ordered ? 'list-decimal' : 'list-disc', nodeClasses(node))}>
+    <Tag
+      className={clsx('ml-5 list-outside space-y-1', ordered ? 'list-decimal' : 'list-disc', nodeClasses(node))}
+      style={nodeColourStyle(node)}
+    >
       {body}
       {children}
     </Tag>
@@ -164,18 +222,35 @@ function ListNode({ node, children }: NodeComponentProps) {
 function FormNode({ node, children }: NodeComponentProps) {
   const fields = records(node.props.fields);
   return (
-    <form className={clsx('grid gap-3', nodeClasses(node))} onSubmit={(event) => event.preventDefault()}>
+    <form
+      className={clsx('grid gap-3', nodeClasses(node))}
+      style={nodeColourStyle(node)}
+      onSubmit={(event) => event.preventDefault()}
+    >
       {fields.map((field, index) => (
-        <label key={`${node.id}-field-${index}`} className="grid gap-1 text-xs font-bold text-muted">
+        <label
+          key={`${node.id}-field-${index}`}
+          className="grid gap-1 text-xs font-bold"
+          style={{ color: 'var(--kl-muted)' }}
+        >
           {text(field.label, text(field.name, `Field ${index + 1}`))}
           <input
             name={text(field.name)}
             type={text(field.type, 'text')}
-            className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink outline-none focus:border-accent"
+            className="rounded-lg px-3 py-2 text-sm font-normal outline-none"
+            style={{
+              backgroundColor: 'var(--kl-paper)',
+              color: 'var(--kl-ink)',
+              border: '1px solid var(--kl-line)',
+            }}
           />
         </label>
       ))}
-      <button type="submit" className="mt-1 inline-flex w-fit rounded-full bg-accent px-5 py-2.5 text-xs font-bold text-white">
+      <button
+        type="submit"
+        className="mt-1 inline-flex w-fit rounded-full px-5 py-2.5 text-xs font-bold"
+        style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+      >
         Send
       </button>
       {children}
@@ -185,12 +260,20 @@ function FormNode({ node, children }: NodeComponentProps) {
 
 function InputNode({ node }: NodeComponentProps) {
   return (
-    <label className={clsx('grid gap-1 text-xs font-bold text-muted', nodeClasses(node))}>
+    <label
+      className={clsx('grid gap-1 text-xs font-bold', nodeClasses(node))}
+      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+    >
       {text(node.props.label, 'Field')}
       <input
         name={text(node.props.name)}
         type={text(node.props.type, 'text')}
-        className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-normal text-ink outline-none focus:border-accent"
+        className="rounded-lg px-3 py-2 text-sm font-normal outline-none"
+        style={{
+          backgroundColor: 'var(--kl-paper)',
+          color: 'var(--kl-ink)',
+          border: '1px solid var(--kl-line)',
+        }}
       />
     </label>
   );
@@ -199,9 +282,12 @@ function InputNode({ node }: NodeComponentProps) {
 function NavNode({ node }: NodeComponentProps) {
   const links = records(node.props.links);
   return (
-    <nav className={clsx('flex items-center justify-between gap-6 border-b border-line px-6 py-4', nodeClasses(node))}>
+    <nav
+      className={clsx('flex items-center justify-between gap-6 px-6 py-4', nodeClasses(node))}
+      style={{ borderBottom: '1px solid var(--kl-line)', ...nodeColourStyle(node) }}
+    >
       <span className="text-sm font-bold">{text(node.props.brand, 'KleeLab')}</span>
-      <div className="flex items-center gap-5 text-xs font-bold text-muted">
+      <div className="flex items-center gap-5 text-xs font-bold" style={{ color: 'var(--kl-muted)' }}>
         {links.map((link, index) => (
           <a key={`${node.id}-link-${index}`} href={text(link.href, '#')}>
             {text(link.label, 'Link')}
@@ -214,7 +300,10 @@ function NavNode({ node }: NodeComponentProps) {
 
 function FooterNode({ node, children }: NodeComponentProps) {
   return (
-    <footer className={clsx('border-t border-line px-6 py-8 text-xs text-muted', nodeClasses(node))}>
+    <footer
+      className={clsx('px-6 py-8 text-xs', nodeClasses(node))}
+      style={{ borderTop: '1px solid var(--kl-line)', color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+    >
       {children}
       {text(node.props.text)}
     </footer>
@@ -227,7 +316,14 @@ function FooterNode({ node, children }: NodeComponentProps) {
  * is wired up yet. Sanitised embeds are tracked for a later phase.
  */
 function HtmlNode({ node }: NodeComponentProps) {
-  return <div className={clsx('whitespace-pre-wrap text-xs text-muted', nodeClasses(node))}>{text(node.props.html)}</div>;
+  return (
+    <div
+      className={clsx('whitespace-pre-wrap text-xs', nodeClasses(node))}
+      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+    >
+      {text(node.props.html)}
+    </div>
+  );
 }
 
 function ProductGridNode({ node }: NodeComponentProps) {
@@ -291,6 +387,13 @@ export function NodeRenderer({ node }: { node: Node }) {
   );
 }
 
-export function DocumentRenderer({ document }: { document: { root: Node } }) {
-  return <NodeRenderer node={document.root} />;
+export function DocumentRenderer({ document }: { document: KleeLabDocument }) {
+  // Theme variables live on one wrapper so every node below can reference them,
+  // and so changing the theme restyles the whole page in one move. min-h-screen
+  // matters: without it a short page would show the host's background behind it.
+  return (
+    <div className="min-h-screen" style={themeVariables(document.tokens) as React.CSSProperties}>
+      <NodeRenderer node={document.root} />
+    </div>
+  );
 }

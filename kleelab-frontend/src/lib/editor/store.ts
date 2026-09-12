@@ -8,6 +8,7 @@ import {
   type Node,
   type NodeType,
   type Style,
+  type ThemeSlot,
 } from '@/lib/document';
 import * as tree from './tree';
 
@@ -53,6 +54,8 @@ interface EditorState {
   duplicateNode(id: string): void;
   updateProps(id: string, patch: Record<string, unknown>): void;
   updateStyle(id: string, patch: Style, target?: StyleTarget): void;
+  updateTheme(slot: ThemeSlot, value: string | undefined): void;
+  resetTheme(): void;
 
   undo(): void;
   redo(): void;
@@ -64,6 +67,24 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     set((state) => {
       const next = mutate(state.document);
       if (next.root === state.document.root) return state;
+      return {
+        document: next,
+        past: [...state.past, state.document].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    });
+  };
+
+  /**
+   * Apply a change outside the tree - the theme, for instance.
+   *
+   * `commit` compares the root node to decide whether anything happened, which is
+   * never true for a theme edit, so this is a separate path rather than a flag.
+   */
+  const commitDocument = (mutate: (document: KleeLabDocument) => KleeLabDocument) => {
+    set((state) => {
+      const next = mutate(state.document);
+      if (next === state.document) return state;
       return {
         document: next,
         past: [...state.past, state.document].slice(-HISTORY_LIMIT),
@@ -158,6 +179,17 @@ export const useEditorStore = create<EditorState>()((set, get) => {
         }),
       }));
     },
+
+    updateTheme: (slot, value) => {
+      commitDocument((document) => {
+        const tokens = { ...(document.tokens ?? {}) };
+        if (value && value.trim()) tokens[slot] = value.trim();
+        else delete tokens[slot];
+        return { ...document, tokens };
+      });
+    },
+
+    resetTheme: () => commitDocument((document) => ({ ...document, tokens: {} })),
 
     undo: () =>
       set((state) => {

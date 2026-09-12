@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Logo } from '@/components/marketing/Logo';
 import { primaryNav } from '@/content/site';
+import { hasSession } from '@/services/api';
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -14,6 +15,15 @@ function isActive(pathname: string, href: string): boolean {
 export function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
+  // Decided after mount, not during render: the token lives in localStorage,
+  // which the server cannot see, so rendering it up front would mismatch
+  // hydration. Deferred so the effect body does not set state synchronously.
+  useEffect(() => {
+    if (!hasSession()) return;
+    Promise.resolve().then(() => setSignedIn(true));
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur">
@@ -44,7 +54,7 @@ export function SiteHeader() {
             href="/builder/dashboard"
             className="text-sm text-muted transition-colors hover:text-ink"
           >
-            Sign in
+            {signedIn ? 'Your sites' : 'Sign in'}
           </Link>
           <Link
             href="/builder/new"
@@ -87,7 +97,7 @@ export function SiteHeader() {
                   onClick={() => setOpen(false)}
                   className="block rounded-lg px-3 py-2.5 text-sm text-ink hover:bg-canvas"
                 >
-                  Sign in
+                  {signedIn ? 'Your sites' : 'Sign in'}
                 </Link>
               </li>
             </ul>

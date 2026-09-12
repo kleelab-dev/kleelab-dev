@@ -7,15 +7,18 @@ import { useState } from 'react';
 import { DocumentDuplicateIcon, TrashIcon } from '@heroicons/react/24/outline';
 import {
   ALIGNMENTS,
-  BACKGROUND_TONES,
+  BORDER_WIDTHS,
   MAX_WIDTHS,
   RADII,
   SHADOWS,
   SPACE_SCALE,
   TEXT_SIZES,
-  TEXT_TONES,
+  THEME_SLOTS,
+  resolveTheme,
   type Node,
+  type SiteTheme,
   type Style,
+  type ThemeSlot,
 } from '@/lib/document';
 import { useEditorStore, type StyleTarget } from '@/lib/editor/store';
 import { apiService } from '@/services/api';
@@ -283,14 +286,104 @@ const TARGETS: { value: StyleTarget; label: string }[] = [
   { value: 'mobile', label: 'Mobile' },
 ];
 
+const THEME_SLOT_LABELS: Record<ThemeSlot, string> = {
+  paper: 'Page',
+  surface: 'Card',
+  canvas: 'Subtle',
+  mint: 'Tint',
+  ink: 'Text',
+  muted: 'Muted',
+  accent: 'Accent',
+  line: 'Border',
+};
+
+/**
+ * Colour control.
+ *
+ * Offers the site's own palette as swatches, plus a free colour picker and a
+ * text field. Anything the text field accepts that is a valid CSS colour is
+ * used verbatim, so a site is not limited to the palette.
+ */
+function ColourField({
+  label,
+  value,
+  theme,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  value: string | undefined;
+  theme: SiteTheme;
+  onChange: (next: string | undefined) => void;
+  disabled?: boolean;
+}) {
+  const isHex = typeof value === 'string' && value.startsWith('#');
+
+  return (
+    <Field label={label}>
+      <div className="grid gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {THEME_SLOTS.map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(value === slot ? undefined : slot)}
+              title={THEME_SLOT_LABELS[slot]}
+              className={`h-6 w-6 rounded-md border transition ${
+                value === slot ? 'border-2 border-accent' : 'border-line'
+              } disabled:opacity-40`}
+              style={{ backgroundColor: theme[slot] }}
+            >
+              <span className="sr-only">{THEME_SLOT_LABELS[slot]} colour</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            aria-label={`${label} custom colour`}
+            disabled={disabled}
+            value={isHex ? (value as string) : '#000000'}
+            onChange={(event) => onChange(event.target.value)}
+            className="h-8 w-9 shrink-0 rounded border border-line bg-white disabled:opacity-40"
+          />
+          <input
+            className={inputClass}
+            disabled={disabled}
+            value={value ?? ''}
+            placeholder="theme name or #hex"
+            onChange={(event) => onChange(event.target.value.trim() || undefined)}
+          />
+          {value && !disabled && (
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              className="shrink-0 text-[10px] text-muted underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+      </div>
+    </Field>
+  );
+}
+
 function LayoutControls({ node }: { node: Node }) {
   const updateStyle = useEditorStore((state) => state.updateStyle);
+  const tokens = useEditorStore((state) => state.document?.tokens);
   const target = useEditorStore((state) => state.device === 'desktop' ? 'base' : state.device) as StyleTarget;
 
+  const theme = resolveTheme(tokens);
   const current: Style =
     target === 'base' ? (node.style ?? {}) : (node.responsive?.[target] ?? {});
 
   const set = (patch: Style) => updateStyle(node.id, patch, target);
+  // Colours cannot be expressed as breakpoint classes, so they apply to every
+  // screen. Offering them on a breakpoint tab would silently do nothing.
+  const coloursDisabled = target !== 'base';
 
   return (
     <div className="grid gap-3">
@@ -311,8 +404,33 @@ function LayoutControls({ node }: { node: Node }) {
         Switch the preview device in the toolbar to target a breakpoint.
       </p>
 
-      <SelectField label="Background" value={current.background} options={BACKGROUND_TONES} onChange={(background) => set({ background })} />
-      <SelectField label="Text colour" value={current.color} options={TEXT_TONES} onChange={(color) => set({ color })} />
+      <ColourField
+        label="Background"
+        value={node.style?.background}
+        theme={theme}
+        disabled={coloursDisabled}
+        onChange={(background) => updateStyle(node.id, { background }, 'base')}
+      />
+      <ColourField
+        label="Text colour"
+        value={node.style?.color}
+        theme={theme}
+        disabled={coloursDisabled}
+        onChange={(color) => updateStyle(node.id, { color }, 'base')}
+      />
+      <ColourField
+        label="Border colour"
+        value={node.style?.borderColor}
+        theme={theme}
+        disabled={coloursDisabled}
+        onChange={(borderColor) => updateStyle(node.id, { borderColor }, 'base')}
+      />
+      {coloursDisabled && (
+        <p className="rounded-lg bg-canvas p-2.5 text-[10px] leading-4 text-muted">
+          Colours apply to all screens, so they are edited on the “All” tab.
+        </p>
+      )}
+      <SelectField label="Border width" value={current.borderWidth} options={BORDER_WIDTHS} onChange={(borderWidth) => set({ borderWidth })} />
       <SelectField label="Align" value={current.align} options={ALIGNMENTS} onChange={(align) => set({ align })} />
       <SelectField label="Text size" value={current.size} options={TEXT_SIZES} onChange={(size) => set({ size })} />
       <SelectField label="Padding Y" value={current.paddingY} options={SPACE_SCALE} onChange={(paddingY) => set({ paddingY })} />

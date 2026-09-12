@@ -36,6 +36,17 @@ export function getToken(): string | null {
   return readStorage(TOKEN_KEY);
 }
 
+/**
+ * Whether a session is present in this browser.
+ *
+ * Presence only - it says nothing about whether the token is still valid, since
+ * answering that needs a round trip. Used for decisions that must not cost one,
+ * such as whether the header should offer "Sign in".
+ */
+export function hasSession(): boolean {
+  return Boolean(readStorage(REFRESH_KEY) || readStorage(TOKEN_KEY));
+}
+
 function getRefreshToken(): string | null {
   return readStorage(REFRESH_KEY);
 }

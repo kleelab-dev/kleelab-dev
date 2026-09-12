@@ -57,7 +57,9 @@ export default async function PublishedPage({ params }: { params: Promise<Params
       value={{ subdomain, currency: data.site.currency || 'GBP', products }}
     >
       <CartProvider subdomain={subdomain}>
-        <main className="min-h-screen bg-paper text-ink">
+        {/* No background here: the document paints its own theme, and the host's
+            wrapper would otherwise show through on a short page. */}
+        <main className="min-h-screen">
           <DocumentRenderer document={document} />
         </main>
         <CartDrawer />

@@ -113,16 +113,16 @@ export function CartDrawer() {
         type="button"
         aria-label="Close cart"
         onClick={close}
-        className="absolute inset-0 h-full w-full cursor-default bg-ink/40"
+        className="absolute inset-0 h-full w-full cursor-default bg-black/40"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Your cart"
-        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-paper shadow-2xl"
+        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-[var(--kl-paper)] text-[var(--kl-ink)] shadow-2xl"
       >
-        <header className="flex items-center justify-between border-b border-line px-5 py-4">
+        <header className="flex items-center justify-between border-b border-[var(--kl-line)] px-5 py-4">
           <h2 className="font-serif text-xl">
             {stage === 'done' ? 'Order placed' : stage === 'checkout' ? 'Checkout' : 'Your cart'}
           </h2>
@@ -131,7 +131,7 @@ export function CartDrawer() {
             type="button"
             onClick={close}
             aria-label="Close cart"
-            className="rounded-lg p-1.5 text-muted hover:bg-canvas hover:text-ink"
+            className="rounded-lg p-1.5 text-[var(--kl-muted)] hover:bg-[var(--kl-canvas)]"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -145,12 +145,12 @@ export function CartDrawer() {
                 <strong className="font-mono text-xs text-ink">{order.id.slice(0, 8)}</strong>,
                 and a confirmation has been sent.
               </p>
-              <ul className="divide-y divide-line border-y border-line">
+              <ul className="divide-y divide-[var(--kl-line)] border-y border-[var(--kl-line)]">
                 {order.items.map((line) => (
                   <li key={line.product_id} className="flex justify-between gap-4 py-3 text-sm">
                     <span>
                       {line.name}
-                      <span className="text-muted"> × {line.quantity}</span>
+                      <span className="text-[var(--kl-muted)]"> × {line.quantity}</span>
                     </span>
                     <span className="shrink-0">
                       {formatMoney(line.line_total, order.currency)}
@@ -159,7 +159,7 @@ export function CartDrawer() {
                 ))}
               </ul>
               <div className="flex items-baseline justify-between">
-                <span className="text-sm text-muted">Total</span>
+                <span className="text-sm text-[var(--kl-muted)]">Total</span>
                 <span className="font-serif text-2xl">
                   {formatMoney(order.total, order.currency)}
                 </span>
@@ -186,12 +186,12 @@ export function CartDrawer() {
                 </p>
               )}
 
-              <ul className="divide-y divide-line border-y border-line">
+              <ul className="divide-y divide-[var(--kl-line)] border-y border-[var(--kl-line)]">
                 {resolved.items.map(({ product, quantity, lineTotal }) => (
                   <li key={product.id} className="flex gap-3 py-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{product.name}</p>
-                      <p className="mt-0.5 text-xs text-muted">
+                      <p className="mt-0.5 text-xs text-[var(--kl-muted)]">
                         {formatMoney(product.price, storefront.currency)} each
                       </p>
 
@@ -208,12 +208,12 @@ export function CartDrawer() {
                           onChange={(event) =>
                             cart.setQuantity(product.id, Number(event.target.value))
                           }
-                          className="w-16 rounded-lg border border-line bg-white px-2 py-1.5 text-sm focus:border-ink focus:outline-none"
+                          className="w-16 rounded-lg border border-[var(--kl-line)] bg-[var(--kl-surface)] px-2 py-1.5 text-sm focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => cart.remove(product.id)}
-                          className="text-xs text-muted underline underline-offset-2 hover:text-accent"
+                          className="text-xs text-[var(--kl-muted)] underline underline-offset-2"
                         >
                           Remove
                         </button>
@@ -287,14 +287,14 @@ export function CartDrawer() {
         </div>
 
         {stage !== 'done' && cart.lines.length > 0 && (
-          <footer className="border-t border-line px-5 py-4">
+          <footer className="border-t border-[var(--kl-line)] px-5 py-4">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-muted">Subtotal</span>
+              <span className="text-sm text-[var(--kl-muted)]">Subtotal</span>
               <span className="font-serif text-2xl">
                 {formatMoney(resolved.total, storefront.currency)}
               </span>
             </div>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-1 text-xs text-[var(--kl-muted)]">
               Delivery and taxes are arranged with the shop.
             </p>
             {stage === 'cart' ? (
@@ -302,7 +302,8 @@ export function CartDrawer() {
                 type="button"
                 disabled={resolved.items.length === 0}
                 onClick={() => setStage('checkout')}
-                className="mt-4 w-full rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:opacity-50"
+                className="mt-4 w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
               >
                 Checkout
               </button>
@@ -311,7 +312,8 @@ export function CartDrawer() {
                 type="submit"
                 form="checkout-form"
                 disabled={placing}
-                className="mt-4 w-full rounded-full bg-accent px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+                className="mt-4 w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
               >
                 {placing ? 'Placing order…' : 'Place order'}
               </button>
@@ -320,11 +322,12 @@ export function CartDrawer() {
         )}
 
         {stage === 'done' && (
-          <footer className="border-t border-line px-5 py-4">
+          <footer className="border-t border-[var(--kl-line)] px-5 py-4">
             <button
               type="button"
               onClick={close}
-              className="w-full rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper hover:bg-ink-soft"
+              className="w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+              style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
             >
               Continue shopping
             </button>

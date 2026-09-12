@@ -4,14 +4,15 @@
 
 :root {
   /* RGB triplet tokens mirrored from tailwind.config.js so raw CSS can
-     reference the same palette (e.g. rgb(var(--accent))). */
-  --paper: 246 247 242;
-  --canvas: 238 241 235;
-  --ink: 23 35 28;
-  --muted: 98 112 103;
-  --line: 216 224 213;
-  --mint: 216 226 210;
-  --accent: 226 93 63;
+     reference the same palette (e.g. rgb(var(--accent))).
+     Monochrome: ink, paper and ash. */
+  --paper: 255 255 255;
+  --canvas: 244 244 245;
+  --ink: 10 10 10;
+  --muted: 113 113 122;
+  --line: 228 228 231;
+  --mint: 244 244 245;
+  --accent: 10 10 10;
 }
 
 body {

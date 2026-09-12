@@ -18,12 +18,16 @@ export function CartButton({ label = 'Cart' }: { label?: string }) {
     <button
       type="button"
       onClick={cart.open}
-      className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-white px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-ink"
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--kl-line)] px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-80"
+      style={{ backgroundColor: 'var(--kl-surface)', color: 'var(--kl-ink)' }}
     >
       <ShoppingBagIcon className="h-4 w-4" />
       {label}
       {cart.count > 0 && (
-        <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span
+          className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+          style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+        >
           {cart.count}
         </span>
       )}
