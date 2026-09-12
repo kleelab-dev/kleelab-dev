@@ -8,7 +8,7 @@ from uuid import UUID
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,9 @@ from kleelab.models.user import User
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# `auto_error=False` so the same dependency can serve anonymous visitors.
+optional_bearer = HTTPBearer(auto_error=False)
 
 # bcrypt only considers the first 72 bytes of a password and raises ValueError
 # beyond that. Callers validate this up front (see routers/auth.py), but we
@@ -123,3 +126,33 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    """Return the signed-in user, or None for an anonymous visitor.
+
+    For public endpoints that behave the same either way but benefit from
+    knowing who is asking - a contact form, for instance, where a signed-in
+    submission can be attached to the account for follow-up.
+    """
+
+    if credentials is None:
+        return None
+
+    try:
+        payload = jwt.decode(
+            credentials.credentials, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        user_uuid = UUID(str(user_id))
+    except (JWTError, ValueError):
+        # An expired or malformed token makes the visitor anonymous; it must not
+        # turn a public page into an error.
+        return None
+
+    return await db.scalar(select(User).where(User.id == user_uuid))

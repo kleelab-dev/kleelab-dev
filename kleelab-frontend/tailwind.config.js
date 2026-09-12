@@ -35,8 +35,20 @@ module.exports = {
         },
       },
       fontFamily: {
+        // Three roles, deliberately distinct:
+        //   serif -> editorial display (headings, pull quotes)
+        //   sans  -> body and interface copy
+        //   mono  -> labels, eyebrows, metadata (the studio's technical voice)
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
-        serif: ['ui-serif', 'Georgia', 'Cambria', '"Times New Roman"', 'serif'],
+        serif: ['var(--font-display)', 'ui-serif', 'Georgia', 'serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      maxWidth: {
+        content: '1200px',
+        measure: '68ch',
+      },
+      letterSpacing: {
+        label: '0.14em',
       },
     },
   },

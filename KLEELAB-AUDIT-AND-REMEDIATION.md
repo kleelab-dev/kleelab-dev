@@ -200,7 +200,7 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 | Plan item | Status | Note |
 |-----------|--------|------|
 | Phase 1 Foundation (waitlist, Tally, coming-soon) | ⚠️ unknown | No Tally router; no marketing page; no video assets found in the tree |
-| Phase 2 Agency site (11 routes, 12 components) | ❌ **0%** | Nothing built |
+| Phase 2 Agency site (11 routes, 12 components) | ✅ | Built in R5 - 11 routes, 12 components, public leads endpoint |
 | Phase 3 Backend | 🟡 ~70% | Strong base; publishing broken; no Stripe; token model short of spec |
 | Phase 3 Builder frontend | 🔴 ~15% | One page, no routes, **no DnD**, no images, no template design |
 | Phase 4 E-commerce | 🟡 backend-only | Models+routers exist; zero UI; type drift (F6.1); no checkout |
@@ -464,6 +464,51 @@ After tripping, the tracebacks stop for the cooldown and **every request still r
 **Caught while fixing this:** excluding every `/api/auth/*` path from refresh meant `/api/auth/me` returned `401` instead of rotating. With access tokens now at 15 minutes, the dashboard would have broken every 15 minutes. The exclusion is now an explicit list of session-establishing calls.
 
 **New route:** `/verify-email`.
+
+---
+
+### R5 Progress Log (2026-09-12) — Phase 2 agency site
+
+| Task | Status | Notes |
+|------|--------|-------|
+| **R5.1** Agency leads endpoint | ✅ | `POST /api/agency/leads` — public, honeypot-protected |
+| **R5.2** Marketing shell | ✅ | Route group `(marketing)`, header, footer |
+| **R5.3** Design system | ✅ | Three type roles; the display face is a real typeface now |
+| **R5.4** The 11 routes | ✅ | All prerendered |
+| **R5.5** Contact form | ✅ | Verified end to end against the running stack |
+| **R5.6** SEO | ✅ | Per-route metadata, `sitemap.xml`, `robots.txt` |
+
+The product had **no public front door**: `/` rendered the builder's onboarding wizard, and the marketing site did not exist. `/` is now the agency home and the builder keeps its own routes (`/builder/new`, `/builder/dashboard`, `/builder/[siteId]/edit`) outside the marketing layout, so the two never fight over chrome. Nothing linked to `/` as the builder, so the move was safe.
+
+**Routes (11):** `/` · `/services` · `/work` · `/work/[slug]` · `/about` · `/contact` · `/blog` · `/blog/[slug]` · `/privacy` · `/terms` · `/cookies`.
+
+**Components (12):** `SiteHeader`, `SiteFooter`, `Hero`, `Section`, `SectionHeading`, `PageHeader`, `ServiceCard`, `WorkCard`, `PostCard`, `Statement`, `CallToAction`, `ContactForm` — plus `Prose`, `LegalPage`, `Logo` and `ArrowLink` as supporting pieces.
+
+**Three type roles, replacing a system stack.** `font-serif` previously resolved to `ui-serif`/Georgia/Cambria, which means the brand rendered differently on every operating system — a genuine defect, not a preference. Display is now **Newsreader** (drawn for newspapers: legible large, warmer than a didone, which suits *cute*), body is Inter, and labels/eyebrows/metadata are **IBM Plex Mono**, echoing the measurement language of a design tool. Because the token is central, the builder and dashboard inherit the change for free.
+
+**The hero is the thesis.** Rather than describe a builder, the page shows one: a canvas with heading, text and image blocks arriving in sequence, the first carrying the selection outline, drag handle and drop indicator. It is the most characteristic thing in the subject's world, and it could not be dropped into a different agency's site. It is CSS-only (no client JS), and sits at a 5fr/7fr asymmetric split rather than an even one.
+
+**Verification (browser, real stack):**
+
+```
+POST /api/agency/leads       -> 201 {"status":"received"}, row stored
+honeypot field filled        -> 201 {"status":"received"}, 0 rows stored
+message shorter than 10      -> 422
+email "not-an-email"         -> 422
+layout 1440px / 390px        -> no horizontal overflow on either
+hero grid                    -> 453px 635px  (5fr / 7fr as intended)
+h1 font-family               -> Newsreader, "Newsreader Fallback", ui-serif, Georgia, serif
+```
+
+The honeypot answer is **deliberately identical** to a real submission: a bot that gets an error learns to adapt, so it gets a success it cannot distinguish. The row simply is not written.
+
+**Content is placeholder, and marked as such.** Case studies, notes, and the contact details are invented — every file carries a header comment saying so, and the legal pages render a **visible draft notice on the page** rather than only in a code comment, because unreviewed legal text that looks finished is exactly the kind of thing that quietly ships. The legal drafts are grounded in what this codebase actually does (which data is stored, which processors are involved, the 15-minute token lifetime) but they are **not legal advice** and have not been reviewed.
+
+**Two things deliberately not built.**
+- **No client testimonials.** Inventing quotes and attributing them to named people is fabrication, which is worse than placeholder copy. The `Statement` component carries the studio's own line instead, and already accepts an `attribution` for when real quotes exist.
+- **No stock photography.** Work cards use a wallpaper of the studio mark, which cannot be mistaken for a real screenshot of a real project.
+
+**Caught during verification:** the running backend process predated the new router, so the contact form returned 404 while the code was correct and the import smoke test passed. A green import check only proves the code loads — a long-running dev server still needs restarting when routers are added.
 
 ---
 
