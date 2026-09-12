@@ -1,6 +1,11 @@
-"""Order management API routes."""
+"""Order management API routes.
 
-from decimal import Decimal
+Owner-facing. There is deliberately no order-creation endpoint here: orders
+arrive from shoppers through the storefront router, which computes the total from
+stored prices. The previous `POST /orders` accepted a client-supplied `total`, so
+whoever called it chose their own price.
+"""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,8 +17,7 @@ from kleelab.core.security import get_current_user
 from kleelab.models.order import Order
 from kleelab.models.site import Site
 from kleelab.models.user import User
-from kleelab.schemas.order import OrderCreate, OrderOut, OrderUpdate
-from kleelab.services.email import send_order_confirmation
+from kleelab.schemas.order import OrderOut, OrderUpdate
 
 
 router = APIRouter(prefix="/api/sites/{site_id}/orders", tags=["orders"])
@@ -51,27 +55,6 @@ async def list_orders(
     await verify_site_ownership(site_id, current_user, db)
     result = await db.execute(select(Order).where(Order.site_id == site_id))
     return list(result.scalars().all())
-
-
-@router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
-@router.post("/", response_model=OrderOut, include_in_schema=False)
-async def create_order(
-    site_id: UUID,
-    order_data: OrderCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> Order:
-    await verify_site_ownership(site_id, current_user, db)
-    order = Order(
-        site_id=site_id,
-        total=Decimal(str(order_data.total)),
-        **order_data.model_dump(exclude={"total"}),
-    )
-    db.add(order)
-    await db.commit()
-    await db.refresh(order)
-    send_order_confirmation(order.customer_email, str(order.id), order.items, float(order.total))
-    return order
 
 
 @router.get("/{order_id}", response_model=OrderOut)

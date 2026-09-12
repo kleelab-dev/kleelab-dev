@@ -29,6 +29,7 @@ from kleelab.routers.orders import router as orders_router
 from kleelab.routers.public import router as public_router
 from kleelab.routers.seo import router as seo_router
 from kleelab.routers.sites import router as sites_router
+from kleelab.routers.storefront import router as storefront_router
 from kleelab.routers.templates import router as templates_router
 from kleelab.routers.versions import router as versions_router
 
@@ -66,6 +67,7 @@ app.include_router(products_router)
 app.include_router(public_router)
 app.include_router(orders_router)
 app.include_router(seo_router)
+app.include_router(storefront_router)
 app.include_router(templates_router)
 app.include_router(versions_router)
 

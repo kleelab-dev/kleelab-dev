@@ -13,6 +13,8 @@ export interface Site {
   subdomain: string | null;
   custom_domain?: string | null;
   is_published: boolean;
+  /** ISO-4217. What this site sells in; used to render every price it shows. */
+  currency: string;
   template_id?: string | null;
   // Optional: present only on endpoints that join extra data.
   owner_id?: string;
@@ -61,23 +63,45 @@ export interface Product {
   id: string;
   site_id: string;
   name: string;
-  description?: string;
+  description: string | null;
   price: number;
-  currency: string;
-  inventory_count: number;
+  images: string[] | null;
+  stock: number;
+  category: string | null;
+  variants: Record<string, unknown> | null;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+/** Matches ALLOWED_STATUSES in `routers/orders.py`. */
+export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'refunded';
+
+/**
+ * One line of an order.
+ *
+ * Orders store a snapshot rather than a foreign key, because products can be
+ * edited or deleted and an order has to stay readable regardless.
+ */
+export interface OrderLine {
+  product_id: string;
+  name: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
 }
 
 export interface Order {
   id: string;
   site_id: string;
   customer_email: string;
-  total_amount: number;
+  customer_name: string | null;
+  total: number;
   currency: string;
-  status: 'pending' | 'completed' | 'cancelled' | 'refunded';
-  items_count: number;
+  status: OrderStatus;
+  items: OrderLine[];
   created_at: string;
+  updated_at: string;
 }
 
 export interface Asset {
@@ -100,39 +124,41 @@ export interface Template {
   config?: Record<string, unknown>;
 }
 
-export interface Subscription {
+/**
+ * Storefront (shopper-facing) shapes.
+ *
+ * These come from the public router, which deliberately does not expose the raw
+ * stock count - only whether the item can be bought.
+ */
+export interface PublicProduct {
   id: string;
-  user_id: string;
-  plan_name: string;
-  status: 'active' | 'past_due' | 'canceled' | 'trialing';
-  current_period_end: string;
-  cancel_at_period_end: boolean;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  images: string[];
+  category: string | null;
+  in_stock: boolean;
 }
 
-export interface DashboardStats {
-  sites_count: number;
-  total_views: number;
-  total_orders: number;
-  total_revenue: number;
-  active_subscriptions: number;
-  conversion_rate: number;
-}
-
-export interface ActivityItem {
+export interface PublicOrder {
   id: string;
-  type: 'site_published' | 'order_received' | 'page_updated' | 'asset_uploaded';
-  title: string;
-  description: string;
-  timestamp: string;
+  status: string;
+  total: number;
+  currency: string;
+  items: OrderLine[];
+  created_at: string;
 }
 
-export type TabType = 
-  | 'overview' 
-  | 'sites' 
-  | 'pages' 
-  | 'products' 
-  | 'orders' 
-  | 'assets' 
-  | 'analytics' 
-  | 'templates' 
-  | 'settings';
+/** What a shopper sends. Note the absence of any price - the server decides. */
+export interface OrderLineInput {
+  product_id: string;
+  quantity: number;
+}
+
+export interface PublicOrderCreate {
+  customer_email: string;
+  customer_name?: string | null;
+  items: OrderLineInput[];
+  note?: string | null;
+}

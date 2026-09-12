@@ -32,6 +32,11 @@ class Site(Base):
     )
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # ISO-4217 code for everything this site sells. Stored rather than assumed:
+    # a price column with no currency is ambiguous the moment it is displayed.
+    currency: Mapped[str] = mapped_column(
+        String(3), nullable=False, default="GBP", server_default="GBP"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

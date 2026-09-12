@@ -203,7 +203,7 @@ The frontend `types/api.ts` describes a **different backend** than the one that 
 | Phase 2 Agency site (11 routes, 12 components) | ✅ | Built in R5 - 11 routes, 12 components, public leads endpoint |
 | Phase 3 Backend | 🟡 ~70% | Strong base; publishing broken; no Stripe; token model short of spec |
 | Phase 3 Builder frontend | 🔴 ~15% | One page, no routes, **no DnD**, no images, no template design |
-| Phase 4 E-commerce | 🟡 backend-only | Models+routers exist; zero UI; type drift (F6.1); no checkout |
+| Phase 4 E-commerce | 🟡 money path correct | Order intake rewritten in R6.1 (server-computed totals, public intake, race-safe stock). No payment provider (see D6); storefront UI still to come |
 | Phase 5 Polish & Launch | ❌ | No tests, no CI, no perf/security work, no frontend deploy |
 | **Extra (unplanned)** | ✅ | products/orders/analytics/versions/gdpr/dashboard backends; 6 dead dashboard tabs |
 
@@ -512,6 +512,58 @@ The honeypot answer is **deliberately identical** to a real submission: a bot th
 
 ---
 
+### R6 Progress Log (2026-09-12) — e-commerce, part 1: the money path
+
+R6 opened with an audit of the checkout code, and the finding was worse than "the UI is missing": **the e-commerce path was built on the wrong trust model.**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F7.1** | **P0** | `POST /orders` accepted `total` **from the request body**. The buyer chose the price; nothing recomputed it from stored products. |
+| **F7.2** | **P0** | Order creation depended on `get_current_user` **plus `verify_site_ownership`** — so only the *site owner* could create orders on their own site. A shopper could never order. |
+| **F7.3** | **P0** | No public product or order API existed. `public.py` served documents only, so a storefront block had nothing to call. |
+| **F7.4** | **P1** | Line items were `list[dict]` — never validated that a product existed, belonged to that site, was active, or was in stock. |
+| **F7.5** | **P1** | No currency anywhere in the schema. A `Numeric(10,2)` with no currency is not interpretable. |
+| **F7.6** | **P1** | Frontend `Product`/`Order` types were fiction (`inventory_count`, `total_amount`, `items_count`) — F6.1, now fixed. |
+
+**What was built.** A public storefront router (`routers/storefront.py`):
+
+- `GET /api/public/sites/{subdomain}/products` — active products of a **published** site. Exposes `in_stock`, not the raw count: shoppers need availability, competitors do not need inventory levels.
+- `POST /api/public/sites/{subdomain}/orders` — the request body has **no price field at all**. The buyer chooses what and how many; the server decides what it costs.
+
+Four decisions carry the weight:
+
+1. **The total is computed, never received.** Prices come from stored rows.
+2. **Stock is reserved with a conditional update** — `UPDATE products SET stock = stock - n WHERE id = ? AND stock >= n`, with `rowcount == 0` meaning sold out. Reading the stock and then writing would let two orders both pass the check.
+3. **A failed reservation abandons the whole basket.** A partial reservation would hold stock for an order that never happened.
+4. **Orders store a snapshot** of names and unit prices. Products are editable and deletable, so an order cannot rely on joining back to them.
+
+The owner-facing `POST /orders` was **deleted rather than patched** — its entire purpose was accepting a client-supplied total. Owner endpoints can list, read and re-status orders but cannot invent one. Owners also get `sites.currency` (migration `add_currency`), and every order snapshots it, so a historical order stays readable if the site setting later changes.
+
+**Verification.** Fixtures were created directly in the database (a published store with known prices and stock, a second store, an unpublished store), then attacked over HTTP against the running stack:
+
+```
+price tampering: sent total=0.01, currency=XYZ
+  -> 201, total 25.00, currency GBP, unit_price 12.50     (both ignored)
+
+over-stock (4 of 3)            -> 409      duplicate lines (1+1 of 1) -> 409
+sold-out product               -> 409      withdrawn product          -> 400
+another store's product        -> 400      unpublished store          -> 404
+empty basket / qty 0           -> 422      malformed email            -> 422
+
+oversell race: 5 concurrent baskets of 3 against 10 in stock
+  -> [201, 201, 201, 409, 409]   exactly 3 sold, none oversold
+```
+
+Database check afterwards: 5 orders, every one carrying a currency and an item snapshot, **none priced at 0.01**, no negative stock, and fixture counts returned to baseline.
+
+**A bug the tests caught that review would not have.** The over-stock paths returned **500 instead of 409**. The cause: `await db.rollback()` expires the ORM instances, and the error message then read `product.name` — a synchronous lazy load inside async code, which raises `MissingGreenlet`. The status code hid it nicely: the rollback had already happened, so the stock was correct and only the response was wrong. Fixed by capturing the name before the rollback. This is the second time in this project that a passing code read and a failing runtime disagreed.
+
+**Frontend types now match reality.** `Product`, `Order`, `OrderLine` and `OrderStatus` match the API; `PublicProduct`/`PublicOrder` were added for the storefront; and the phantom `Subscription`, `DashboardStats`, `ActivityItem` and `TabType` types were removed — nothing imported them, since the dead dashboard tabs they belonged to were deleted in R0.
+
+**Still to do in R6:** storefront blocks in the document schema (R6.3), cart and checkout UI on published sites (R6.4), and a frontend deploy target — `render.yaml` still deploys only the API (R6.5).
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |
@@ -521,6 +573,7 @@ The honeypot answer is **deliberately identical** to a real submission: a bot th
 | **D3** | Brand source of truth | ✅ **Light editorial theme** (`#f6f7f2`/`#17231c`/`#e25d3f`, serif) | `layout.tsx`/`globals.css`/`tailwind.config.js` must be rewritten to match; plan's clover-green is dropped |
 | **D4** | Backend fate | ✅ **Keep + repair** | Keep auth/ownership/models; replace rendering/publishing; add assets + refresh tokens + Redis limiter |
 | **D5** | Templates | ✅ **Full canonical documents** | Required for real template-driven design (R2.6) |
+| **D6** | Payments | ✅ **Deferred — no Stripe in R6** | Orders are records with a `pending` status. The money path is made correct first, so adding a payment provider later is an integration rather than a rewrite. Chosen because Stripe keys were unavailable, and unverified payment code is worse than absent payment code |
 
 ---
 

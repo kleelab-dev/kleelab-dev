@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SiteCreate(BaseModel):
@@ -17,6 +17,8 @@ class SiteUpdate(BaseModel):
     subdomain: str | None = None
     custom_domain: str | None = None
     template_id: UUID | None = None
+    # ISO-4217, upper case. Anything else would be a display bug waiting to happen.
+    currency: str | None = Field(default=None, min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
 
 
 class SiteOut(BaseModel):
@@ -29,5 +31,6 @@ class SiteOut(BaseModel):
     template_id: UUID | None
     is_published: bool
     published_at: datetime | None
+    currency: str
     created_at: datetime
     updated_at: datetime
