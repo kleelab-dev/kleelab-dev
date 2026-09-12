@@ -5,7 +5,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { useDroppable } from '@dnd-kit/core';
 import { Bars3Icon, DocumentDuplicateIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { NODE_REGISTRY } from '@/components/render/registry';
-import type { Node } from '@/lib/document';
+import { themeVariables, type Node } from '@/lib/document';
 import { canHaveChildren, findNode } from '@/lib/editor/tree';
 import { nodeLabel } from '@/lib/editor/palette';
 import { useEditorStore, type Device } from '@/lib/editor/store';
@@ -115,8 +115,15 @@ export function Canvas() {
 
   return (
     <div className="flex-1 overflow-auto bg-canvas p-6" onClick={() => select(null)}>
+      {/*
+        The theme variables belong here as well as on the published page. The
+        canvas renders nodes directly rather than through DocumentRenderer, so
+        without this every var(--kl-*) resolved to nothing and the canvas drew
+        an unstyled, colourless page - while the published site looked correct.
+      */}
       <div
         className={`mx-auto min-h-[520px] overflow-hidden rounded-xl bg-white shadow-[0_12px_35px_rgba(23,35,28,.09)] transition-all ${DEVICE_WIDTH[device]}`}
+        style={themeVariables(document.tokens) as React.CSSProperties}
       >
         {empty ? (
           <div className="grid h-[520px] place-items-center p-8 text-center">

@@ -646,6 +646,35 @@ Old documents keep working: legacy slot names still resolve, but to the **neutra
 
 ---
 
+### R7 Follow-up (2026-09-12) — "the colour picker is all black and white"
+
+The owner reported that the colour picker showed no colour and that the builder was entirely black and white. Three separate defects were behind it, and **two of them predate R7**.
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F8.5** | **P0** | **The backend document mirror was never updated for R7.** `schemas/document.py` still declared colours as `Literal['ink','mint','accent',...]` with `extra="forbid"`. Every colour a user chose was rejected with **422**, so autosave reported "Save failed" and the colour was lost. |
+| **F8.6** | **P0** | **The same mirror was never updated for R6 either.** `product_grid` and `cart_button` were absent from its `NodeType` literal, so a page containing a Products block could not be saved at all. Dormant since R6. |
+| **F8.7** | **P0** | **The editor canvas never set the theme variables.** `Canvas.tsx` renders nodes directly through `NODE_REGISTRY` rather than through `DocumentRenderer`, so every `var(--kl-*)` resolved to nothing and the canvas drew an unstyled, colourless page. The published site was fine, which is exactly why it went unnoticed. |
+| **F8.8** | P2 | The neutral default palette meant the picker offered eight shades of grey beside a native input showing `#000000`, so it read as broken even once it worked. |
+
+**Why R6 and R7 verification missed F8.5 and F8.6.** Both were verified by writing fixtures straight into the database. That skips Pydantic entirely, so the API contract was never exercised — the *rendering* was checked while the *saving* was not. A colour could be proven to render before it could be proven to save.
+
+**Fixes.** The backend schema was brought back in line: colours are bounded free strings (`max_length=64`), `borderColor`/`borderWidth` added, and both storefront node types registered — with `extra="forbid"` kept, because it is what surfaced the drift. `Canvas.tsx` now sets the same variables the published page does. The picker gained 18 quick colours and 6 whole-theme presets, its native input now shows the colour actually in effect rather than a misleading black, and the theme panel opens by default.
+
+**Verified.** A document containing a custom hex background, a `borderColor`, a `borderWidth`, a blue heading, a `product_grid` and a `cart_button` — every shape the old schema rejected — now saves with **200 instead of 422**, and the builder renders it:
+
+```
+canvas theme vars   --kl-paper #fffbf5  --kl-ink #2b1c12  --kl-accent #c2410c
+section background  rgb(255, 0, 0)      custom hex honoured
+section border      rgb(13, 148, 136)   borderColor honoured
+heading             rgb(29, 78, 216)    per-element colour honoured
+product_grid        renders the editor placeholder, as intended
+```
+
+**The lesson worth keeping:** the frontend `zod` schema and the backend Pydantic model are two halves of one contract, and nothing enforced that they move together. Verification that writes fixtures directly to the database will never catch a contract mismatch — it has to go through the API.
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |

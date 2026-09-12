@@ -119,6 +119,109 @@ export function resolveTheme(tokens: Record<string, string> | undefined): SiteTh
 const CSS_COLOUR = /^(#[0-9a-fA-F]{3,8}$|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/;
 
 /**
+ * Quick colours for the per-element picker.
+ *
+ * The default theme is neutral on purpose, which left the picker showing nothing
+ * but greys and made it look broken. These are starting points, not a
+ * constraint: the picker still accepts any colour.
+ */
+export const PRESET_COLOURS = [
+  '#000000',
+  '#404040',
+  '#71717a',
+  '#a1a1aa',
+  '#e4e4e7',
+  '#ffffff',
+  '#b91c1c',
+  '#ea580c',
+  '#d97706',
+  '#65a30d',
+  '#16a34a',
+  '#0d9488',
+  '#0284c7',
+  '#1d4ed8',
+  '#7c3aed',
+  '#c026d3',
+  '#db2777',
+  '#78350f',
+] as const;
+
+/**
+ * Whole-theme starting points.
+ *
+ * Applying one sets every slot at once, so a site gets a coherent palette in a
+ * single click rather than eight separate colour choices.
+ */
+export const PRESET_THEMES: { name: string; theme: SiteTheme }[] = [
+  { name: 'Neutral', theme: DEFAULT_THEME },
+  {
+    name: 'Warm',
+    theme: {
+      paper: '#fffbf5',
+      surface: '#ffffff',
+      canvas: '#fdf2e9',
+      mint: '#f8e3d0',
+      ink: '#2b1c12',
+      muted: '#8a6f5c',
+      accent: '#c2410c',
+      line: '#efd9c6',
+    },
+  },
+  {
+    name: 'Ocean',
+    theme: {
+      paper: '#f8fafc',
+      surface: '#ffffff',
+      canvas: '#eff6ff',
+      mint: '#dbeafe',
+      ink: '#0f172a',
+      muted: '#64748b',
+      accent: '#1d4ed8',
+      line: '#dbe4f0',
+    },
+  },
+  {
+    name: 'Forest',
+    theme: {
+      paper: '#f8faf7',
+      surface: '#ffffff',
+      canvas: '#f0f5ee',
+      mint: '#dcfce7',
+      ink: '#14261a',
+      muted: '#5f7a68',
+      accent: '#15803d',
+      line: '#d9e5da',
+    },
+  },
+  {
+    name: 'Plum',
+    theme: {
+      paper: '#fdfaff',
+      surface: '#ffffff',
+      canvas: '#f7f0fb',
+      mint: '#f3e8ff',
+      ink: '#231030',
+      muted: '#7c628c',
+      accent: '#7e22ce',
+      line: '#e9dcf2',
+    },
+  },
+  {
+    name: 'Dark',
+    theme: {
+      paper: '#0f1115',
+      surface: '#171a20',
+      canvas: '#1d2129',
+      mint: '#242832',
+      ink: '#f4f4f5',
+      muted: '#a1a1aa',
+      accent: '#fafafa',
+      line: '#2e333d',
+    },
+  },
+];
+
+/**
  * Turn a style value into something CSS will accept.
  *
  * A theme slot becomes `var(--kl-<slot>)`; anything else is passed through as a

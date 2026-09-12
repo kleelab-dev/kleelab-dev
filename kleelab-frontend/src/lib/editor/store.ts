@@ -55,6 +55,7 @@ interface EditorState {
   updateProps(id: string, patch: Record<string, unknown>): void;
   updateStyle(id: string, patch: Style, target?: StyleTarget): void;
   updateTheme(slot: ThemeSlot, value: string | undefined): void;
+  setTheme(values: Record<string, string>): void;
   resetTheme(): void;
 
   undo(): void;
@@ -190,6 +191,12 @@ export const useEditorStore = create<EditorState>()((set, get) => {
     },
 
     resetTheme: () => commitDocument((document) => ({ ...document, tokens: {} })),
+
+    setTheme: (values) =>
+      commitDocument((document) => ({
+        ...document,
+        tokens: { ...(document.tokens ?? {}), ...values },
+      })),
 
     undo: () =>
       set((state) => {

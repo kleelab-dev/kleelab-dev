@@ -9,6 +9,7 @@ import {
   ALIGNMENTS,
   BORDER_WIDTHS,
   MAX_WIDTHS,
+  PRESET_COLOURS,
   RADII,
   SHADOWS,
   SPACE_SCALE,
@@ -317,11 +318,18 @@ function ColourField({
   onChange: (next: string | undefined) => void;
   disabled?: boolean;
 }) {
-  const isHex = typeof value === 'string' && value.startsWith('#');
+  const isSlot =
+    typeof value === 'string' && (THEME_SLOTS as readonly string[]).includes(value);
+  // Show the colour actually in effect. Reading '#000000' for a slot was
+  // misleading - it looked like the control was empty or broken.
+  const resolved = isSlot ? theme[value as ThemeSlot] : value;
+  const pickerValue =
+    typeof resolved === 'string' && resolved.startsWith('#') ? resolved : '#000000';
 
   return (
     <Field label={label}>
       <div className="grid gap-2">
+        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted">Palette</p>
         <div className="flex flex-wrap gap-1.5">
           {THEME_SLOTS.map((slot) => (
             <button
@@ -329,7 +337,7 @@ function ColourField({
               type="button"
               disabled={disabled}
               onClick={() => onChange(value === slot ? undefined : slot)}
-              title={THEME_SLOT_LABELS[slot]}
+              title={`${THEME_SLOT_LABELS[slot]} (follows your palette)`}
               className={`h-6 w-6 rounded-md border transition ${
                 value === slot ? 'border-2 border-accent' : 'border-line'
               } disabled:opacity-40`}
@@ -340,14 +348,32 @@ function ColourField({
           ))}
         </div>
 
+        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted">Any colour</p>
+        <div className="flex flex-wrap gap-1">
+          {PRESET_COLOURS.map((colour) => (
+            <button
+              key={colour}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(colour)}
+              title={colour}
+              aria-label={`Use ${colour}`}
+              className={`h-4 w-4 rounded-sm border transition ${
+                value === colour ? 'border-2 border-accent' : 'border-line'
+              } disabled:opacity-40`}
+              style={{ backgroundColor: colour }}
+            />
+          ))}
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             type="color"
             aria-label={`${label} custom colour`}
             disabled={disabled}
-            value={isHex ? (value as string) : '#000000'}
+            value={pickerValue}
             onChange={(event) => onChange(event.target.value)}
-            className="h-8 w-9 shrink-0 rounded border border-line bg-white disabled:opacity-40"
+            className="h-8 w-9 shrink-0 cursor-pointer rounded border border-line bg-white disabled:opacity-40"
           />
           <input
             className={inputClass}
