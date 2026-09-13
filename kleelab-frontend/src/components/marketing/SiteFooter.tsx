@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CloverMark } from '@/components/marketing/Logo';
+import { KleeLabLogo } from '@/components/marketing/KleeLabLogo';
 import { footerNav, studio } from '@/content/site';
 
 export function SiteFooter() {
@@ -8,10 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-content px-6 py-14">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
-            <span className="inline-flex items-center gap-2.5">
-              <CloverMark className="h-6 w-6 text-accent" />
-              <span className="font-serif text-xl leading-none">{studio.name}</span>
-            </span>
+            <KleeLabLogo className="h-7 w-auto text-ink" title={studio.name} />
             <p className="mt-4 max-w-measure text-sm leading-6 text-muted">{studio.tagline}</p>
             <address className="mt-5 space-y-1 font-mono text-xs not-italic text-muted">
               <div>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
-import { Logo } from '@/components/marketing/Logo';
+import { KleeLabLogo } from '@/components/marketing/KleeLabLogo';
 import { primaryNav } from '@/content/site';
 import { hasSession } from '@/services/api';
 
@@ -29,7 +29,9 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur">
       <div className="mx-auto flex max-w-content items-center justify-between gap-6 px-6 py-4">
         <Link href="/" className="text-ink no-underline" aria-label="KleeLab home">
-          <Logo />
+          {/* Decorative: the link already carries the accessible name, so a
+              second one would just be announced twice. */}
+          <KleeLabLogo />
         </Link>
 
         <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">

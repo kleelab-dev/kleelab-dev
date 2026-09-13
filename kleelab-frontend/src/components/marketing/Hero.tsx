@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CloverMark } from '@/components/marketing/Logo';
+import { KleeLabMark } from '@/components/marketing/KleeLabLogo';
 
 /**
  * The hero's canvas: a page being assembled out of blocks on the editor.
@@ -67,7 +67,7 @@ function HeroCanvas() {
     >
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="inline-flex items-center gap-2">
-          <CloverMark className="h-4 w-4 text-accent" />
+          <KleeLabMark className="h-4 w-4 text-accent" />
           <span className="font-mono text-xs text-muted">index — draft</span>
         </span>
         <span aria-hidden="true" className="flex items-center gap-1.5">
@@ -91,7 +91,7 @@ function HeroCanvas() {
 
         <CanvasBlock label="Image" delay={480}>
           <div className="grid h-24 place-items-center rounded-md bg-canvas">
-            <CloverMark className="h-6 w-6 text-ink/20" />
+            <KleeLabMark className="h-6 w-6 text-ink/20" />
           </div>
         </CanvasBlock>
       </div>

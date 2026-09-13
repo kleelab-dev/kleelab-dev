@@ -12,10 +12,10 @@ import {
   ReceiptPercentIcon,
   RocketLaunchIcon,
   ShoppingBagIcon,
-  SparklesIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { apiService, getToken } from '@/services/api';
+import { KleeLabLogo } from '@/components/marketing/KleeLabLogo';
 import { Overview } from '@/components/dashboard/Overview';
 import type { Site, User } from '@/types/api';
 
@@ -128,13 +128,8 @@ export default function DashboardPage() {
       <header className="border-b border-line bg-paper">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-paper">
-              <SparklesIcon className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-sm font-bold">KleeLab</p>
-              <p className="text-xs text-muted">Your sites</p>
-            </div>
+            <KleeLabLogo className="h-7 w-auto text-ink" />
+            <p className="text-xs text-muted">Your sites</p>
           </div>
           <div className="flex items-center gap-2">
             <button

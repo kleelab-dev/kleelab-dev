@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Favicon for KleeLab. Taken from g55-6.svg at the repo root — the chevron and
+  its dot on their own, which is all that survives at tab size.
+
+  The viewBox is NOT the source file's. g55-6.svg declares `0 0 26.05 29.32`
+  while the artwork actually spans x 0 to 42.60 and y -0.73 to 30.07, so the
+  source was clipping 39% off the right-hand side of the mark and a sliver off
+  the top and bottom. These are the measured bounds with ~1 unit of breathing
+  room, and they match MARK_VIEWBOX in KleeLabLogo.tsx.
+
+  Fills are stated explicitly rather than inherited: a favicon loads as a
+  standalone document with no cascade above it. The wordmark's inline SVG uses
+  `currentColor` instead so it can sit on a light or dark surface; a favicon
+  cannot do that, which is why this one is fixed to black.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1.73 44.6 32.8" width="44.6" height="32.8">
+  <g transform="translate(-10.318751,-251.61913)">
+    <g transform="matrix(0.46155188,0,0,0.3827848,-16.159007,235.91133)">
+      <path
+        d="m 102.87535,-40.259886 c -0.73611,0.876315 -1.13941,1.991228 -1.12602,3.146347 l 0.45646,39.1027848 a 13.189504,10.124598 45.5651 0 1 12.41522,4.5180196 13.189504,10.124598 45.5651 0 1 4.43155,10.8967146 l 36.40601,0.384636 c 2.77918,0.02937 5.03431,-2.241119 4.98475,-5.020016 l -0.0383,-2.110726 c -0.0538,-3.0115379 -2.49299,-5.4337741 -5.50484,-5.4656448 L 120.93629,4.8329546 a 5.6933227,5.6933227 13.282526 0 1 -5.63403,-5.67707692 L 115.20734,-34.39431 c -0.004,-1.38236 0.0338,-3.704954 -0.63481,-4.897842 -0.67441,-1.203334 -1.83907,-2.098059 -3.22999,-2.407541 -0.47139,-0.104884 -1.25884,-0.130067 -1.74186,-0.150652 l -2.84059,-0.120481 c -1.15432,-0.0491 -2.28222,0.319262 -3.18093,1.028129 -0.21295,0.167969 -0.52936,0.475134 -0.70381,0.682811 z"
+        fill="#000000"
+        transform="matrix(0.74334499,0.66890823,-0.72429781,0.68948726,0,0)"
+      />
+    </g>
+    <circle cx="15.16875" cy="267.00568" r="4.8499999" fill="#ffb34f" />
+  </g>
+</svg>

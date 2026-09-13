@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CloverMark } from '@/components/marketing/Logo';
+import { KleeLabMark } from '@/components/marketing/KleeLabLogo';
 import { formatDate } from '@/content/posts';
 import type { Post } from '@/content/posts';
 import type { Service } from '@/content/services';
@@ -46,7 +46,7 @@ function Plate({ label }: { label: string }) {
     <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-line bg-canvas">
       <div className="absolute inset-0 grid grid-cols-3 place-items-center gap-2 p-6 opacity-[0.14]">
         {Array.from({ length: 9 }).map((_, index) => (
-          <CloverMark key={index} className="h-8 w-8 text-ink" />
+          <KleeLabMark key={index} className="h-8 w-8 text-ink" />
         ))}
       </div>
       <span className="absolute bottom-3 left-3 font-mono text-xs text-muted">{label}</span>
