@@ -84,6 +84,12 @@ jobs:
         # with no home, a hostile slug, an answer of the wrong shape. Each must
         # degrade to a plainer site or a clear message, never a traceback.
         run: python scripts/check_ai.py
+
+      - name: Design library data
+        # The vendored dataset is committed verbatim, and the library the app loads
+        # is compiled from it. This fails if the two have drifted apart, or if the
+        # data changed shape upstream in a way nothing has been updated for.
+        run: python scripts/compile_design_library.py --check
         env:
           PYTHONPATH: src
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
