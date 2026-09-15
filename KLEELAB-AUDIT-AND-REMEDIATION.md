@@ -778,6 +778,42 @@ unknown plan   -> falls back to free  (fails closed)
 
 ---
 
+### R9 Phase B — the Section Kit  *(DONE 2026-09-15)*
+
+**Why this comes before any AI code.** A language model is good at deciding *what* a business needs and writing the words for it, and bad at layout, spacing and colour harmony — which is exactly why AI-generated pages usually look amateur. So the design judgement is written down once, in code, and the model is never asked to do it. The kit is therefore the single biggest determinant of whether generated sites look like something the studio would ship, and it needed to exist and be hand-testable before a prompt could be written against it.
+
+| Task | Status | Notes |
+|------|--------|-------|
+| `lib/sections/types.ts` | ✅ | `SectionRecipe`: id, name, category, tags, description, a zod `contentSchema`, and a pure `build(content)`. Two rules keep recipes trustworthy — a recipe emits **only existing node types** (so no renderer, registry or inspector changes were needed, and once a section is on the canvas it is an ordinary document the user can take apart), and a recipe with **no content still renders something presentable** |
+| `lib/sections/_shared.ts` | ✅ | The vocabulary recipes are written in: `band`, `card`, `columns`, `stack`, `heading`, `paragraph`, `button`, `image`, `bulletList`. A catalogue of two dozen hand-authored sections is a catalogue whose sections slowly stop matching each other, and that mismatch *is* the amateur look the kit exists to prevent |
+| 17 recipes | ✅ | Header (split, centred, image-below), nav, footer, gallery, menu, features (three-up, alternating), about, key numbers, questions, pricing, testimonials, call-to-action, contact, shop |
+| `lib/sections/kit.ts` | ✅ | `SECTION_KIT`, `buildSection`, `recipeDefaults`, `describeRecipe`. Everything that builds a section goes through `buildSection`, because its two callers have very different levels of trust — a person dragging a block, and a model returning JSON — and both get the same treatment: content is parsed against the recipe's schema and anything unusable falls back to the recipe's own defaults |
+| Palette | ✅ | A **Sections** group above the raw blocks; click to add, or drag to place. The same recipes the AI composes from, so a customer who dislikes what the model chose can add exactly what they wanted |
+| Robustness | ✅ | `npm run check:sections` + a CI step |
+
+**Three design notes worth keeping.**
+
+1. **Defaults are derived from the schema, not declared beside it.** Every field carries a `.default(...)`, so `parse({})` yields the complete placeholder object. That buys three things at once: one source of truth instead of two lists that must agree, prompt material for the model (a filled-in example is far more reliable than describing a shape in prose), and a guarantee that the example the model saw is validated by the same schema that checks its answer.
+2. **A recipe that sets vertical padding must set horizontal padding too.** The registry's `sectionDefaults` only supplies `px-6 py-12 md:px-10` when a section has *no* padding of its own — so a band that sets `paddingY` alone silently loses its horizontal padding and its content runs to the viewport edge. `band()` sets `paddingX` before spreading the caller's style so it cannot be forgotten. This is the kind of bug that ships as a "styling opinion".
+3. **Grids set no `gap`.** The grid node already carries `gap-6`; adding a second gap utility produces two classes of identical specificity whose winner depends on their order in the generated stylesheet rather than on intent. The palette's existing `gap: 'md'` on the Columns block is therefore inert, and should be removed rather than trusted.
+
+**Two fixes the kit forced out.**
+
+- **Empty image nodes were invisible.** `ImageNode` returned `null` without a `src`, so an Image block dragged from the palette produced a node that could not be seen, selected, moved or deleted — the block appeared to do nothing at all. It now renders a framed placeholder, which is also what the AI flow depends on: the model can choose an image slot and describe what belongs there, but it cannot produce the picture, so the gap has to be visible for a human to fill.
+- **The palette's insert-target logic moved into `useInsertTarget`**, shared by blocks and sections, so a clicked section and a clicked block cannot land in different places.
+
+**Verified.** `npm run check:sections` — all 17 recipes build a node the canonical schema accepts and that renders something (a section with neither children nor props would be a blank gap on a live page), all 17 survive nine kinds of malformed content (`null`, a string, a number where a string belongs, a string where an array belongs, an unknown field) by falling back to defaults, supplied content demonstrably reaches the built nodes rather than being silently replaced, and an unknown recipe id returns `null` rather than inventing a section. Duplicate recipe ids throw at import time. The sweep needs no network, no database and no browser, which is why it is the first thing to run after touching the kit. **Gate:** `eslint` 0 · `tsc --noEmit` clean · `next build` clean.
+
+**Known design decision to revisit:** the `container` node hardcodes `max-w-4xl` (896px), so every section is authored to that measure. It reads as an editorial choice rather than a defect, but real marketing pages usually run wider, and widening it means changing `ContainerNode` rather than a recipe — which is the right place for that decision to live.
+
+**Still not verified:** the palette group and section dragging have not been exercised in a browser, because that needs a running backend. The recipe *logic* is proven; the drag wiring is not.
+
+### R9 Phase C — the DeepSeek service  *(next)*
+
+`services/llm.py` (one OpenAI-compatible JSON-mode client — provider swapping stays a one-file change), `config.py` AI switches including an `AI_ENABLED` kill switch that fails closed, and `routers/ai.py` with `POST /api/ai/brief`, `/content` and `/edit`. The content endpoint takes its per-section schema **from the request**, so the backend stays schema-agnostic and the kit remains the only definition of that contract.
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |

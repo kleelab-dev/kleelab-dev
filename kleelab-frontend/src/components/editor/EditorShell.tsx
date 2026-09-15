@@ -22,6 +22,7 @@ import { createDocument, parseDocument, type KleeLabDocument, type NodeType } fr
 import { useEditorStore } from '@/lib/editor/store';
 import { canHaveChildren, findNode, findParent } from '@/lib/editor/tree';
 import { nodeFromPalette, nodeLabel, PALETTE_BY_TYPE } from '@/lib/editor/palette';
+import { buildSection, getRecipe } from '@/lib/sections/kit';
 import type { Page, Site } from '@/types/api';
 import { Canvas } from './Canvas';
 import { PagesBar } from './PagesBar';
@@ -29,7 +30,13 @@ import { Palette } from './Palette';
 import { Inspector } from './Inspector';
 import { EditorBanner, Toolbar } from './Toolbar';
 
-type DragData = { source?: 'palette' | 'canvas'; type?: NodeType; nodeId?: string };
+type DragData = {
+  source?: 'palette' | 'section' | 'canvas';
+  type?: NodeType;
+  /** Set when dragging a designed section out of the kit. */
+  sectionId?: string;
+  nodeId?: string;
+};
 
 /**
  * Prefer the droppable under the pointer, and among those the smallest (i.e.
@@ -175,6 +182,10 @@ export function EditorShell({ siteId }: { siteId: string }) {
       setDragging(PALETTE_BY_TYPE[data.type]?.label ?? data.type);
       return;
     }
+    if (data?.source === 'section' && data.sectionId) {
+      setDragging(getRecipe(data.sectionId)?.name ?? 'Section');
+      return;
+    }
     if (data?.nodeId) {
       const node = findNode(useEditorStore.getState().document.root, data.nodeId);
       setDragging(node ? nodeLabel(node) : null);
@@ -233,6 +244,12 @@ export function EditorShell({ siteId }: { siteId: string }) {
 
     const activeData = active.data.current as DragData | undefined;
 
+
+    if (activeData?.source === 'section' && activeData.sectionId) {
+      const node = buildSection(activeData.sectionId);
+      if (node) store.insertNodeAt(parentId, index, node);
+      return;
+    }
     if (activeData?.source === 'palette' && activeData.type) {
       store.insertNodeAt(parentId, index, nodeFromPalette(activeData.type));
       return;

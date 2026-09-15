@@ -30,6 +30,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Section kit
+        # Every recipe must build a valid section and survive malformed input.
+        # The AI builder composes sites from these, so a broken recipe would ship
+        # as a blank gap or an invalid document on a customer's page.
+        run: npm run check:sections
+
       - name: Build
         run: npm run build
         env:

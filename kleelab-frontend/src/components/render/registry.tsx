@@ -132,10 +132,36 @@ function TextNode({ node }: NodeComponentProps) {
   );
 }
 
+/**
+ * An image, or an honest placeholder while there is nothing to show.
+ *
+ * This previously rendered `null` when no source was set, which meant an image
+ * block dragged from the palette produced a node that could not be seen and
+ * therefore could not be selected, moved or deleted — the block appeared to do
+ * nothing at all. A framed placeholder is also what the AI builder depends on:
+ * it can choose an image slot and describe what belongs there, but it cannot
+ * produce the picture, so the gap has to be visible for someone to fill it.
+ */
 function ImageNode({ node }: NodeComponentProps) {
   const src = text(node.props.src);
-  if (!src) return null;
-  return <img src={src} alt={text(node.props.alt)} className={clsx('w-full', nodeClasses(node))} />;
+  const alt = text(node.props.alt);
+  const frame = clsx('w-full', nodeClasses(node));
+  if (!src) {
+    return (
+      <div
+        className={clsx(frame, 'flex items-center justify-center rounded-lg px-4 py-8 text-center text-xs')}
+        style={{
+          minHeight: '10rem',
+          border: '1px dashed var(--kl-line)',
+          color: 'var(--kl-muted)',
+          backgroundColor: 'var(--kl-canvas)',
+        }}
+      >
+        {alt || 'Add an image'}
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={frame} />;
 }
 
 function ButtonNode({ node }: NodeComponentProps) {
