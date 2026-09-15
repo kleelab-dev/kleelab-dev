@@ -18,16 +18,21 @@ Run with `python scripts/check_publishing.py`. No network, no database.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import sys
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
+
+from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from kleelab.core.config import Settings  # noqa: E402
+from kleelab.models.site import Site  # noqa: E402
 from kleelab.routers import sites as sites_module  # noqa: E402
-from kleelab.routers.sites import public_site_url  # noqa: E402
+from kleelab.routers.sites import public_site_url, publish_site  # noqa: E402
 
 failures = 0
 
@@ -56,7 +61,11 @@ def site(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**fields)
 
 
-def with_sites_domain(domain: str, frontend: str = "http://localhost:3000") -> Settings:
+def with_sites_domain(
+    domain: str,
+    frontend: str = "http://localhost:3000",
+    auto_verify: bool = False,
+) -> Settings:
     """Settings for one deployment shape, with nothing read from the environment.
 
     Every field these checks depend on is passed explicitly. They were not at first,
@@ -71,6 +80,7 @@ def with_sites_domain(domain: str, frontend: str = "http://localhost:3000") -> S
         SECRET_KEY="x" * 40,
         SITES_DOMAIN=domain,
         FRONTEND_URL=frontend,
+        AUTO_VERIFY_EMAILS=auto_verify,
     )
 
 
@@ -185,6 +195,118 @@ check(
     bool(re.compile(local_pattern).fullmatch("http://localhost:3000")),
     local_pattern,
 )
+
+# --- Publishing without a verified email, when the switch is on -------------------
+#
+# `AUTO_VERIFY_EMAILS` is on so that build → publish → view works with no mail
+# provider. The risk in changing that is the opposite of the bug it fixes: making
+# publishing work for everyone. So both directions are asserted here, and the refusal
+# is the more important of the two.
+
+
+class StubResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar_one_or_none(self):
+        return self._value
+
+
+class StubSession:
+    """Enough of AsyncSession for the publish path, and nothing more."""
+
+    def __init__(self, site):
+        self._site = site
+
+    async def execute(self, *args, **kwargs):
+        return StubResult(self._site)
+
+    async def commit(self):
+        pass
+
+    async def refresh(self, obj):
+        pass
+
+
+def make_site():
+    site = Site()
+    site.id = uuid.uuid4()
+    site.user_id = uuid.uuid4()
+    site.subdomain = "fern-and-field"
+    site.custom_domain = None
+    site.is_published = False
+    site.published_at = None
+    return site
+
+
+def make_owner(verified: bool):
+    owner = SimpleNamespace()
+    owner.id = uuid.uuid4()
+    owner.is_verified = verified
+    return owner
+
+
+async def try_publish(verified: bool, auto_verify: bool):
+    """Publish as an owner in that state, and report what happened.
+
+    `publish_site` reads `settings` as a module global, so swapping the object on the
+    module is what makes this test the real function rather than a copy of its logic.
+    """
+
+    configured = with_sites_domain("", auto_verify=auto_verify)
+    original = sites_module.settings
+    sites_module.settings = configured
+    try:
+        site = make_site()
+        owner = make_owner(verified)
+        return await publish_site(site.id, current_user=owner, db=StubSession(site)), site
+    finally:
+        sites_module.settings = original
+
+
+async def main_checks() -> None:
+    # The switch off: unchanged behaviour. An unverified owner is refused, which is
+    # what this whole path did before and must keep doing wherever the flag is off.
+    try:
+        await try_publish(verified=False, auto_verify=False)
+    except HTTPException as error:
+        check(
+            "with the switch off an unverified owner still cannot publish",
+            error.status_code == 403,
+            f"got {error.status_code}",
+        )
+    else:
+        fail("with the switch off an unverified owner was allowed to publish")
+
+    # The switch on: the point of the change.
+    result, site = await try_publish(verified=False, auto_verify=True)
+    check(
+        "with the switch on an unverified owner can publish",
+        bool(result.get("url")),
+        str(result),
+    )
+    check(
+        "publishing actually marks the site published",
+        site.is_published is True and site.published_at is not None,
+    )
+    check(
+        "the published address is still returned",
+        isinstance(result.get("url"), str) and "fern-and-field" in str(result["url"]),
+        str(result),
+    )
+
+    # A verified owner is unaffected either way, which is the case that must never
+    # regress while the flag is being used.
+    for auto_verify in (False, True):
+        result, _ = await try_publish(verified=True, auto_verify=auto_verify)
+        check(
+            f"a verified owner can publish regardless of the switch ({auto_verify=})",
+            bool(result.get("url")),
+            str(result),
+        )
+
+
+asyncio.run(main_checks())
 
 if failures:
     print(f"\n{failures} failure(s).\n")

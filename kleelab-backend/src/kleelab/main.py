@@ -58,6 +58,18 @@ if not settings.AI_ENABLED or not settings.DEEPSEEK_API_KEY:
 else:
     logger.info("AI site builder is on, using %s", settings.DEEPSEEK_MODEL)
 
+# The other switch that changes what the product will do to someone, and the more
+# dangerous one to leave on by accident: publishing normally requires a verified
+# email, and this turns that off. It exists so the publish-and-view path is usable
+# without a mail provider, which is a development need only.
+if settings.AUTO_VERIFY_EMAILS:
+    level = logger.warning if settings.ENVIRONMENT != "development" else logger.info
+    level(
+        "Email verification is OFF (AUTO_VERIFY_EMAILS=true), so any account can "
+        "publish without confirming its address. This is intended for local "
+        "development; set AUTO_VERIFY_EMAILS=false outside it.",
+    )
+
 app = FastAPI(title="KleeLab API", version="1.0.0")
 register_exception_handlers(app)
 app.add_middleware(RequestLoggingMiddleware)

@@ -180,9 +180,19 @@ async def publish_site(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str | bool]:
-    """Publish one site owned by the authenticated user after email verification."""
+    """Publish one site owned by the authenticated user.
 
-    if not current_user.is_verified:
+    Verification is required unless `AUTO_VERIFY_EMAILS` is on. That flag is a local
+    development switch: with no mail provider nothing can be verified, so nothing
+    could be published, and the whole publish-and-view path was untestable end to end.
+
+    The flag is read here rather than only at registration because an account created
+    while it was off is still unverified. Checking only on the way in would leave
+    those accounts stuck forever, which is the kind of half-applied switch that costs
+    an hour of debugging.
+    """
+
+    if not current_user.is_verified and not settings.AUTO_VERIFY_EMAILS:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification required before publishing")
     site = await get_owned_site(site_id, current_user, db)
     site.is_published = True
