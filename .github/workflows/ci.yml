@@ -96,6 +96,12 @@ jobs:
         # is compiled from it. This fails if the two have drifted apart, or if the
         # data changed shape upstream in a way nothing has been updated for.
         run: python scripts/compile_design_library.py --check
+
+      - name: Design library behaviour
+        # Which design a business is given: whether the trade is recognised, whether
+        # the palette's text pairs are readable, whether the same business always
+        # gets the same design, and whether two businesses in one trade get two.
+        run: python scripts/check_design_library.py
         env:
           PYTHONPATH: src
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab

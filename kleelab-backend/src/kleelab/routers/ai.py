@@ -34,12 +34,13 @@ from kleelab.schemas.ai import (
     BriefResponse,
     ContentRequest,
     ContentResponse,
+    Design,
     EditOperation,
     EditRequest,
     EditResponse,
     SectionContent,
 )
-from kleelab.services import llm
+from kleelab.services import design_library, llm
 from kleelab.services.plans import enforce_ai_quota, limits_for, usage_for
 from kleelab.services.site_brief import (
     BRIEF_SYSTEM,
@@ -222,10 +223,34 @@ async def create_brief(
 
     return BriefResponse(
         brief=brief,
+        design=_design_for(brief, payload.prompt),
         model=result.model,
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,
     )
+
+
+def _design_for(brief: Brief, prompt: str) -> Design | None:
+    """The design the library thinks this business should have.
+
+    Matched on the model's own summary as well as what the customer typed: the
+    summary has already resolved the description into something a keyword list can
+    recognise, which is exactly what matching on industry needs.
+
+    `None` is a normal answer. A business the library has no product type for keeps
+    the neutral default rather than being given a design chosen from the wrong trade.
+    """
+
+    description = " ".join(
+        part for part in (prompt, brief.summary, brief.business_name, brief.audience) if part
+    )
+    try:
+        return design_library.choose_design(description=description)
+    except (OSError, ValueError, KeyError):
+        # A design is an enhancement; a build must not fail because the library is
+        # unreadable. The site still gets its pages, its copy and a neutral theme.
+        logger.warning("Could not choose a design from the library; using the default")
+        return None
 
 
 @router.post("/content", response_model=ContentResponse)

@@ -41,6 +41,10 @@ Radius = Literal["none", "sm", "md", "lg", "full"]
 Shadow = Literal["none", "sm", "md", "lg"]
 MaxWidth = Literal["sm", "md", "lg", "xl", "full"]
 BorderWidth = Literal["none", "thin", "medium", "thick"]
+#: How tightly lines sit. A separate axis from size because the two answer
+#: different questions: a paragraph wants looser lines than a label of the same
+#: size, and tying leading to size alone cannot express that.
+Leading = Literal["tight", "snug", "normal", "relaxed"]
 
 # Bounds a colour value without constraining it to a list. Long enough for any
 # CSS colour function, short enough that a payload cannot smuggle in a novel.
@@ -64,6 +68,7 @@ class NodeStyle(BaseModel):
     borderWidth: BorderWidth | None = None
     align: Alignment | None = None
     size: TextSize | None = None
+    leading: Leading | None = None
     padding: SpaceToken | None = None
     paddingX: SpaceToken | None = None
     paddingY: SpaceToken | None = None

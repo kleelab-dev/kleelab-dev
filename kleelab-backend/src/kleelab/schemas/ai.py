@@ -83,8 +83,67 @@ class Brief(BaseModel):
     pages: list[BriefPage] = Field(min_length=1, max_length=3)
 
 
+class DesignFonts(BaseModel):
+    """The two faces a site is set in, as CSS stacks.
+
+    `href` is a ready-made Google Fonts request for the pairing, weights included.
+    Rebuilding that URL here would mean guessing which weights the pairing wants, and
+    guessing wrong silently changes how the type looks.
+    """
+
+    display: str = Field(default="", max_length=200)
+    body: str = Field(default="", max_length=200)
+    href: str = Field(default="", max_length=400)
+
+
+class Design(BaseModel):
+    """How a site should look: colour, type, and the shape of its corners.
+
+    Every value here comes from the vendored design library, where the palettes are
+    curated and each ships with its own contrast-checked foreground pairs. That is
+    the whole reason the builder no longer generates colours: a generated palette has
+    nobody to say whether its text is readable, and this one does.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    product_type: str = Field(min_length=1, max_length=120)
+    style_id: str = Field(default="", max_length=120)
+    style_name: str = Field(default="", max_length=120)
+    pairing: str = Field(default="", max_length=120)
+    fonts: DesignFonts = Field(default_factory=DesignFonts)
+    #: Theme slot -> colour. Keys are whitelisted by the frontend, which owns the
+    #: slot list; an unknown key is ignored rather than emitted as a custom property.
+    colours: dict[str, str] = Field(default_factory=dict)
+    #: Design token -> value, for the tokens a style states unambiguously.
+    tokens: dict[str, str] = Field(default_factory=dict)
+    rationale: str = Field(default="", max_length=400)
+
+    @field_validator("colours", "tokens")
+    @classmethod
+    def _bounded(cls, value: dict[str, str]) -> dict[str, str]:
+        """Keep a design from becoming a channel for arbitrary CSS.
+
+        These values end up in a stylesheet on a published page. They come from our
+        own library, so this is not expecting trouble — it is refusing to let a
+        future caller turn a design into a way to write whatever it likes.
+        """
+
+        if len(value) > 64:
+            raise ValueError("a design may not carry more than 64 values")
+        for key, entry in value.items():
+            if len(key) > 48 or len(entry) > 120:
+                raise ValueError("a design key or value is too long")
+        return value
+
+
 class BriefResponse(BaseModel):
     brief: Brief
+    #: How the site should look, chosen from the design library rather than by the
+    #: model. `None` means nothing matched the business well enough, and the caller
+    #: should leave the site on its neutral default rather than dress it in a design
+    #: from the wrong trade.
+    design: Design | None = None
     model: str
     tokens_in: int
     tokens_out: int
