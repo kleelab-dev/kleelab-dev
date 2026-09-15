@@ -408,16 +408,31 @@ export function ChatBuilder({ siteId }: { siteId: string }) {
             {SAVE_LABEL[saveState]}
           </span>
 
-          {publicUrl && (
-            <a
-              href={publicUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="ml-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold transition hover:border-ink"
-            >
-              View site
-            </a>
-          )}
+          {publicUrl &&
+            (site?.is_published ? (
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold transition hover:border-ink"
+              >
+                View site
+              </a>
+            ) : (
+              /*
+                Not a link, because there is nothing to link to yet. The public API
+                serves published sites only — an unpublished one is a 404 by design —
+                so offering the address here is how "View site" produced a 404 on a
+                site that had just been built. The address exists; it is simply not
+                being served, and saying so is more useful than a broken tab.
+              */
+              <span
+                title="Publish this site to make its address live"
+                className="ml-1 rounded-lg border border-dashed border-line px-3 py-1.5 text-xs font-bold text-muted"
+              >
+                Publish to get a link
+              </span>
+            ))}
           <button
             type="button"
             onClick={publish}
