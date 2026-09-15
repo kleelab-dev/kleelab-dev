@@ -12,9 +12,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { KleeLabLogo } from '@/components/marketing/KleeLabLogo';
 import { PlanLimitHint } from '@/components/dashboard/PlanLimitHint';
-import { TemplatePicker } from '@/components/onboarding/TemplatePicker';
 import { buildPageDocument, contentById, sectionSpecs } from '@/lib/ai/assemble';
 import { loginHref } from '@/lib/auth';
+import { createDocument } from '@/lib/document';
 import { SECTION_KIT, getRecipe } from '@/lib/sections/kit';
 import { createSiteWithUniqueSubdomain } from '@/lib/sites';
 import { apiService, clearToken, hasSession, ApiError } from '@/services/api';
@@ -57,6 +57,7 @@ export function AiStart() {
   const [brief, setBrief] = useState<AiBrief | null>(null);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<unknown>(null);
+  const [startingBlank, setStartingBlank] = useState(false);
 
   // localStorage does not exist on the server, so the session can only be read
   // after mount. Deciding during render would mismatch hydration.
@@ -121,9 +122,10 @@ export function AiStart() {
       const { brief: value } = await apiService.createBrief({
         prompt: prompt.trim(),
         site_name: siteName.trim() || null,
-        // The kit, not the server, decides what can be built. Sending the ids is
-        // what stops the model choosing a section that does not exist.
-        section_ids: SECTION_KIT.map((recipe) => recipe.id),
+        // The kit, not the server, decides what can be built — and it sends the
+        // name and purpose of each section, because a model choosing from bare
+        // ids picks the same three safe ones every time.
+        sections: sectionSpecs(SECTION_KIT.map((recipe) => recipe.id)),
       });
       setBrief(value);
       setSiteName(value.business_name);
@@ -211,8 +213,33 @@ export function AiStart() {
       setStage('review');
     }
   }
+/**
+   * An empty page, for someone who would rather not describe anything.
+   *
+   * This replaces the template catalogue. A template only ever gave a starting
+   * arrangement of the same sections, and the section picker in the editor does
+   * that better and without a second gallery to maintain.
+   */
+  async function startBlank() {
+    if (requireSignIn()) return;
+    setStartingBlank(true);
+    setError(null);
+    try {
+      const site = await createSiteWithUniqueSubdomain(siteName.trim() || 'My site');
+      await apiService.createPage(site.id, {
+        title: 'Home',
+        slug: '/',
+        content_json: { document: createDocument('Home') },
+      });
+      window.sessionStorage.removeItem(STORE_KEY);
+      router.replace(`/builder/${site.id}/edit`);
+    } catch (reason) {
+      setError(reason);
+      setStartingBlank(false);
+    }
+  }
 
-  const busy = stage === 'briefing' || stage === 'writing';
+  const busy = stage === 'briefing' || stage === 'writing' || startingBlank;
   const canBuild = capability === 'ready';
 
   return (
@@ -272,7 +299,7 @@ export function AiStart() {
               to fix next.
             </p>
 
-            <div className="mt-9 grid gap-8 lg:grid-cols-[1.15fr_.85fr]">
+            <div className="mt-9 max-w-3xl">
               <section aria-labelledby="describe-heading">
                 <h2 id="describe-heading" className="sr-only">
                   Describe your site
@@ -337,40 +364,38 @@ export function AiStart() {
                   </p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => void askForBrief()}
-                  disabled={busy || capability === 'checking'}
-                  aria-busy={busy}
-                  className="mt-6 inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper disabled:opacity-60"
-                >
-                  {stage === 'briefing' ? (
-                    <>
-                      <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden />
-                      Reading your description…
-                    </>
-                  ) : (
-                    <>
-                      <SparklesIcon className="h-4 w-4" aria-hidden />
-                      {signedIn ? 'Build my site' : 'Sign in and build'}
-                      <ArrowRightIcon className="h-4 w-4" aria-hidden />
-                    </>
-                  )}
-                </button>
-              </section>
+                <div className="mt-6 flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => void askForBrief()}
+                    disabled={busy || capability === 'checking'}
+                    aria-busy={busy}
+                    className="inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper disabled:opacity-60"
+                  >
+                    {stage === 'briefing' ? (
+                      <>
+                        <ArrowPathIcon className="h-4 w-4 animate-spin" aria-hidden />
+                        Reading your description…
+                      </>
+                    ) : (
+                      <>
+                        <SparklesIcon className="h-4 w-4" aria-hidden />
+                        {signedIn ? 'Build my site' : 'Sign in and build'}
+                        <ArrowRightIcon className="h-4 w-4" aria-hidden />
+                      </>
+                    )}
+                  </button>
 
-              <aside className="rounded-xl border border-line bg-paper p-5">
-                <h2 className="text-xs font-bold uppercase tracking-label text-muted">
-                  Or start from a template
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Every design here is built from the same sections, so you can swap between them
-                  later without starting again.
-                </p>
-                <div className="mt-4">
-                  <TemplatePicker defaultName={siteName} />
+                  <button
+                    type="button"
+                    onClick={() => void startBlank()}
+                    disabled={busy}
+                    className="text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:opacity-50"
+                  >
+                    {startingBlank ? 'Creating…' : 'Or start with an empty page'}
+                  </button>
                 </div>
-              </aside>
+              </section>
             </div>
           </>
         )}
@@ -388,11 +413,11 @@ function CapabilityNotice({
 }) {
   const message =
     capability === 'not_configured'
-      ? 'The AI builder is not switched on yet. Start from a template below — or tell us about the site and we will build it for you.'
+      ? 'The AI builder is not switched on yet. You can start with an empty page and build from the section library — or tell us about the site and we will build it for you.'
       : capability === 'exhausted'
-        ? `You have used all ${status?.builds_per_month ?? 0} AI builds this month. They reset on the 1st, and starting from a template is always free.`
+        ? `You have used all ${status?.builds_per_month ?? 0} AI builds this month. They reset on the 1st, and everything else still works.`
         : capability === 'unreachable'
-          ? 'We could not reach the AI builder just now. Starting from a template below still works.'
+          ? 'We could not reach the AI builder just now. Starting with an empty page still works.'
           : '';
 
   return (

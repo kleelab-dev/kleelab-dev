@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     # the client, so it is also the main shape a malicious caller could abuse.
     AI_MAX_SECTIONS_PER_REQUEST: int = 12
     AI_MAX_PROMPT_CHARS: int = 2000
+    # Fills empty image slots with real photographs, because a page of empty
+    # frames is what makes a generated site look dead. These are Unsplash-sourced
+    # placeholders chosen by a stable seed and they are not necessarily about the
+    # business — see `services/stock_images.py`. Turn this off and the slots fall
+    # back to a designed placeholder instead.
+    STOCK_IMAGES_ENABLED: bool = True
+    STOCK_IMAGE_BASE_URL: str = "https://picsum.photos"
+    STOCK_IMAGE_WIDTH: int = 1400
+    STOCK_IMAGE_HEIGHT: int = 1000
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env",

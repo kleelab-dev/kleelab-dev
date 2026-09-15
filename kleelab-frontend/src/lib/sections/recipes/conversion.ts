@@ -45,7 +45,8 @@ const pricingTiers = defineRecipe({
           tiers.map((tier) =>
             card([
               heading(tier.name, 3),
-              heading(tier.price, 2),
+              // The price is the thing being compared, so it carries the accent.
+              heading(tier.price, 2, { color: 'accent' }),
               ...(tier.cadence ? [paragraph(tier.cadence)] : []),
               bulletList(tier.features),
               button(tier.ctaLabel, tier.ctaHref),

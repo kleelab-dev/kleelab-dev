@@ -16,7 +16,6 @@ import {
   Product,
   ProductInput,
   Site,
-  Template,
   User,
 } from '@/types/api';
 
@@ -221,16 +220,6 @@ function serializePagePayload(pageData: Partial<Page>, isCreate = false): Record
   return payload;
 }
 
-function normalizeTemplate(template: Record<string, unknown>): Template {
-  const config = (template.config || {}) as Record<string, unknown>;
-  return {
-    ...template,
-    title: template.title || template.name,
-    description: template.description || config.description || 'A flexible starting point for your next site.',
-    thumbnail_url: template.thumbnail_url || template.thumbnail || template.preview_image || '',
-  } as Template;
-}
-
 export const apiService = {
   async register(data: { email: string; password: string; full_name: string }): Promise<User> {
     return request<User>('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -305,7 +294,8 @@ export const apiService = {
   async createBrief(payload: {
     prompt: string;
     site_name?: string | null;
-    section_ids: string[];
+    /** The catalogue, so the model chooses from a real menu rather than guessing at ids. */
+    sections: AiSectionSpec[];
   }): Promise<AiBriefResponse> {
     return request<AiBriefResponse>('/api/ai/brief', {
       method: 'POST',
@@ -331,11 +321,6 @@ export const apiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  },
-
-  async getTemplates(): Promise<Template[]> {
-    const templates = await request<Record<string, unknown>[]>('/api/templates');
-    return templates.map(normalizeTemplate);
   },
 
   async getSites(): Promise<Site[]> {

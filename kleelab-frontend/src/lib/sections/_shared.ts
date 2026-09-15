@@ -61,16 +61,35 @@ export const columns = (count: number, children: Node[]): Node =>
 export const stack = (children: Node[], style: Style = {}): Node =>
   createNode('container', {}, { style, children });
 
-export const heading = (text: string, level: 1 | 2 | 3 | 4 = 2): Node =>
-  createNode('heading', { text, level });
+export const heading = (text: string, level: 1 | 2 | 3 | 4 = 2, style: Style = {}): Node =>
+  createNode('heading', { text, level }, { style });
 
-export const paragraph = (text: string): Node => createNode('text', { text });
+/**
+ * A paragraph.
+ *
+ * Carries the theme's muted colour by default (the renderer supplies it), so the
+ * `style` argument only exists for the cases where a band is dark and the default
+ * would be unreadable.
+ */
+export const paragraph = (text: string, style: Style = {}): Node =>
+  createNode('text', { text }, { style });
 
 export const button = (label: string, href = '#'): Node =>
   createNode('button', { label, href });
 
-export const image = (src: string, alt: string): Node =>
-  createNode('image', { src, alt });
+/**
+ * An image slot.
+ *
+ * `intent` says what the photograph should show. It is what the editor draws
+ * while the slot is empty, what the alt text falls back to, and the only thing
+ * that tells an owner what to go and find — a customer cannot be expected to
+ * work out what a designer had in mind from a blank rectangle.
+ */
+export const image = (src: string, alt: string, intent = ''): Node => {
+  const props: Record<string, unknown> = { src, alt };
+  if (intent) props.intent = intent;
+  return createNode('image', props);
+};
 
 export const bulletList = (items: string[], ordered = false): Node =>
   createNode('list', { items, ordered });

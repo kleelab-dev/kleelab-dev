@@ -45,6 +45,7 @@ from kleelab.services.site_brief import (
     clean_brief,
     content_prompt,
 )
+from kleelab.services.stock_images import fill_images
 
 logger = logging.getLogger(__name__)
 
@@ -156,11 +157,11 @@ async def create_brief(
 
     await enforce_ai_quota(db, current_user)
 
-    allowed = set(payload.section_ids)
+    allowed = {spec.id for spec in payload.sections}
     request_text = brief_prompt(
         prompt=payload.prompt,
         site_name=payload.site_name,
-        section_ids=payload.section_ids,
+        sections=payload.sections,
     )
 
     try:
@@ -295,6 +296,13 @@ async def create_content(
         if len(str(content)) > MAX_SECTION_CONTENT_CHARS:
             logger.warning("Discarded oversized content for %s", section_id)
             continue
+        # Photographs are filled in here rather than asked for: the model can name
+        # an image slot but it cannot produce pixels, and a page of empty frames
+        # is what makes a generated site look dead.
+        content = fill_images(
+            content,
+            describe=f"{payload.brief.business_name}-{section_id}",
+        )
         written.append(SectionContent(id=section_id, content=content))
 
     await _record(

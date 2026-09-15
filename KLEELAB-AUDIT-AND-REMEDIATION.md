@@ -878,6 +878,30 @@ the prompt is passed, but the allowed section ids stay pinned in the request
 
 ---
 
+### R10 follow-up — removing templates, and making generated sites look designed
+
+**Reported by the owner:** *"remove start from template and i noticed the ai dont generate fine site with colors and good designs and images that will make it alive work o that."*
+
+**The template path is gone.** `TemplatePicker`, `lib/templates.ts`, `getTemplates`, `normalizeTemplate` and the `Template` type are all deleted. A template only ever handed over a starting arrangement of the same sections the palette already offers, so it was a second gallery to maintain for no extra capability. The start page offers **a blank page** instead, which keeps the product usable when the AI is switched off or out of allowance. The backend `/api/templates` endpoint and the seeded table are **left in place** — nothing in the product calls them, but dropping data is destructive and that decision belongs to the owner rather than being a side effect of a UI change.
+
+**Why generated sites looked dead — three causes, and only one of them was the model.**
+
+| Cause | Fix |
+|-------|-----|
+| **Every image slot was empty.** The model could name a picture but could not produce one, so every generated page was a column of dashed empty frames. By far the largest reason it looked unliving | `services/stock_images.py` fills empty slots with real photographs, addressed by a stable seed so a rebuild gives the same pictures. Configurable; off means the slots fall back to the placeholder |
+| **The empty placeholder was a grey box**, which reads as a bug rather than as a design waiting for a photograph | The placeholder now uses the site's own theme, carries a photograph icon, and repeats what the picture is meant to be — so a page whose photos have not been chosen yet still reads as composed |
+| **The model was choosing sections blind.** The brief call sent bare ids, and a model choosing from bare ids picks the same three safe sections every time | The call now sends each section's **name and purpose**, and both prompts carry real art direction: alternate plain and rich sections, never put two photographic sections together, use the full-colour band at most once per site, and lead with an image-bearing header for a business that sells something visible |
+
+**Colour.** Two sections now commit to the accent: `stats.banner` is a full accent-coloured band, and the figures in `stats.row` and the prices in `pricing.tiers` carry it. The recipes were otherwise almost entirely greyscale, which is why a generated page had no focal points even with a palette applied. Two new recipes (`stats.banner`, `feature.single`) widen what the model can choose from, which is what stops every site looking the same.
+
+**A note on the photographs, because it matters.** They are Unsplash-sourced, chosen by a deterministic seed, and **not necessarily about the business** — a bakery may be given a mountain. That is a deliberate trade: a plausible photographic page the owner replaces beats a grey box they ignore, and the alternative needs a paid keyword-aware provider and a licensing review that has not been done. The recipe's `imageIntent` and the alt text carry the meaning even when the picture does not, and `STOCK_IMAGES_ENABLED=false` turns the whole thing off.
+
+**Verified.** `check_ai.py` grew to 17 cases: an empty slot receives a photograph, the alt falls back to the model's own description of the picture, a supplied image is never replaced, and with stock images off the slot stays empty. `check:sections` gained the assembly path it had been missing — a five-section page assembles into a valid document, every chosen section survives in order, the header carries an image slot, a named palette resolves to its preset, an unknown palette falls back to neutral, every recipe is described to the model with a name, purpose and example, and an id the kit cannot build is reported rather than ignored. **Gate:** `eslint` 0 · `tsc --noEmit` clean · `next build` clean · `check:sections` · `check:auth` · `check_ai.py` · `compileall` · import smoke 54 paths.
+
+**Still not verified:** live generation, because there is still no DeepSeek key. The prompts and the photograph fill are exercised against canned answers, so what is proven is that a *wrong* answer degrades well — not that a right answer looks good. That judgement needs a real generation.
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |

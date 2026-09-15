@@ -19,14 +19,32 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 PaletteName = Literal["neutral", "warm", "ocean", "forest", "plum", "dark"]
 
 
+class SectionSpec(BaseModel):
+    """One section the kit can build, described by the kit itself.
+
+    Sent on both calls. The brief call uses the name and description so the model
+    can choose intelligently — a bare id like `features.alternating` tells it
+    nothing, and a model choosing blind picks the same three safe sections every
+    time. The content call uses `example`, which doubles as the schema its answer
+    must match and as the fallback the frontend uses when a field comes back
+    wrong.
+    """
+
+    id: str = Field(min_length=1, max_length=40)
+    name: str = Field(default="", max_length=80)
+    description: str = Field(default="", max_length=400)
+    example: dict[str, Any] = Field(default_factory=dict)
+
+
 class BriefRequest(BaseModel):
     """What the customer typed, plus the sections the kit can build."""
 
     prompt: str = Field(min_length=10, max_length=2000)
     site_name: str | None = Field(default=None, max_length=100)
-    # Ids only. Naming the available sections is how the model is stopped from
-    # inventing one that does not exist.
-    section_ids: list[str] = Field(min_length=1, max_length=40)
+    # The catalogue, so the model can choose with its eyes open. Ids only would
+    # be a guessing game, and this is the decision that most affects whether the
+    # resulting page looks designed.
+    sections: list[SectionSpec] = Field(min_length=1, max_length=40)
 
 
 class BriefPage(BaseModel):
@@ -72,19 +90,9 @@ class BriefResponse(BaseModel):
     tokens_out: int
 
 
-class SectionSpec(BaseModel):
-    """One section to write copy for, described by the kit itself."""
-
-    id: str = Field(min_length=1, max_length=40)
-    name: str = Field(default="", max_length=80)
-    description: str = Field(default="", max_length=400)
-    # The recipe's own filled-in defaults, straight from `describeRecipe`. It
-    # doubles as the schema the model is asked to match and as the fallback the
-    # frontend uses when a field comes back wrong.
-    example: dict[str, Any] = Field(default_factory=dict)
-
-
 class ContentRequest(BaseModel):
+    """The page to write, with each section described by the kit."""
+
     brief: Brief
     page_title: str = Field(default="Home", max_length=80)
     sections: list[SectionSpec] = Field(min_length=1, max_length=12)

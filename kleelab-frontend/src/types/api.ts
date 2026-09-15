@@ -250,16 +250,6 @@ export interface Asset {
   created_at: string;
 }
 
-export interface Template {
-  id: string;
-  title: string;
-  category: string;
-  description: string;
-  thumbnail_url: string;
-  is_premium: boolean;
-  config?: Record<string, unknown>;
-}
-
 /**
  * Storefront (shopper-facing) shapes.
  *

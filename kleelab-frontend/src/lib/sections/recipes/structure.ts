@@ -46,8 +46,11 @@ const heroSplit = defineRecipe({
     ctaHref: z.string().default('#contact'),
     imageSrc: z.string().default(''),
     imageAlt: z.string().default(''),
+    imageIntent: z
+      .string()
+      .default('A photograph that shows the business: the product, the place, or people at work'),
   }),
-  build: ({ heading: title, body, ctaLabel, ctaHref, imageSrc, imageAlt }) =>
+  build: ({ heading: title, body, ctaLabel, ctaHref, imageSrc, imageAlt, imageIntent }) =>
     band({ paddingY: 'xl', background: 'mint' }, [
       stack([
         columns(2, [
@@ -57,7 +60,7 @@ const heroSplit = defineRecipe({
           }),
           createNode('section', {}, {
             style: { padding: 'none' },
-            children: [image(imageSrc, imageAlt)],
+            children: [image(imageSrc, imageAlt, imageIntent)],
           }),
         ]),
       ]),
@@ -94,11 +97,12 @@ const heroImageBelow = defineRecipe({
     body: z.string().default('A sentence or two of context.'),
     imageSrc: z.string().default(''),
     imageAlt: z.string().default(''),
+    imageIntent: z.string().default('A wide photograph of the place, the food or the room'),
   }),
-  build: ({ heading: title, body, imageSrc, imageAlt }) =>
+  build: ({ heading: title, body, imageSrc, imageAlt, imageIntent }) =>
     band({ paddingY: 'xl', align: 'center' }, [
       stack([heading(title, 1), paragraph(body)]),
-      image(imageSrc, imageAlt),
+      image(imageSrc, imageAlt, imageIntent),
     ]),
 });
 
@@ -150,9 +154,19 @@ const galleryGrid = defineRecipe({
   contentSchema: z.object({
     heading: z.string().default('A look around'),
     items: z
-      .array(z.object({ src: z.string().default(''), alt: z.string().default('') }))
+      .array(
+        z.object({
+          src: z.string().default(''),
+          alt: z.string().default(''),
+          intent: z.string().default('A photograph for the gallery'),
+        }),
+      )
       .max(9)
-      .default([{ src: '', alt: '' }, { src: '', alt: '' }, { src: '', alt: '' }]),
+      .default([
+        { src: '', alt: '', intent: 'A photograph for the gallery' },
+        { src: '', alt: '', intent: 'A photograph for the gallery' },
+        { src: '', alt: '', intent: 'A photograph for the gallery' },
+      ]),
   }),
   build: ({ heading: title, items }) =>
     band({ paddingY: 'lg' }, [
@@ -160,7 +174,7 @@ const galleryGrid = defineRecipe({
         heading(title, 2),
         columns(
           items.length >= 3 ? 3 : 2,
-          items.map((item) => image(item.src, item.alt)),
+          items.map((item) => image(item.src, item.alt, item.intent)),
         ),
       ]),
     ]),

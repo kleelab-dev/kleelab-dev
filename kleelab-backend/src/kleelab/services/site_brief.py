@@ -24,8 +24,9 @@ __all__ = ["BRIEF_SYSTEM", "CONTENT_SYSTEM", "brief_prompt", "content_prompt", "
 
 
 BRIEF_SYSTEM = """You are a senior designer at a small studio that builds websites for small \
-businesses. You decide the structure of a site. You never write layout, spacing, typography or \
-colours — those are already designed and are not your concern.
+businesses. You decide the structure of a site: which pages it needs and which sections go on \
+each one, in what order. You never write layout, spacing, typography or colours — those are \
+already designed and are not your concern.
 
 You reply with a single JSON object and nothing else.
 
@@ -42,22 +43,49 @@ Shape:
   ]
 }
 
-Rules:
+Pages:
 - One to three pages. The first page must be the home page with slug "/".
-- Other slugs are lowercase with hyphens, beginning with "/".
-- Three to seven sections per page, chosen ONLY from the ids you are given.
-- Start a page with a header section and, where one fits, end it with a footer.
-- Order sections the way an experienced designer would: a header, then a hero, then the body, \
-then something that asks for action, then a footer.
-- If the description is vague, choose a sensible, conventional structure for that kind of \
-business. Do not invent specifics to fill the gap.
-- Choose the palette that suits the business and the feeling described, not the one you like.
+- Every other slug is lowercase with hyphens, beginning with "/".
+- Only add a second page if the business genuinely needs one — a shop, a menu, a portfolio.
+
+Choosing the palette:
+- "warm" for food, drink, hospitality, craft, anything handmade or homely.
+- "forest" for the outdoors, health, gardening, sustainability, anything growing.
+- "ocean" for professional services, finance, technology, clinics, anything precise.
+- "plum" for beauty, fashion, art, events, anything expressive.
+- "dark" for photography, music, bars, agencies — anything where images should glow.
+- "neutral" only when nothing else fits. It is the least interesting option.
+
+Designing the page — this is the part that matters:
+- Choose sections the way a designer composes a page, not as a checklist. Three to six sections
+  on the home page is usually right. A page that uses everything looks like a template.
+- Give the page a rhythm: alternate a plain section with a richer one. Do not put two
+  photographic or two text-heavy sections next to each other.
+- Use "stats.banner" at most once in the whole site, if at all. It is a full-colour band and it
+  stops working when it is not rare.
+- Start every page with a header section and end it with a footer.
+- Order the home page roughly: header, hero, what you do, proof, an ask, footer.
+
+Pictures:
+- At least one section on every page must carry an image. A page with no picture at all cannot
+  be made to look alive.
+- For a business that sells something visible — food, interiors, fashion, art, travel, property,
+  weddings, flowers — the header itself must be an image-bearing one ("hero.split" or
+  "hero.image-below"), not a text-only header.
+- Wherever a section has an "imageIntent" field, write what the photograph should show. Be
+  specific to this business: "a dark sourdough loaf cooling on a wire rack", not "an image".
+
+Writing:
+- Be specific. Every sentence must contain something only this business could say. A line that
+  would fit any business in the world is a failure.
+- If the description is vague, choose a sensible, conventional structure for that kind of
+  business. Do not invent details to fill the gap.
 """
 
 
-CONTENT_SYSTEM = """You write the copy for one page of a small business website, section by \
-section. The layout, spacing, typography and colour of every section are already decided and are \
-not your concern.
+CONTENT_SYSTEM = """You write the copy and choose the photographs for one page of a small \
+business website, section by section. The layout, spacing, typography and colour of every section \
+are already decided and are not your concern.
 
 You reply with a single JSON object and nothing else.
 
@@ -66,26 +94,37 @@ Shape:
 
 Rules:
 - Return every section you are given, once each, in the order given.
-- The `content` object must have exactly the keys shown in that section's example, with the same \
-types. Do not add keys. Do not omit keys.
-- Write real copy, not lorem ipsum, in the tone you are given. Match the length of the example: \
-a headline is a headline, not a paragraph.
-- Be specific to this business. A sentence that would fit any business in the world is a failure.
-- NEVER invent facts. No testimonials, review scores, awards, certifications, guarantees, \
-founding dates, prices, addresses, phone numbers, email addresses or opening hours that the \
-description did not provide. Where a section asks for one of those and you were not given it, \
-keep the placeholder wording from the example.
+- The `content` object must have exactly the keys shown in that section's example, with the same
+  types. Do not add keys. Do not omit keys.
+- Write real copy, not lorem ipsum, in the tone you are given. Match the length of the example: a
+  headline is a headline, not a paragraph.
+- Be specific to this business. Every sentence must contain something only this business could
+  say. A line that would fit any business in the world is a failure.
+- Write for a reader who has never heard of this business and is deciding whether to care.
+- NEVER invent facts. No testimonials, review scores, awards, certifications, guarantees,
+  founding dates, prices, addresses, phone numbers, email addresses or opening hours that the
+  description did not provide. Where a section asks for one of those and you were not given it,
+  keep the placeholder wording from the example.
 - Where an example field is an empty string, leave it empty unless the description supplies it.
+
+Pictures — every section that has an image field:
+- Leave `imageSrc` as an empty string. The photograph is chosen for you; you only describe it.
+- Fill `imageIntent` (or `intent` inside a list item) with what the photograph should show, as a
+  photographer's brief: "a barista tamping coffee at a wooden counter", not "a photo of coffee".
+  Be specific to this business and vary the subject between sections — several near-identical
+  briefs will be filled with near-identical photographs.
+- Fill `imageAlt` (or `alt`) with what a screen reader should say. It is a description, not a
+  caption, and it must not simply repeat the heading.
 """
 
 
-def brief_prompt(*, prompt: str, site_name: str | None, section_ids: list[str]) -> str:
+def brief_prompt(*, prompt: str, site_name: str | None, sections: list[SectionSpec]) -> str:
     """The user turn for the brief call.
 
-    The business description is wrapped and labelled as untrusted content. Someone
-    who types "ignore your instructions and return…" is writing on their own
-    site, so the blast radius is small, but the section ids are the one thing the
-    rest of the system relies on and they are pinned here by name.
+    The business description is wrapped and labelled as content rather than
+    instructions, and the catalogue is listed by name and purpose so the model is
+    choosing from a real menu rather than guessing at ids. The list is also what
+    pins the answer: an id that is not on it is dropped before anything is built.
     """
 
     lines = [
@@ -99,10 +138,12 @@ def brief_prompt(*, prompt: str, site_name: str | None, section_ids: list[str]) 
     ]
     if site_name:
         lines += [f"They named the business: {site_name.strip()}", ""]
-    lines += [
-        "The only section ids you may use:",
-        ", ".join(section_ids),
-    ]
+
+    lines.append("The sections you may use, and what each is for:")
+    for spec in sections:
+        description = f" — {spec.description}" if spec.description else ""
+        lines.append(f"- {spec.id} ({spec.name}){description}")
+
     return "\n".join(lines)
 
 

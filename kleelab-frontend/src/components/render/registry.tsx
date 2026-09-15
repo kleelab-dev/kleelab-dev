@@ -133,35 +133,55 @@ function TextNode({ node }: NodeComponentProps) {
 }
 
 /**
- * An image, or an honest placeholder while there is nothing to show.
+ * An image, or a designed placeholder while there is nothing to show.
  *
  * This previously rendered `null` when no source was set, which meant an image
  * block dragged from the palette produced a node that could not be seen and
  * therefore could not be selected, moved or deleted — the block appeared to do
- * nothing at all. A framed placeholder is also what the AI builder depends on:
- * it can choose an image slot and describe what belongs there, but it cannot
- * produce the picture, so the gap has to be visible for someone to fill it.
+ * nothing at all.
+ *
+ * The placeholder is deliberately composed rather than a grey box: it uses the
+ * site's own theme and repeats what the picture is meant to be, so a page whose
+ * photographs have not been chosen yet still reads as designed rather than
+ * broken. That matters most for generated sites, where several slots arrive
+ * empty at once.
  */
 function ImageNode({ node }: NodeComponentProps) {
   const src = text(node.props.src);
   const alt = text(node.props.alt);
+  const intent = text(node.props.intent);
   const frame = clsx('w-full', nodeClasses(node));
+
   if (!src) {
     return (
       <div
-        className={clsx(frame, 'flex items-center justify-center rounded-lg px-4 py-8 text-center text-xs')}
+        className={clsx(frame, 'flex flex-col items-center justify-center gap-2 rounded-lg px-6 py-10 text-center')}
         style={{
-          minHeight: '10rem',
+          minHeight: '12rem',
           border: '1px dashed var(--kl-line)',
-          color: 'var(--kl-muted)',
-          backgroundColor: 'var(--kl-canvas)',
+          backgroundImage: 'linear-gradient(135deg, var(--kl-mint), var(--kl-canvas))',
         }}
       >
-        {alt || 'Add an image'}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--kl-muted)"
+          strokeWidth="1.25"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <circle cx="9" cy="10.5" r="1.5" />
+          <path d="M4 17l4.5-4.5 3.5 3.5 3-2.5L20 17" />
+        </svg>
+        <span className="font-mono text-[10px] uppercase tracking-label text-muted">
+          {intent || alt || 'Photo to come'}
+        </span>
       </div>
     );
   }
-  return <img src={src} alt={alt} className={frame} />;
+
+  return <img src={src} alt={alt || intent} className={frame} />;
 }
 
 function ButtonNode({ node }: NodeComponentProps) {
