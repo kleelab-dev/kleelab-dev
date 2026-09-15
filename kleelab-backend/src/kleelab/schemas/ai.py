@@ -121,3 +121,107 @@ class AIStatus(BaseModel):
     reason: str | None = None
     builds_remaining: int
     builds_per_month: int
+
+
+# ---------------------------------------------------------------------------
+# Editing an existing site by conversation
+# ---------------------------------------------------------------------------
+
+class OutlineNode(BaseModel):
+    """One node of the current page, as the model is allowed to see it.
+
+    A compact outline rather than the document itself, for the same reason the
+    section kit is never mirrored on the server: the shape of a document lives in
+    the frontend, and sending the whole tree back and forth would cost a page of
+    tokens per turn just to ask for a colour change.
+    """
+
+    id: str = Field(min_length=1, max_length=80)
+    type: str = Field(max_length=40)
+    #: The visible text, so the model can find "the heading that says About us".
+    text: str = Field(default="", max_length=200)
+    #: A human label, e.g. "Header — text and image".
+    label: str = Field(default="", max_length=80)
+
+
+EditOp = Literal[
+    "set_theme",
+    "set_text",
+    "set_style",
+    "set_image",
+    "replace_section",
+    "add_section",
+    "remove_section",
+    "move_section",
+]
+
+
+class EditOperation(BaseModel):
+    """One change, targeted at one node.
+
+    Deliberately a single flat shape with optional fields rather than eight
+    models: the model is filling in a form it can see the whole of, and a
+    discriminated union would make its answers harder to get right for no gain in
+    safety, since `clean_operations` checks the required fields per operation
+    anyway.
+
+    `extra="forbid"` stays on — it is what surfaces a model inventing a field
+    instead of quietly ignoring it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    op: EditOp
+    #: The node being changed.
+    node_id: str | None = Field(default=None, max_length=80)
+    #: Where a new section goes, or what a moved one goes after.
+    after_node_id: str | None = Field(default=None, max_length=80)
+    #: New visible text, for `set_text`.
+    text: str | None = Field(default=None, max_length=4000)
+    #: A theme slot name and the colour to put in it, for `set_theme`.
+    slot: str | None = Field(default=None, max_length=40)
+    colour: str | None = Field(default=None, max_length=64)
+    #: A style patch, for `set_style`. Validated against the document schema by
+    #: the client, which is the only side that knows the style tokens.
+    style: dict[str, Any] | None = None
+    #: Which recipe to build, for `replace_section` and `add_section`.
+    section_id: str | None = Field(default=None, max_length=40)
+    content: dict[str, Any] | None = None
+    #: A photograph, for `set_image`.
+    src: str | None = Field(default=None, max_length=2000)
+    alt: str | None = Field(default=None, max_length=400)
+
+
+class EditRequest(BaseModel):
+    """One turn of the conversation."""
+
+    instruction: str = Field(min_length=2, max_length=1000)
+    page_title: str = Field(default="Home", max_length=80)
+    outline: list[OutlineNode] = Field(min_length=1, max_length=400)
+    #: The site's current theme, so "make it warmer" has something to act on.
+    theme: dict[str, str] = Field(default_factory=dict)
+    #: The palette names the theme may be set to.
+    palettes: list[str] = Field(default_factory=list, max_length=20)
+    #: The catalogue, so `replace_section` and `add_section` can only name
+    #: sections that exist.
+    sections: list[SectionSpec] = Field(default_factory=list, max_length=40)
+    #: The style keys and the values each accepts, sent by the client for the same
+    #: reason the catalogue is: the definition lives in the frontend, and a copy
+    #: here would be a second thing to keep in step. Rendered into the prompt so
+    #: the model cannot invent `size: "huge"`.
+    style_tokens: dict[str, list[str]] = Field(default_factory=dict)
+    #: Recent turns, oldest first, so "do that again but bigger" has a referent.
+    history: list[str] = Field(default_factory=list, max_length=12)
+
+
+class EditResponse(BaseModel):
+    """What to do, and what to tell the user about it."""
+
+    operations: list[EditOperation] = Field(default_factory=list)
+    #: One sentence describing what changed, shown in the conversation. Empty
+    #: operations with a summary is the answer to a question, which is a normal
+    #: turn rather than a failure.
+    summary: str = Field(default="", max_length=600)
+    model: str
+    tokens_in: int
+    tokens_out: int

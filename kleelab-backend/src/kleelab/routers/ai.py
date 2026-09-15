@@ -34,6 +34,9 @@ from kleelab.schemas.ai import (
     BriefResponse,
     ContentRequest,
     ContentResponse,
+    EditOperation,
+    EditRequest,
+    EditResponse,
     SectionContent,
 )
 from kleelab.services import llm
@@ -46,6 +49,7 @@ from kleelab.services.site_brief import (
     content_prompt,
     ensure_imagery,
 )
+from kleelab.services.site_edit import EDIT_SYSTEM, clean_operations, edit_prompt
 from kleelab.services.stock_images import fill_images
 
 logger = logging.getLogger(__name__)
@@ -330,3 +334,124 @@ async def create_content(
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,
     )
+
+
+@router.post("/edit", response_model=EditResponse)
+async def edit_page(
+    payload: EditRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EditResponse:
+    """Answer one turn of the conversation, as a list of changes to make.
+
+    An edit is not a build, so it counts against the daily call cap rather than
+    the monthly build allowance — talking to a site should not cost a customer a
+    generation.
+    """
+
+    await enforce_ai_quota(db, current_user)
+
+    section_ids = {spec.id for spec in payload.sections}
+    request_text = edit_prompt(payload)
+
+    try:
+        result = await llm.complete_json(system=EDIT_SYSTEM, user=request_text)
+    except llm.LLMError as error:
+        await _record(
+            db,
+            current_user,
+            kind="edit",
+            model=settings.DEEPSEEK_MODEL,
+            prompt_chars=len(request_text),
+            status="error",
+            error=str(error),
+        )
+        raise _unavailable(error) from error
+
+    raw = result.data if isinstance(result.data, dict) else {}
+    raw_operations = raw.get("operations")
+    claimed = _as_text(raw.get("summary"))
+
+    proposed: list[EditOperation] = []
+    if isinstance(raw_operations, list):
+        for item in raw_operations:
+            if not isinstance(item, dict):
+                continue
+            try:
+                proposed.append(EditOperation.model_validate(item))
+            except ValidationError:
+                # One malformed operation must not discard an otherwise good turn.
+                logger.warning("Discarded an unparseable edit operation")
+                continue
+
+    kept = clean_operations(
+        proposed,
+        outline=payload.outline,
+        section_ids=section_ids,
+        # A palette name is also accepted as a theme slot: asking for a warmer
+        # site is a normal thing to say, and it would be odd to refuse it for
+        # being phrased as one word instead of eight.
+        theme_slots=set(payload.theme) | set(payload.palettes),
+        allowed_style_keys=set(payload.style_tokens),
+    )
+
+    summary = _honest_summary(
+        claimed=claimed,
+        proposed=len(proposed),
+        kept=len(kept),
+    )
+
+    await _record(
+        db,
+        current_user,
+        kind="edit",
+        model=result.model,
+        prompt_chars=len(request_text),
+        tokens_in=result.tokens_in,
+        tokens_out=result.tokens_out,
+        status="ok" if kept or not proposed else "rejected",
+        payload={"ops": [operation.op for operation in kept], "proposed": len(proposed)},
+    )
+
+    return EditResponse(
+        operations=kept,
+        summary=summary,
+        model=result.model,
+        tokens_in=result.tokens_in,
+        tokens_out=result.tokens_out,
+    )
+
+
+def _as_text(value: object, limit: int = 600) -> str:
+    """Coerce a model's field to a trimmed string, whatever it actually sent."""
+
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split())[:limit]
+
+
+def _honest_summary(*, claimed: str, proposed: int, kept: int) -> str:
+    """Never let the assistant describe a change that will not happen.
+
+    The summary is what the customer reads and believes. If the model says it
+    enlarged the heading but every operation it returned was discarded, that
+    sentence is a lie — and a lie that looks like a working feature, because the
+    page will not have changed. Saying so is the only honest option.
+    """
+
+    if proposed == 0:
+        # A question, or a refusal. Both are normal turns; pass the answer through.
+        return claimed
+
+    if kept == 0:
+        return (
+            "I could not make that change — it referred to parts of the page I could not "
+            "identify. Try naming the section you mean, for example the header or the footer."
+        )
+
+    if kept < proposed:
+        dropped = proposed - kept
+        note = f" ({dropped} part of that could not be applied, so it was left out.)"
+        return f"{claimed}{note}".strip()
+
+    return claimed

@@ -585,6 +585,154 @@ check(
     str(items),
 )
 
+# --- 6. Conversation edits -------------------------------------------------------
+# The model edits by returning operations aimed at existing nodes. Everything here
+# is about what happens when it aims badly, because that is the whole risk: an
+# operation that cannot be trusted must be discarded, never applied.
+OUTLINE = [
+    {"id": "page-1", "type": "page", "text": "", "label": "Home"},
+    {"id": "sec-hero", "type": "section", "text": "", "label": "Header — text and image"},
+    {"id": "h-1", "type": "heading", "text": "Fresh bread daily", "label": "Fresh bread daily"},
+    {"id": "img-1", "type": "image", "text": "", "label": "Photo to come"},
+    {"id": "sec-footer", "type": "footer", "text": "© Fern & Field", "label": "Footer"},
+]
+THEME = {"paper": "#fffbf5", "accent": "#c2410c", "ink": "#2b1c12"}
+STYLE_TOKENS = {
+    "align": ["left", "center", "right"],
+    "size": ["sm", "md", "lg", "xl"],
+    "color": ["paper", "ink", "accent"],
+}
+
+
+def edit_body(**overrides) -> dict:
+    body = {
+        "instruction": "make the heading bigger",
+        "page_title": "Home",
+        "outline": OUTLINE,
+        "theme": THEME,
+        "palettes": ["neutral", "warm"],
+        "sections": catalogue(),
+        "style_tokens": STYLE_TOKENS,
+    }
+    body.update(overrides)
+    return body
+
+
+def edit(operations: list[dict], summary: str = "Done.", **overrides) -> tuple[int, dict]:
+    stub_model({"summary": summary, "operations": operations})
+    response = client([0, 0]).post("/api/ai/edit", json=edit_body(**overrides))
+    return response.status_code, (response.json() if response.content else {})
+
+
+# A well-formed change survives untouched.
+code, result = edit([{"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}}])
+check(
+    "a valid operation is returned",
+    code == 200
+    and len(result["operations"]) == 1
+    and result["operations"][0]["style"] == {"size": "xl"},
+    str(result),
+)
+
+# Every one of these is a model mistake that must be discarded, not applied.
+BAD_OPERATIONS = {
+    "naming a node that does not exist": {"op": "set_text", "node_id": "ghost", "text": "x"},
+    "inventing a field": {"op": "set_text", "node_id": "h-1", "text": "x", "bold": True},
+    "setting a photo on a heading": {"op": "set_image", "node_id": "h-1", "src": "https://x/y.jpg"},
+    "building a section the kit lacks": {
+        "op": "replace_section",
+        "node_id": "sec-hero",
+        "section_id": "hero.does.not.exist",
+    },
+    "using a style key that is not a style": {
+        "op": "set_style",
+        "node_id": "h-1",
+        "style": {"fontFamily": "Comic Sans"},
+    },
+    "setting a theme slot that does not exist": {"op": "set_theme", "slot": "brand", "colour": "#123456"},
+    "moving a section to after itself": {
+        "op": "move_section",
+        "node_id": "sec-footer",
+        "after_node_id": "sec-footer",
+    },
+    "an operation that is not in the vocabulary": {"op": "delete_everything", "node_id": "page-1"},
+}
+
+for label, operation in BAD_OPERATIONS.items():
+    code, result = edit([operation])
+    check(f"discarded: {label}", code == 200 and result["operations"] == [], str(result))
+
+# The summary is the only thing the customer reads. If it describes a change that
+# was discarded, it is a lie that looks like a working feature.
+code, result = edit(
+    [{"op": "set_text", "node_id": "ghost", "text": "x"}],
+    summary="I made the heading much larger.",
+)
+check(
+    "a summary with nothing behind it is replaced with an honest one",
+    code == 200
+    and result["operations"] == []
+    and "could not make that change" in result["summary"],
+    str(result),
+)
+
+# A partly-applied turn says what it left out rather than claiming everything.
+code, result = edit(
+    [
+        {"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}},
+        {"op": "set_text", "node_id": "ghost", "text": "x"},
+    ],
+    summary="I made the heading larger.",
+)
+check(
+    "a partly applied turn says what it left out",
+    code == 200 and len(result["operations"]) == 1 and "left out" in result["summary"],
+    str(result),
+)
+
+# A question is a normal turn, not a failure: no operations, an answer.
+code, result = edit([], summary="You can publish from the button in the top bar.")
+check(
+    "a question returns an answer and no changes",
+    code == 200 and result["operations"] == [] and result["summary"].startswith("You can publish"),
+    str(result),
+)
+
+# One malformed operation must not discard an otherwise good turn.
+code, result = edit(
+    [
+        {"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}},
+        {"op": "set_style", "node_id": "h-1"},
+        {"op": "set_text", "node_id": "h-1", "text": "Fresh bread, daily"},
+    ]
+)
+check(
+    "a malformed operation is dropped, the rest of the turn survives",
+    code == 200 and len(result["operations"]) == 2,
+    str(result),
+)
+
+# The prompt has to carry the outline and the legal values, or the model is
+# guessing at ids and inventing style tokens.
+captured_edit: dict[str, str] = {}
+
+
+async def edit_spy(**kwargs):
+    captured_edit.update(kwargs)
+    return canned({"summary": "ok", "operations": []})
+
+
+llm.complete_json = edit_spy
+client([0, 0]).post("/api/ai/edit", json=edit_body(instruction="make the footer smaller"))
+sent = captured_edit.get("user", "")
+check(
+    "the prompt carries the outline, the theme and the legal style values",
+    all(node["id"] in sent for node in OUTLINE)
+    and "accent" in sent
+    and "make the footer smaller" in sent,
+    sent[:300],
+)
+
 settings.AI_ENABLED = False
 settings.DEEPSEEK_API_KEY = None
 app.dependency_overrides.clear()

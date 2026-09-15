@@ -41,6 +41,12 @@ jobs:
         # is a phishing tool wearing our domain.
         run: npm run check:auth
 
+      - name: Assistant change application
+        # The one place a model's output becomes changes to a real page. Every
+        # invalid operation must be refused and must leave the document exactly
+        # as it was — a half-applied change is worse than a rejected one.
+        run: npm run check:operations
+
       - name: Build
         run: npm run build
         env:
