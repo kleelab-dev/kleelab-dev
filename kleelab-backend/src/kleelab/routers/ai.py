@@ -50,7 +50,13 @@ from kleelab.services.site_brief import (
     content_prompt,
     ensure_imagery,
 )
-from kleelab.services.site_edit import EDIT_SYSTEM, clean_operations, edit_prompt
+from kleelab.services.site_edit import (
+    EDIT_SYSTEM,
+    clean_choices,
+    clean_operations,
+    edit_prompt,
+    suggest_choices,
+)
 from kleelab.services.stock_images import fill_images
 
 logger = logging.getLogger(__name__)
@@ -409,6 +415,7 @@ async def edit_page(
                 logger.warning("Discarded an unparseable edit operation")
                 continue
 
+    dropped: list[str] = []
     kept = clean_operations(
         proposed,
         outline=payload.outline,
@@ -418,6 +425,7 @@ async def edit_page(
         # being phrased as one word instead of eight.
         theme_slots=set(payload.theme) | set(payload.palettes),
         allowed_style_keys=set(payload.style_tokens),
+        report=dropped,
     )
 
     summary = _honest_summary(
@@ -425,6 +433,23 @@ async def edit_page(
         proposed=len(proposed),
         kept=len(kept),
     )
+
+    # Derived from what survived rather than taken from the model's own claim. A
+    # reply that says it is a change and carries no operations is precisely the
+    # failure this endpoint must not produce, so the two cannot be allowed to
+    # disagree: no operations means the assistant is still talking, not acting.
+    kind = "change" if kept else "question"
+
+    choices = clean_choices(raw.get("choices"))
+    if kind == "question" and not choices and proposed:
+        # Every operation was discarded, so the question is ours to ask and the
+        # options come from the page rather than from the model. This is the path
+        # that used to answer "yes" with "I could not make that change".
+        choices = suggest_choices(payload.outline)
+    if kind == "change":
+        # Buttons under a sentence reporting a change would be nonsense, so the
+        # model's choices are dropped even if it offered them.
+        choices = []
 
     await _record(
         db,
@@ -435,12 +460,23 @@ async def edit_page(
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,
         status="ok" if kept or not proposed else "rejected",
-        payload={"ops": [operation.op for operation in kept], "proposed": len(proposed)},
+        payload={
+            "ops": [operation.op for operation in kept],
+            "proposed": len(proposed),
+            # Which operations were thrown away and what kind they were. Without
+            # this, "everything was discarded" is a fact with no cause, and the
+            # turn that produced the worst reply in this endpoint's history left
+            # nothing behind to explain itself.
+            "dropped": dropped,
+            "kind": kind,
+        },
     )
 
     return EditResponse(
         operations=kept,
         summary=summary,
+        kind=kind,
+        choices=choices,
         model=result.model,
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,
@@ -469,9 +505,14 @@ def _honest_summary(*, claimed: str, proposed: int, kept: int) -> str:
         return claimed
 
     if kept == 0:
+        # The model tried to change something and every operation it sent was
+        # discarded, so it named something that is not on the page. Said plainly,
+        # and followed by the suggested replies the caller attaches from the
+        # page's own outline — the previous wording here told the owner to name a
+        # section without naming any, which is a dead end dressed as advice.
         return (
-            "I could not make that change — it referred to parts of the page I could not "
-            "identify. Try naming the section you mean, for example the header or the footer."
+            "I couldn't match that to anything on this page, so I've changed nothing. "
+            "Tell me which part you mean and I'll do it."
         )
 
     if kept < proposed:

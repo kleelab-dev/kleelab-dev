@@ -15,6 +15,7 @@ Run with `PYTHONPATH=src python scripts/check_ai.py`.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -26,6 +27,7 @@ from kleelab.core.security import get_current_user
 from kleelab.main import app
 from kleelab.models.user import User
 from kleelab.services import llm
+from kleelab.services.site_edit import EDIT_SYSTEM
 
 FAILURES = 0
 
@@ -624,6 +626,13 @@ def edit(operations: list[dict], summary: str = "Done.", **overrides) -> tuple[i
     return response.status_code, (response.json() if response.content else {})
 
 
+def edit_reply(payload: dict, **overrides) -> tuple[int, dict]:
+    """Send an arbitrary model reply, so a turn can be shaped exactly as needed."""
+    stub_model(payload)
+    response = client([0, 0]).post("/api/ai/edit", json=edit_body(**overrides))
+    return response.status_code, (response.json() if response.content else {})
+
+
 # A well-formed change survives untouched.
 code, result = edit([{"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}}])
 check(
@@ -672,7 +681,9 @@ check(
     "a summary with nothing behind it is replaced with an honest one",
     code == 200
     and result["operations"] == []
-    and "could not make that change" in result["summary"],
+    and result["kind"] == "question"
+    and "changed nothing" in result["summary"]
+    and "much larger" not in result["summary"],
     str(result),
 )
 
@@ -731,6 +742,141 @@ check(
     and "accent" in sent
     and "make the footer smaller" in sent,
     sent[:300],
+)
+
+# --- 7. A reply that changes nothing is a question, not a failure -----------------
+#
+# The worst reply this endpoint has produced: the assistant asked whether "rebuild"
+# meant the whole page, the colours, or one section; the owner answered "yes"; and the
+# reply was "I could not make that change", with no way to answer and nothing to click.
+# The assistant was still asking, and the protocol had no way to say so.
+
+status_code, body = edit([{"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}}])
+check(
+    "a turn that changes something is kind change",
+    status_code == 200 and body["kind"] == "change" and len(body["operations"]) == 1,
+    str(body)[:200],
+)
+check(
+    "a change carries no suggested replies",
+    body["kind"] == "change" and body["choices"] == [],
+    str(body.get("choices")),
+)
+
+status_code, body = edit([], summary="You can publish from the button in the top bar.")
+check(
+    "a turn that changes nothing is kind question",
+    status_code == 200 and body["kind"] == "question" and body["operations"] == [],
+    str(body)[:200],
+)
+
+# The heart of it: the model tried to act, named things that are not on the page,
+# every operation was discarded — so the reply must be a question with real options
+# rather than a dead end.
+status_code, body = edit(
+    [
+        {"op": "replace_section", "node_id": "ghost", "section_id": "hero.split", "content": {}},
+        {"op": "remove_section", "node_id": "also-ghost"},
+    ],
+    summary="I rebuilt the page for you.",
+)
+check(
+    "a turn whose every operation was discarded becomes a question",
+    status_code == 200 and body["kind"] == "question" and body["operations"] == [],
+    str(body)[:200],
+)
+check(
+    "the summary does not claim a change that did not happen",
+    "changed nothing" in body["summary"],
+    body["summary"],
+)
+check(
+    "the question offers real options taken from the page",
+    len(body["choices"]) >= 2
+    and all(choice for choice in body["choices"])
+    and any("whole page" in choice for choice in body["choices"]),
+    json.dumps(body["choices"]),
+)
+check(
+    "the options name sections that actually exist on the page",
+    any("Fresh bread daily" in choice or "Footer" in choice for choice in body["choices"]),
+    json.dumps(body["choices"]),
+)
+
+# --- 8. Suggested replies are usable or absent ------------------------------------
+
+status_code, body = edit_reply(
+    {
+        "kind": "question",
+        "summary": "Which part did you mean?",
+        "choices": [
+            "Rebuild the whole page and rewrite everything",  # good
+            "Rebuild",  # too short to be an instruction
+            "Option B",  # a label, not an instruction
+            "x" * 200,  # unreadable
+            "Rebuild the whole page and rewrite everything",  # duplicate
+            "Keep the words and change only the colours",  # good
+            "Add a section with your opening hours",  # good
+            "This fourth one must be trimmed away",  # over the limit
+        ],
+        "operations": [],
+    }
+)
+check(
+    "the model's suggested replies are cleaned to usable instructions",
+    status_code == 200
+    and body["choices"]
+    == [
+        "Rebuild the whole page and rewrite everything",
+        "Keep the words and change only the colours",
+        "Add a section with your opening hours",
+    ],
+    json.dumps(body.get("choices")),
+)
+
+status_code, body = edit_reply(
+    {
+        "kind": "change",
+        "summary": "Made it bigger.",
+        "choices": ["A reply that should be ignored"],
+        "operations": [{"op": "set_style", "node_id": "h-1", "style": {"size": "xl"}}],
+    }
+)
+check(
+    "a change never carries suggested replies, even if the model offers them",
+    status_code == 200 and body["kind"] == "change" and body["choices"] == [],
+    json.dumps(body)[:200],
+)
+
+status_code, body = edit_reply({"kind": "question", "summary": "Sure.", "choices": "not a list"})
+check(
+    "a malformed choices field is ignored rather than breaking the turn",
+    status_code == 200 and body["choices"] == [],
+    str(body)[:200],
+)
+
+# --- 9. The prompt teaches the conversation, not just the edit --------------------
+
+rules = " ".join(EDIT_SYSTEM.split())
+check(
+    "the prompt says what to do when a reply does not answer the question",
+    "does not settle your question" in rules and "Never guess at an answer they did not give" in rules,
+)
+check(
+    "the prompt says to ask rather than guess when nothing is most likely",
+    "do not guess" in rules and "there is no most likely reading" in rules,
+)
+check(
+    "the prompt requires a question to offer answers the owner could have typed",
+    "complete instruction the owner could have typed themselves" in rules,
+)
+check(
+    "the prompt makes kind and operations agree",
+    'If `kind` is "question", `operations` must be empty' in rules,
+)
+check(
+    "the prompt still forbids inventing a node id",
+    "Never invent an id" in rules,
 )
 
 settings.AI_ENABLED = False

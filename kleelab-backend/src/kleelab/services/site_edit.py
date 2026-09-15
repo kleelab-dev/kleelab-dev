@@ -24,11 +24,24 @@ from typing import Any
 
 from kleelab.schemas.ai import EditOperation, EditRequest, OutlineNode
 
-__all__ = ["EDIT_SYSTEM", "MAX_OPERATIONS", "clean_operations", "edit_prompt"]
+__all__ = [
+    "EDIT_SYSTEM",
+    "MAX_CHOICES",
+    "MAX_OPERATIONS",
+    "clean_choices",
+    "clean_operations",
+    "edit_prompt",
+    "suggest_choices",
+]
 
 #: Bounds one turn's work. A conversation that needs more than this is really
 #: several requests, and letting it through would risk a long, half-applied edit.
 MAX_OPERATIONS = 20
+
+#: How many suggested replies a question may offer. Three is the most anyone can
+#: hold in mind while reading a sentence, and the point of them is to make answering
+#: easier than typing, not to present a menu.
+MAX_CHOICES = 3
 
 
 EDIT_SYSTEM = """You are editing an existing website through a conversation with its owner. \
@@ -38,7 +51,9 @@ You reply with a single JSON object and nothing else.
 
 Shape:
 {
-  "summary": "one short sentence, in plain English, saying what you changed",
+  "kind": "change" or "question",
+  "summary": "one short sentence. For a change, what you changed. For a question, the question itself.",
+  "choices": ["up to three suggested replies. Only when kind is \"question\"."],
   "operations": [ ... ]
 }
 
@@ -58,10 +73,6 @@ Rules:
   `replace_section`; `set_style` rather than rebuilding a section.
 - Use node ids from the outline exactly as given. Never invent an id, and never
   use one that is not in the outline.
-- If the request is a question rather than a change, return an empty `operations`
-  list and answer in `summary`. That is a normal reply, not a failure.
-- If the request is ambiguous, make the most likely change and say what you assumed
-  in `summary`.
 - Never change the meaning of the owner's copy. If you rewrite text, keep every
   fact exactly as it was; you may tighten the wording but must not invent or drop
   anything.
@@ -81,6 +92,34 @@ Rules:
   in the request. An invented value is discarded and the change does nothing.
 - Return at most 20 operations. If the request needs more, do the most important
   part and say in `summary` what you left out.
+
+Reading the conversation:
+- If the last thing you said was a question, their reply is the answer to it. Act
+  on the answer.
+- If their reply does not settle your question — "yes" to a choice of three, "ok",
+  "sure", "go ahead" — then the choice is still open. Ask again, and put the options
+  in `choices` this time. Never guess at an answer they did not give.
+- Never ask something they have already answered, and never ask the same question
+  twice with the same options.
+
+When the request is too vague to act on:
+- If there is one clearly most likely reading, make that change and say in `summary`
+  what you assumed. "Make it nicer" on a page with no photograph most likely means
+  add one.
+- If there is no most likely reading — "rebuild", "change it", "make it better",
+  "yes", "do that" — do not guess. Set `kind` to "question", leave `operations`
+  empty, and put up to three `choices` in the reply.
+- Every choice must be a complete instruction the owner could have typed themselves,
+  and must be something you can actually do. "Rebuild the opening section with new
+  words", not "Option A" and not "Rebuild" on its own.
+- Guessing here is worse than asking. A rebuild replaces the words they wrote, and
+  an owner who is asked one clear question has lost nothing.
+
+How to set `kind`:
+- "question" whenever you are not changing the page: answering them, asking them, or
+  saying you cannot. "change" only when you are returning operations.
+- If `kind` is "question", `operations` must be empty and `choices` should have the
+  suggested replies. If `kind` is "change", `choices` must be empty.
 """
 
 
@@ -155,6 +194,7 @@ def clean_operations(
     section_ids: set[str],
     theme_slots: set[str],
     allowed_style_keys: set[str],
+    report: list[str] | None = None,
 ) -> list[EditOperation]:
     """Keep the operations that can be applied, drop the rest.
 
@@ -181,6 +221,13 @@ def clean_operations(
             allowed_style_keys=allowed_style_keys,
         ):
             kept.append(operation)
+        elif report is not None:
+            # Kept for the record rather than shown to anyone. Without it, "every
+            # operation was discarded" is a fact with no cause: the single worst
+            # reply this endpoint has produced — a question answered with "yes",
+            # met with "I could not make that change" — left nothing behind to
+            # explain itself.
+            report.append(operation.op)
 
     return kept
 
@@ -252,3 +299,82 @@ def _is_applicable(
         )
 
     return False
+
+
+def clean_choices(raw: object) -> list[str]:
+    """Suggested replies, made safe to show and to send.
+
+    A choice is a button the owner can click, and clicking it sends its text as the
+    next instruction. So each one has to be a complete, standalone instruction: a
+    bare label like "Option A" would be sent verbatim and mean nothing. Anything too
+    short to be an instruction, too long to read, or repeated is dropped rather than
+    shown — a choice that cannot be acted on is worse than a question with no buttons.
+    """
+
+    if not isinstance(raw, list):
+        return []
+
+    choices: list[str] = []
+    for entry in raw:
+        if not isinstance(entry, str):
+            continue
+        text = " ".join(entry.split())
+        # Three words is a proxy for "a complete instruction", and a deliberate one:
+        # an instruction needs a verb and a thing, which is three words in English —
+        # "Rebuild the page", "Change the colours", "Make it bigger". Two words lets
+        # through labels like "Option B", which the owner could click and which would
+        # then be sent as an instruction meaning nothing. The prompt is what asks for
+        # real instructions; this is the floor that stops an unusable one being shown.
+        if not 6 <= len(text) <= 90 or len(text.split()) < 3:
+            continue
+        if text in choices:
+            continue
+        choices.append(text)
+        if len(choices) >= MAX_CHOICES:
+            break
+
+    return choices
+
+
+def _clean_region(node: OutlineNode) -> str:
+    """A section's name as a person would say it."""
+
+    label = (node.label or "").strip()
+    for prefix in ("Section: ", "Footer: ", "Menu: ", "Page: "):
+        if label.startswith(prefix):
+            label = label[len(prefix) :]
+            break
+    label = label.strip()
+    if not label:
+        return "opening section" if node.type == "section" else node.type
+    return label[:50]
+
+
+def suggest_choices(outline: list[OutlineNode]) -> list[str]:
+    """Real things the owner might have meant, drawn from the page itself.
+
+    This is the deterministic half of the fix, and the important half. When every
+    operation is discarded we know the request was not actionable — and the previous
+    reply was a dead end that said "try naming the section you mean" without naming
+    any. Here the sections come from the page's own outline, so the question offers
+    the actual bands that exist on it.
+
+    It needs no cooperation from the model, which is what makes it reliable: this
+    path runs exactly when the model has already failed to be useful.
+    """
+
+    regions = [node for node in outline if node.type in {"section", "footer", "nav"}]
+
+    choices = ["Rebuild the whole page and rewrite everything on it"]
+    for region in regions[:2]:
+        choices.append(f"Rebuild only the {_clean_region(region)}")
+    choices.append("Keep the words and just change the colour scheme")
+
+    # De-duplicated by wording, then trimmed: a page with one section would
+    # otherwise offer "rebuild the whole page" and "rebuild everything on it".
+    unique: list[str] = []
+    for choice in choices:
+        if choice not in unique:
+            unique.append(choice)
+
+    return unique[:MAX_CHOICES]

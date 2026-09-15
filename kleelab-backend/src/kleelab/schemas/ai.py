@@ -274,13 +274,29 @@ class EditRequest(BaseModel):
 
 
 class EditResponse(BaseModel):
-    """What to do, and what to tell the user about it."""
+    """What to do, and what to tell the user about it.
+
+    `kind` exists because a reply that changes nothing has to be told apart from one
+    that failed. The builder asked "do you mean the whole page, the colours, or a
+    section?", the owner answered "yes", and the reply came back as a bare failure
+    message — because the two were the same shape on the wire, and the interface had
+    no way to say "I am still asking". A conversation needs to know when the
+    assistant is waiting for an answer.
+    """
 
     operations: list[EditOperation] = Field(default_factory=list)
     #: One sentence describing what changed, shown in the conversation. Empty
     #: operations with a summary is the answer to a question, which is a normal
     #: turn rather than a failure.
     summary: str = Field(default="", max_length=600)
+    #: `question` whenever nothing was changed — an answer, or a question of our own.
+    #: Derived from whether any operation survived rather than from what the model
+    #: claimed, so it cannot disagree with `operations`.
+    kind: Literal["change", "question"] = "change"
+    #: Suggested replies, so a question can be answered by clicking rather than by
+    #: guessing at what the assistant wanted. Each is a complete instruction the
+    #: owner could have typed themselves, not a label.
+    choices: list[str] = Field(default_factory=list, max_length=4)
     model: str
     tokens_in: int
     tokens_out: int
