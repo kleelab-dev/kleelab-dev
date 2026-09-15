@@ -25,12 +25,22 @@ def public_site_url(site: Site) -> str:
     """Where a published site is reachable.
 
     Published sites are rendered on demand by the frontend from the stored
-    document, so this points at the frontend path rather than a generated
-    static bundle.
+    document, so there is no generated bundle to point at — but there are two ways
+    to reach the renderer, and the owner should be told the one they will keep.
+
+    With `SITES_DOMAIN` configured, a site is at `{subdomain}.{SITES_DOMAIN}`. That
+    is the address to advertise: it is what a customer puts on a van. The path form
+    below is the fallback, and it is the only form that works locally, where the
+    development host is `localhost` and has no subdomains.
     """
 
     if site.custom_domain:
         return f"https://{site.custom_domain}"
+
+    domain = settings.SITES_DOMAIN.strip().lower().lstrip(".")
+    if domain and site.subdomain:
+        return f"https://{site.subdomain}.{domain}"
+
     base = settings.FRONTEND_URL.rstrip("/")
     if site.subdomain:
         return f"{base}/s/{site.subdomain}"

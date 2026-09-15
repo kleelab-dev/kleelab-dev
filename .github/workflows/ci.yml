@@ -102,6 +102,12 @@ jobs:
         # the palette's text pairs are readable, whether the same business always
         # gets the same design, and whether two businesses in one trade get two.
         run: python scripts/check_design_library.py
+
+      - name: Publishing addresses and origins
+        # The address an owner is given for their site, and the CORS pattern that
+        # decides whether a published site may call this API. Both fail silently in
+        # a browser, so neither can be left to inspection.
+        run: python scripts/check_publishing.py
         env:
           PYTHONPATH: src
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab

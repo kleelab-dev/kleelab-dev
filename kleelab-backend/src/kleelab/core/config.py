@@ -1,5 +1,6 @@
 """Application settings loaded from environment variables."""
 
+import re
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -14,6 +15,12 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
+    # The domain customer sites live under, so a published site is reachable at
+    # `{subdomain}.{SITES_DOMAIN}`. Empty means sites are served from paths on
+    # FRONTEND_URL instead, which is what local development needs — the frontend's
+    # request proxy only rewrites a subdomain host when the request has one, and
+    # `localhost:3000` never does.
+    SITES_DOMAIN: str = ""
     ALGORITHM: str = "HS256"
     # Short-lived access tokens, refreshed via rotating refresh tokens.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
@@ -87,6 +94,36 @@ class Settings(BaseSettings):
         """CORS origins parsed from the comma-separated setting."""
 
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def cors_origin_regex(self) -> str:
+        """Origins that cannot be listed, because there are unboundedly many of them.
+
+        A published site lives at `{subdomain}.{SITES_DOMAIN}` and calls this API from
+        the browser — a shop's cart, for one. Every customer therefore has an origin no
+        static list can contain, and without a pattern here their site loads and then
+        silently fails every request it makes: CORS refuses it, and the browser console
+        says nothing an owner could act on.
+
+        Built rather than written out, so the domain is configured in one place. An
+        empty `SITES_DOMAIN` contributes nothing, which is right for local development
+        where sites are served from paths on localhost.
+        """
+
+        patterns = [
+            r"https://[a-z0-9-]+\.onrender\.com",
+            r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+        ]
+
+        domain = self.SITES_DOMAIN.strip().lower().lstrip(".")
+        if domain:
+            # `[a-z0-9-]+` rather than `.*`: a subdomain cannot contain a dot, and
+            # allowing one would let a host that merely ends with the domain — or one
+            # containing it, like `kleelab.com.evil.test` — present itself as a site.
+            patterns.append(rf"https://[a-z0-9-]+\.{re.escape(domain)}")
+            patterns.append(rf"https://{re.escape(domain)}")
+
+        return "|".join(patterns)
 
 
 settings = Settings()
