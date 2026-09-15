@@ -6,9 +6,10 @@
 import type { ReactNode } from 'react';
 import { clsx } from 'clsx';
 import {
+  designVariables,
+  documentStyleSheet,
   nodeClasses,
-  nodeColourStyle,
-  themeVariables,
+  nodeStyle,
   type KleeLabDocument,
   type Node,
   type NodeType,
@@ -57,7 +58,7 @@ function PageNode({ node, children }: NodeComponentProps) {
       style={{
         backgroundColor: 'var(--kl-paper)',
         color: 'var(--kl-ink)',
-        ...nodeColourStyle(node),
+        ...nodeStyle(node),
       }}
     >
       {children}
@@ -67,7 +68,7 @@ function PageNode({ node, children }: NodeComponentProps) {
 
 function SectionNode({ node, children }: NodeComponentProps) {
   return (
-    <section className={clsx(sectionDefaults(node), nodeClasses(node))} style={nodeColourStyle(node)}>
+    <section className={clsx(sectionDefaults(node), nodeClasses(node))} style={nodeStyle(node)}>
       {children}
     </section>
   );
@@ -75,7 +76,12 @@ function SectionNode({ node, children }: NodeComponentProps) {
 
 function ContainerNode({ node, children }: NodeComponentProps) {
   return (
-    <div className={clsx('mx-auto w-full max-w-4xl', nodeClasses(node))} style={nodeColourStyle(node)}>
+    <div
+      className={clsx('mx-auto w-full', nodeClasses(node))}
+      // The readable measure is part of a site's design, not a fixed width: it is
+      // the single most effective control over how a page reads.
+      style={{ maxWidth: 'var(--kl-measure-xl)', ...nodeStyle(node) }}
+    >
       {children}
     </div>
   );
@@ -92,8 +98,10 @@ function GridNode({ node, children }: NodeComponentProps) {
   const columns = Math.min(Math.max(num(node.props.columns, 1), 1), 4);
   return (
     <div
-      className={clsx('grid grid-cols-1 gap-6', GRID_COLUMN_CLASSES[columns], nodeClasses(node))}
-      style={nodeColourStyle(node)}
+      className={clsx('grid grid-cols-1', GRID_COLUMN_CLASSES[columns], nodeClasses(node))}
+      // The default gutter is a token so a design system can tighten or loosen a
+      // whole site's grid rhythm; a node that sets its own gap still wins.
+      style={{ gap: 'var(--kl-gap-lg)', ...nodeStyle(node) }}
     >
       {children}
     </div>
@@ -101,11 +109,19 @@ function GridNode({ node, children }: NodeComponentProps) {
 }
 
 const HEADING_TAGS = { 1: 'h1', 2: 'h2', 3: 'h3', 4: 'h4' } as const;
-const HEADING_SIZES: Record<number, string> = {
-  1: 'text-4xl md:text-5xl',
-  2: 'text-3xl',
-  3: 'text-2xl',
-  4: 'text-xl',
+
+/**
+ * Heading sizes for documents that predate the design system.
+ *
+ * These reproduce exactly what the fixed classes used to give each level, so a
+ * page built before this change looks the same after it. A recipe that sets a size
+ * — which is now the normal case — overrides the whole entry.
+ */
+const HEADING_FALLBACK: Record<number, Record<string, string>> = {
+  1: { fontSize: 'var(--kl-size-4xl)', lineHeight: 'var(--kl-size-4xl-lh)' },
+  2: { fontSize: 'var(--kl-size-3xl)', lineHeight: 'var(--kl-size-3xl-lh)' },
+  3: { fontSize: 'var(--kl-size-2xl)', lineHeight: 'var(--kl-size-2xl-lh)' },
+  4: { fontSize: 'var(--kl-size-xl)', lineHeight: 'var(--kl-size-xl-lh)' },
 };
 
 function HeadingNode({ node }: NodeComponentProps) {
@@ -113,8 +129,17 @@ function HeadingNode({ node }: NodeComponentProps) {
   const Tag = HEADING_TAGS[level as keyof typeof HEADING_TAGS] ?? 'h2';
   return (
     <Tag
-      className={clsx('font-serif tracking-[-0.03em]', HEADING_SIZES[level], nodeClasses(node))}
-      style={nodeColourStyle(node)}
+      // The display face is a token, so a site can be set in its own type. The size
+      // is deliberately *not* decided here: hierarchy belongs to the recipe, which
+      // knows what the heading is for, and to the design system, which decides how
+      // large a heading gets. What remains is a fallback for documents written
+      // before that split, so nothing already stored changes shape.
+      className={clsx('tracking-[-0.03em]', nodeClasses(node))}
+      style={{
+        fontFamily: 'var(--kl-font-display)',
+        ...HEADING_FALLBACK[level],
+        ...nodeStyle(node),
+      }}
     >
       {text(node.props.text)}
     </Tag>
@@ -125,7 +150,7 @@ function TextNode({ node }: NodeComponentProps) {
   return (
     <p
       className={clsx('text-sm leading-6', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
     >
       {text(node.props.text)}
     </p>
@@ -200,7 +225,7 @@ function ButtonNode({ node }: NodeComponentProps) {
       style={{
         backgroundColor: 'var(--kl-accent)',
         color: 'var(--kl-paper)',
-        ...nodeColourStyle(node),
+        ...nodeStyle(node),
       }}
     >
       {text(node.props.label, 'Learn more')}
@@ -213,7 +238,7 @@ function LinkNode({ node }: NodeComponentProps) {
     <a
       href={text(node.props.href, '#')}
       className={clsx('underline', nodeClasses(node))}
-      style={{ color: 'var(--kl-accent)', ...nodeColourStyle(node) }}
+      style={{ color: 'var(--kl-accent)', ...nodeStyle(node) }}
     >
       {text(node.props.label, 'Link')}
     </a>
@@ -224,7 +249,7 @@ function DividerNode({ node }: NodeComponentProps) {
   return (
     <hr
       className={clsx('my-6', nodeClasses(node))}
-      style={{ borderColor: 'var(--kl-line)', ...nodeColourStyle(node) }}
+      style={{ borderColor: 'var(--kl-line)', ...nodeStyle(node) }}
     />
   );
 }
@@ -244,7 +269,7 @@ function SpacerNode({ node }: NodeComponentProps) {
     <div
       aria-hidden
       className={clsx(SPACER_HEIGHTS[size] ?? 'h-8', nodeClasses(node))}
-      style={nodeColourStyle(node)}
+      style={nodeStyle(node)}
     />
   );
 }
@@ -261,7 +286,7 @@ function ListNode({ node, children }: NodeComponentProps) {
   return (
     <Tag
       className={clsx('ml-5 list-outside space-y-1', ordered ? 'list-decimal' : 'list-disc', nodeClasses(node))}
-      style={nodeColourStyle(node)}
+      style={nodeStyle(node)}
     >
       {body}
       {children}
@@ -274,7 +299,7 @@ function FormNode({ node, children }: NodeComponentProps) {
   return (
     <form
       className={clsx('grid gap-3', nodeClasses(node))}
-      style={nodeColourStyle(node)}
+      style={nodeStyle(node)}
       onSubmit={(event) => event.preventDefault()}
     >
       {fields.map((field, index) => (
@@ -312,7 +337,7 @@ function InputNode({ node }: NodeComponentProps) {
   return (
     <label
       className={clsx('grid gap-1 text-xs font-bold', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
     >
       {text(node.props.label, 'Field')}
       <input
@@ -334,7 +359,7 @@ function NavNode({ node }: NodeComponentProps) {
   return (
     <nav
       className={clsx('flex items-center justify-between gap-6 px-6 py-4', nodeClasses(node))}
-      style={{ borderBottom: '1px solid var(--kl-line)', ...nodeColourStyle(node) }}
+      style={{ borderBottom: '1px solid var(--kl-line)', ...nodeStyle(node) }}
     >
       <span className="text-sm font-bold">{text(node.props.brand, 'KleeLab')}</span>
       <div className="flex items-center gap-5 text-xs font-bold" style={{ color: 'var(--kl-muted)' }}>
@@ -352,7 +377,7 @@ function FooterNode({ node, children }: NodeComponentProps) {
   return (
     <footer
       className={clsx('px-6 py-8 text-xs', nodeClasses(node))}
-      style={{ borderTop: '1px solid var(--kl-line)', color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+      style={{ borderTop: '1px solid var(--kl-line)', color: 'var(--kl-muted)', ...nodeStyle(node) }}
     >
       {children}
       {text(node.props.text)}
@@ -369,7 +394,7 @@ function HtmlNode({ node }: NodeComponentProps) {
   return (
     <div
       className={clsx('whitespace-pre-wrap text-xs', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeColourStyle(node) }}
+      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
     >
       {text(node.props.html)}
     </div>
@@ -438,11 +463,25 @@ export function NodeRenderer({ node }: { node: Node }) {
 }
 
 export function DocumentRenderer({ document }: { document: KleeLabDocument }) {
-  // Theme variables live on one wrapper so every node below can reference them,
-  // and so changing the theme restyles the whole page in one move. min-h-screen
-  // matters: without it a short page would show the host's background behind it.
+  // Theme and design variables live on one wrapper so every node below can
+  // reference them, and so changing a site's design restyles the whole page in one
+  // move. min-h-screen matters: without it a short page would show the host's
+  // background behind it.
+  //
+  // The stylesheet carries the responsive overrides, which cannot be inline styles
+  // because inline styles cannot express a media query. It is server-rendered into
+  // the page rather than fetched, so a published site never flashes unstyled.
+  const stylesheet = documentStyleSheet(document);
+
   return (
-    <div className="min-h-screen" style={themeVariables(document.tokens) as React.CSSProperties}>
+    <div
+      className="min-h-screen"
+      style={{
+        ...(designVariables(document.tokens) as React.CSSProperties),
+        fontFamily: 'var(--kl-font-body)',
+      }}
+    >
+      {stylesheet ? <style dangerouslySetInnerHTML={{ __html: stylesheet }} /> : null}
       <NodeRenderer node={document.root} />
     </div>
   );

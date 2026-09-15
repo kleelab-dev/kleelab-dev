@@ -36,7 +36,7 @@ NodeType = Literal[
 
 SpaceToken = Literal["none", "xs", "sm", "md", "lg", "xl"]
 Alignment = Literal["left", "center", "right"]
-TextSize = Literal["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"]
+TextSize = Literal["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl", "5xl"]
 Radius = Literal["none", "sm", "md", "lg", "full"]
 Shadow = Literal["none", "sm", "md", "lg"]
 MaxWidth = Literal["sm", "md", "lg", "xl", "full"]

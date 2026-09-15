@@ -61,8 +61,33 @@ export const columns = (count: number, children: Node[]): Node =>
 export const stack = (children: Node[], style: Style = {}): Node =>
   createNode('container', {}, { style, children });
 
-export const heading = (text: string, level: 1 | 2 | 3 | 4 = 2, style: Style = {}): Node =>
-  createNode('heading', { text, level }, { style });
+/**
+ * A heading.
+ *
+ * The size is set here rather than left to the renderer, and that is a change of
+ * ownership rather than a refactor. How large an h1 is relative to an h2 is a design
+ * decision — exactly the kind a site's design system owns — so it belongs with the
+ * studio's judgement in the recipe, not hardcoded per level in a React component
+ * that has no idea what the heading is for.
+ *
+ * The level-1 size also steps up at the tablet breakpoint, which is what the fixed
+ * classes used to do. That is now expressed as a token override, so a design system
+ * can change both steps together instead of the desktop size being unreachable.
+ */
+const HEADING_STYLE: Record<1 | 2 | 3 | 4, { style: Style; responsive?: Node['responsive'] }> = {
+  1: { style: { size: '4xl' }, responsive: { tablet: { size: '5xl' } } },
+  2: { style: { size: '3xl' } },
+  3: { style: { size: '2xl' } },
+  4: { style: { size: 'xl' } },
+};
+
+export const heading = (text: string, level: 1 | 2 | 3 | 4 = 2, style: Style = {}): Node => {
+  const hierarchy = HEADING_STYLE[level];
+  return createNode('heading', { text, level }, {
+    style: { ...hierarchy.style, ...style },
+    responsive: hierarchy.responsive,
+  });
+};
 
 /**
  * A paragraph.

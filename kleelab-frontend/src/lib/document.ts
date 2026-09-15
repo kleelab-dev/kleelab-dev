@@ -58,7 +58,7 @@ export const CONTAINER_TYPES: readonly NodeType[] = [
 
 export const SPACE_SCALE = ['none', 'xs', 'sm', 'md', 'lg', 'xl'] as const;
 export const ALIGNMENTS = ['left', 'center', 'right'] as const;
-export const TEXT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'] as const;
+export const TEXT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'] as const;
 export const RADII = ['none', 'sm', 'md', 'lg', 'full'] as const;
 export const SHADOWS = ['none', 'sm', 'md', 'lg'] as const;
 export const MAX_WIDTHS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
@@ -249,22 +249,129 @@ export function isColourToken(value: string | undefined | null): boolean {
   return resolveColour(value) !== undefined;
 }
 
-/** CSS custom properties for a theme, to be set on the document root. */
-export function themeVariables(tokens: Record<string, string> | undefined): Record<string, string> {
-  const theme = resolveTheme(tokens);
-  return Object.fromEntries(THEME_SLOTS.map((slot) => [`--kl-${slot}`, theme[slot]]));
+/**
+ * The design scales a site can be given.
+ *
+ * These are the axes that decide what a site looks like: how large its type gets,
+ * how much air it has, how round its corners are, how heavy its shadows, how wide
+ * it measures, how thick its rules, and which faces it sets in. Until this existed
+ * the only axis was colour. Every other value was a fixed Tailwind class —
+ * `size: 'xl'` was literally the string `'text-xl'` — so two customers in the same
+ * trade received the same layout, in the same type, at the same spacing, and the
+ * only thing that could differ was eight hex values.
+ *
+ * A node's style still speaks in the vocabulary it always did (`size: 'xl'`,
+ * `padding: 'lg'`). What changed is what those words resolve to: a custom property
+ * instead of a class. That keeps every stored document valid, and lets one set of
+ * values restyle every recipe at once without touching a single recipe.
+ *
+ * The defaults below reproduce the previous fixed classes exactly, so nothing that
+ * already exists moves until a design system is deliberately applied to it.
+ */
+export const DEFAULT_DESIGN: Record<string, string> = {
+  // Type. Each size carries its own line-height, because a size without one is how
+  // large text ends up cramped and small text ends up loose — and a design system
+  // that changes the scale has to change both together or the result is worse than
+  // either value alone.
+  'size-xs': '0.75rem',
+  'size-xs-lh': '1rem',
+  'size-sm': '0.875rem',
+  'size-sm-lh': '1.25rem',
+  'size-md': '1rem',
+  'size-md-lh': '1.5rem',
+  'size-lg': '1.125rem',
+  'size-lg-lh': '1.75rem',
+  'size-xl': '1.25rem',
+  'size-xl-lh': '1.75rem',
+  'size-2xl': '1.5rem',
+  'size-2xl-lh': '2rem',
+  'size-3xl': '1.875rem',
+  'size-3xl-lh': '2.25rem',
+  'size-4xl': '2.25rem',
+  'size-4xl-lh': '2.5rem',
+  'size-5xl': '3rem',
+  'size-5xl-lh': '1',
+
+  // Padding.
+  'space-none': '0',
+  'space-xs': '0.5rem',
+  'space-sm': '1rem',
+  'space-md': '1.5rem',
+  'space-lg': '2.5rem',
+  'space-xl': '4rem',
+
+  // Gaps. A separate scale on purpose: the previous fixed classes used a tighter
+  // one for gaps than for padding, and unifying them here would silently shift the
+  // spacing of every document that already exists.
+  'gap-none': '0',
+  'gap-xs': '0.25rem',
+  'gap-sm': '0.5rem',
+  'gap-md': '1rem',
+  'gap-lg': '1.5rem',
+  'gap-xl': '2.5rem',
+
+  'radius-none': '0',
+  'radius-sm': '0.25rem',
+  'radius-md': '0.5rem',
+  'radius-lg': '1rem',
+  'radius-full': '9999px',
+
+  'shadow-none': 'none',
+  'shadow-sm': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  'shadow-md': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  'shadow-lg': '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+
+  'measure-sm': '24rem',
+  'measure-md': '28rem',
+  'measure-lg': '32rem',
+  'measure-xl': '56rem',
+  'measure-full': 'none',
+
+  'border-none': '0px',
+  'border-thin': '1px',
+  'border-medium': '2px',
+  'border-thick': '4px',
+
+  // Faces. Customer sites get their own pair; this default is the neutral system
+  // stack that the previous rendering implied, so nothing changes until a pairing
+  // is chosen for the site.
+  'font-display': 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+  'font-body':
+    'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+};
+
+/** Every token a design system may set. Used to reject a value that is not one. */
+export const DESIGN_KEYS: readonly string[] = Object.keys(DEFAULT_DESIGN);
+
+/**
+ * A site's design, complete.
+ *
+ * Unknown keys in `tokens` are ignored rather than trusted: a stored document is
+ * data, and data from an older or newer version of this code must not be able to
+ * inject an arbitrary custom property into a published page.
+ */
+export function resolveDesign(tokens: Record<string, string> | undefined): Record<string, string> {
+  const design = { ...DEFAULT_DESIGN };
+  for (const key of DESIGN_KEYS) {
+    const value = tokens?.[key];
+    if (typeof value === 'string' && value.trim()) design[key] = value.trim();
+  }
+  return design;
 }
 
-/** The style a node's colour choices produce. */
-export function nodeColourStyle(node: Node): Record<string, string> {
-  const style: Record<string, string> = {};
-  const background = resolveColour(node.style?.background as string | undefined);
-  const colour = resolveColour(node.style?.color as string | undefined);
-  const borderColour = resolveColour(node.style?.borderColor as string | undefined);
-  if (background) style.backgroundColor = background;
-  if (colour) style.color = colour;
-  if (borderColour) style.borderColor = borderColour;
-  return style;
+/**
+ * Every custom property a rendered page needs: its colours and its design.
+ *
+ * One wrapper carries them all, so a whole site restyles by changing one object.
+ */
+export function designVariables(tokens: Record<string, string> | undefined): Record<string, string> {
+  const theme = resolveTheme(tokens);
+  const variables: Record<string, string> = {};
+  for (const slot of THEME_SLOTS) variables[`--kl-${slot}`] = theme[slot];
+  for (const [key, value] of Object.entries(resolveDesign(tokens))) {
+    variables[`--kl-${key}`] = value;
+  }
+  return variables;
 }
 
 export const styleSchema = z.object({
@@ -288,10 +395,17 @@ export type Style = z.infer<typeof styleSchema>;
 
 export type Breakpoint = 'tablet' | 'mobile';
 
-/** Desktop-first: base styles apply everywhere, plus min/max-width overrides. */
-export const RESPONSIVE_PREFIX: Record<Breakpoint, string> = {
-  tablet: 'md:',
-  mobile: 'max-md:',
+/**
+ * The two breakpoints a node may carry overrides for.
+ *
+ * Defined here rather than as Tailwind prefixes because the overrides are emitted
+ * as a generated stylesheet — see `documentStyleSheet`. A prefix cannot be put in
+ * front of a custom property: `md:font-size: var(--kl-size-lg)` is not a thing, so
+ * the old `md:`-prefixed classes could never have carried a design system.
+ */
+export const BREAKPOINT_MEDIA: Record<Breakpoint, string> = {
+  tablet: '(min-width: 768px)',
+  mobile: '(max-width: 767px)',
 };
 
 // ---------------------------------------------------------------------------
@@ -342,10 +456,17 @@ export function newNodeId(type: NodeType): string {
 export function createNode(
   type: NodeType,
   props: Record<string, unknown> = {},
-  options: { style?: Style; children?: Node[] } = {},
+  options: {
+    style?: Style;
+    responsive?: Partial<Record<Breakpoint, Style>>;
+    children?: Node[];
+  } = {},
 ): Node {
   const node: Node = { id: newNodeId(type), type, props };
   if (options.style) node.style = options.style;
+  // Responsive overrides are declared where the design decision is made — in the
+  // recipe — rather than by the renderer, which has no idea what a heading is for.
+  if (options.responsive) node.responsive = options.responsive;
   if (options.children?.length) node.children = options.children;
   return node;
 }
@@ -377,126 +498,143 @@ export function createDocument(title = 'Home'): KleeLabDocument {
 }
 
 // ---------------------------------------------------------------------------
-// Style -> Tailwind classes
+// Style -> CSS
 // ---------------------------------------------------------------------------
 
-const BORDER_WIDTH_CLASSES: Record<(typeof BORDER_WIDTHS)[number], string> = {
-  none: '',
-  thin: 'border',
-  medium: 'border-2',
-  thick: 'border-4',
-};
-
-const ALIGN_CLASSES: Record<(typeof ALIGNMENTS)[number], string> = {
-  left: 'text-left',
-  center: 'text-center',
-  right: 'text-right',
-};
-
-const SIZE_CLASSES: Record<(typeof TEXT_SIZES)[number], string> = {
-  xs: 'text-xs',
-  sm: 'text-sm',
-  md: 'text-base',
-  lg: 'text-lg',
-  xl: 'text-xl',
-  '2xl': 'text-2xl',
-  '3xl': 'text-3xl',
-  '4xl': 'text-4xl',
-};
-
-const PADDING_CLASSES: Record<(typeof SPACE_SCALE)[number], string> = {
-  none: 'p-0',
-  xs: 'p-2',
-  sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-10',
-  xl: 'p-16',
-};
-
-const PADDING_X_CLASSES: Record<(typeof SPACE_SCALE)[number], string> = {
-  none: 'px-0',
-  xs: 'px-2',
-  sm: 'px-4',
-  md: 'px-6',
-  lg: 'px-10',
-  xl: 'px-16',
-};
-
-const PADDING_Y_CLASSES: Record<(typeof SPACE_SCALE)[number], string> = {
-  none: 'py-0',
-  xs: 'py-2',
-  sm: 'py-4',
-  md: 'py-6',
-  lg: 'py-10',
-  xl: 'py-16',
-};
-
-const GAP_CLASSES: Record<(typeof SPACE_SCALE)[number], string> = {
-  none: 'gap-0',
-  xs: 'gap-1',
-  sm: 'gap-2',
-  md: 'gap-4',
-  lg: 'gap-6',
-  xl: 'gap-10',
-};
-
-const RADIUS_CLASSES: Record<(typeof RADII)[number], string> = {
-  none: 'rounded-none',
-  sm: 'rounded',
-  md: 'rounded-lg',
-  lg: 'rounded-2xl',
-  full: 'rounded-full',
-};
-
-const SHADOW_CLASSES: Record<(typeof SHADOWS)[number], string> = {
-  none: '',
-  sm: 'shadow-sm',
-  md: 'shadow',
-  lg: 'shadow-xl',
-};
-
-const MAX_WIDTH_CLASSES: Record<(typeof MAX_WIDTHS)[number], string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-4xl',
-  full: 'max-w-none',
-};
-
 /**
- * Translate a style object into Tailwind classes, optionally breakpoint-prefixed.
+ * One style object, as CSS declarations.
  *
- * Colours are deliberately absent: they can be any CSS value now, so they are
- * emitted as inline styles by `nodeColourStyle` instead of being constrained to
- * a fixed set of brand classes.
+ * Every value a design system owns becomes a `var()` into the site's tokens: a
+ * size is `--kl-size-xl`, a gap is `--kl-gap-md`, a corner is `--kl-radius-lg`.
+ * The words a node uses have not changed; what they resolve to has, which is what
+ * lets one set of values restyle every recipe at once without touching a recipe.
+ *
+ * Colours are the exception and stay literal, because a colour may be any CSS
+ * value rather than one of a fixed set.
  */
-export function styleClasses(style: Style | undefined, prefix = ''): string {
-  if (!style) return '';
-  const classes: string[] = [];
-  const push = (value: string | undefined) => {
-    if (value) classes.push(`${prefix}${value}`);
-  };
+export function styleDeclarations(style: Style | undefined): Record<string, string> {
+  if (!style) return {};
+  const declarations: Record<string, string> = {};
 
-  if (style.align) push(ALIGN_CLASSES[style.align]);
-  if (style.size) push(SIZE_CLASSES[style.size]);
-  if (style.padding) push(PADDING_CLASSES[style.padding]);
-  if (style.paddingX) push(PADDING_X_CLASSES[style.paddingX]);
-  if (style.paddingY) push(PADDING_Y_CLASSES[style.paddingY]);
-  if (style.gap) push(GAP_CLASSES[style.gap]);
-  if (style.radius) push(RADIUS_CLASSES[style.radius]);
-  if (style.shadow) push(SHADOW_CLASSES[style.shadow]);
-  if (style.maxWidth) push(MAX_WIDTH_CLASSES[style.maxWidth]);
-  if (style.borderWidth) push(BORDER_WIDTH_CLASSES[style.borderWidth]);
+  const background = resolveColour(style.background);
+  if (background) declarations.backgroundColor = background;
+  const colour = resolveColour(style.color);
+  if (colour) declarations.color = colour;
+  const borderColour = resolveColour(style.borderColor);
+  if (borderColour) declarations.borderColor = borderColour;
 
-  return classes.filter(Boolean).join(' ');
+  if (style.align) declarations.textAlign = style.align;
+
+  if (style.size) {
+    // The line-height travels with the size. Setting one without the other is how
+    // a design system produces cramped headings at 4xl and loose ones at sm.
+    declarations.fontSize = `var(--kl-size-${style.size})`;
+    declarations.lineHeight = `var(--kl-size-${style.size}-lh)`;
+  }
+
+  if (style.padding) declarations.padding = `var(--kl-space-${style.padding})`;
+  if (style.paddingX) {
+    declarations.paddingLeft = `var(--kl-space-${style.paddingX})`;
+    declarations.paddingRight = `var(--kl-space-${style.paddingX})`;
+  }
+  if (style.paddingY) {
+    declarations.paddingTop = `var(--kl-space-${style.paddingY})`;
+    declarations.paddingBottom = `var(--kl-space-${style.paddingY})`;
+  }
+  if (style.gap) declarations.gap = `var(--kl-gap-${style.gap})`;
+  if (style.radius) declarations.borderRadius = `var(--kl-radius-${style.radius})`;
+  if (style.shadow) declarations.boxShadow = `var(--kl-shadow-${style.shadow})`;
+
+  if (style.maxWidth) {
+    declarations.maxWidth =
+      style.maxWidth === 'full' ? 'none' : `var(--kl-measure-${style.maxWidth})`;
+  }
+
+  if (style.borderWidth && style.borderWidth !== 'none') {
+    declarations.borderWidth = `var(--kl-border-${style.borderWidth})`;
+    // The class this replaced brought its own style. Without it a node would get a
+    // width and no line, which looks like the style being ignored.
+    declarations.borderStyle = 'solid';
+  }
+
+  return declarations;
 }
 
-/** All Tailwind classes for a node: base style plus per-breakpoint overrides. */
+/**
+ * A node's colours and design, as inline CSS.
+ *
+ * Renamed from `nodeColourStyle`, which is what it used to return. It now carries
+ * the whole design system, and a name that says "colour" while emitting a font
+ * size is the kind of small lie that makes a codebase hard to trust.
+ */
+export function nodeStyle(node: Node): Record<string, string> {
+  return styleDeclarations(node.style);
+}
+
+/**
+ * The classes a node needs, which is now only its identity.
+ *
+ * Every value a design system owns moved into `nodeStyle`, because a Tailwind
+ * prefix cannot be put in front of a custom property. What remains is a hook for
+ * the generated stylesheet to address: a CSS rule needs a selector, and the node
+ * id is the only stable one.
+ */
 export function nodeClasses(node: Node): string {
-  const parts = [styleClasses(node.style)];
-  if (node.responsive?.tablet) parts.push(styleClasses(node.responsive.tablet, RESPONSIVE_PREFIX.tablet));
-  if (node.responsive?.mobile) parts.push(styleClasses(node.responsive.mobile, RESPONSIVE_PREFIX.mobile));
-  return parts.filter(Boolean).join(' ');
+  return `kl-n-${node.id}`;
+}
+
+/**
+ * An id, safe to use in a selector.
+ *
+ * Ids are generated by `newNodeId` and are already alphanumeric with hyphens, but
+ * a stored document is data and may hold anything. Escaping rather than skipping
+ * matters: a node whose responsive override was silently dropped would look like
+ * the override being ignored.
+ */
+function escapeClassSelector(id: string): string {
+  return id.replace(/[^A-Za-z0-9_-]/g, (character) => `\\${character}`);
+}
+
+function declarationsToCss(declarations: Record<string, string>): string {
+  return Object.entries(declarations)
+    .map(
+      ([property, value]) =>
+        `${property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}:${value}`,
+    )
+    .join(';');
+}
+
+function eachNode(root: Node, visit: (node: Node) => void): void {
+  visit(root);
+  for (const child of root.children ?? []) eachNode(child, visit);
+}
+
+/**
+ * The media queries a document's nodes need.
+ *
+ * Responsive overrides cannot be inline styles, so they become a stylesheet keyed
+ * by node id. Nothing writes `node.responsive` today — the inspector that used to
+ * was removed — so this is the mechanism waiting for the first thing that needs it
+ * rather than one nothing can reach, which is what the prefixed classes had become.
+ */
+export function documentStyleSheet(document: KleeLabDocument): string {
+  const rules: string[] = [];
+
+  eachNode(document.root, (node) => {
+    if (!node.responsive) return;
+    for (const breakpoint of ['tablet', 'mobile'] as Breakpoint[]) {
+      const override = node.responsive[breakpoint];
+      if (!override) continue;
+      const css = declarationsToCss(styleDeclarations(override));
+      if (css) {
+        rules.push(
+          `@media ${BREAKPOINT_MEDIA[breakpoint]}{.kl-n-${escapeClassSelector(node.id)}{${css}}}`,
+        );
+      }
+    }
+  });
+
+  return rules.join('');
 }
 
 // ---------------------------------------------------------------------------
