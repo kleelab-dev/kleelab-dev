@@ -33,6 +33,7 @@ from kleelab.routers.sites import router as sites_router
 from kleelab.routers.storefront import router as storefront_router
 from kleelab.routers.templates import router as templates_router
 from kleelab.routers.versions import router as versions_router
+from kleelab.services import llm
 
 
 configure_logging()
@@ -46,17 +47,26 @@ if sentry_sdk is not None and settings.SENTRY_DSN:
 # boot is the difference between a two-minute fix and an afternoon spent reading
 # code — and `.env` overrides the code defaults, so this is the only place that
 # reports what the running process actually believes.
-if not settings.AI_ENABLED or not settings.DEEPSEEK_API_KEY:
+if not llm.available():
     logger.warning(
-        "AI site builder is OFF: AI_ENABLED=%s, DEEPSEEK_API_KEY=%s. "
+        "AI site builder is OFF: AI_ENABLED=%s, provider keys configured=%s. "
         "/api/ai/* will refuse with 503 ai_not_configured. Set AI_ENABLED=true and "
-        "DEEPSEEK_API_KEY in kleelab-backend/.env (and in the host's environment for "
-        "a deployed instance) to switch it on.",
+        "DEEPSEEK_API_KEY (and optionally GEMINI_API_KEY) in kleelab-backend/.env "
+        "(and in the host's environment for a deployed instance) to switch it on.",
         settings.AI_ENABLED,
-        "set" if settings.DEEPSEEK_API_KEY else "missing",
+        ",".join(llm.configured_providers()) or "none",
     )
 else:
-    logger.info("AI site builder is on, using %s", settings.DEEPSEEK_MODEL)
+    # Names every live provider rather than one, so "running on one instead of
+    # two" is visible at boot instead of being inferred from a slow first build.
+    logger.info(
+        "AI site builder is on. Providers: %s. First choice per pass: brief=%s, "
+        "content=%s, edit=%s.",
+        ", ".join(llm.configured_providers()),
+        llm.preferred_model("brief"),
+        llm.preferred_model("content"),
+        llm.preferred_model("edit"),
+    )
 
 # The other switch that changes what the product will do to someone, and the more
 # dangerous one to leave on by accident: publishing normally requires a verified

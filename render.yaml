@@ -17,6 +17,37 @@ services:
         sync: false
       - key: PYTHON_VERSION
         value: "3.12.8"
+      # Declared with `sync: false` so they are documented as required and survive
+      # a blueprint sync. The values live in the dashboard and are never
+      # committed: a key written here is a key written to git history.
+      #
+      # AI_ENABLED is the one to check first. With it false, or with no provider
+      # key, every /api/ai/* call is refused with a 503 and a set key looks faulty
+      # rather than switched off.
+      - key: AI_ENABLED
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      # Without this it defaults to http://localhost:3000, and every published
+      # site is advertised at a localhost address — which reads as a broken
+      # publish rather than a missing setting.
+      - key: FRONTEND_URL
+        sync: false
+      # The domain customer sites live under. Leave unset until the frontend is
+      # deployed with a wildcard DNS record and certificate.
+      - key: SITES_DOMAIN
+        sync: false
+      # Must be false here. It exists so publishing is testable without a mail
+      # provider; true in production means a site can be published by an account
+      # we have no way to contact.
+      - key: AUTO_VERIFY_EMAILS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
 
 databases:
   - name: kleelab-db

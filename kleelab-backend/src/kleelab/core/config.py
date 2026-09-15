@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str | None = None
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
+    # Google Gemini, reached through its OpenAI-compatible endpoint. Same dialect,
+    # different host, so the provider registry in `services/llm.py` treats the two
+    # identically and adding a third is another entry rather than another client.
+    # Either key alone is sufficient: each pass names the providers it prefers and
+    # falls back to the other, so the split is an optimisation, not a dependency.
+    GEMINI_API_KEY: str | None = None
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    GEMINI_MODEL: str = "gemini-2.5-pro"
     # A brief is a small answer; a page of copy is a large one. 60s is generous
     # for both and still short enough that a stalled request cannot hold a worker
     # for minutes.

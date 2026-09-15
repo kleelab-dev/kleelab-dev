@@ -143,7 +143,7 @@ async def ai_status(
     usage = await usage_for(db, current_user)
     remaining = max(0, limits.ai_builds_per_month - usage.ai_builds_this_month)
 
-    if not settings.AI_ENABLED or not settings.DEEPSEEK_API_KEY:
+    if not llm.available():
         return AIStatus(
             available=False,
             reason="not_configured",
@@ -178,13 +178,13 @@ async def create_brief(
     )
 
     try:
-        result = await llm.complete_json(system=BRIEF_SYSTEM, user=request_text)
+        result = await llm.complete_json(system=BRIEF_SYSTEM, user=request_text, task="brief")
     except llm.LLMError as error:
         await _record(
             db,
             current_user,
             kind="brief",
-            model=settings.DEEPSEEK_MODEL,
+            model=llm.preferred_model("brief"),
             prompt_chars=len(request_text),
             status="error",
             error=str(error),
@@ -289,13 +289,13 @@ async def create_content(
     )
 
     try:
-        result = await llm.complete_json(system=CONTENT_SYSTEM, user=request_text)
+        result = await llm.complete_json(system=CONTENT_SYSTEM, user=request_text, task="content")
     except llm.LLMError as error:
         await _record(
             db,
             current_user,
             kind="content",
-            model=settings.DEEPSEEK_MODEL,
+            model=llm.preferred_model("content"),
             prompt_chars=len(request_text),
             status="error",
             error=str(error),
@@ -386,13 +386,13 @@ async def edit_page(
     request_text = edit_prompt(payload)
 
     try:
-        result = await llm.complete_json(system=EDIT_SYSTEM, user=request_text)
+        result = await llm.complete_json(system=EDIT_SYSTEM, user=request_text, task="edit")
     except llm.LLMError as error:
         await _record(
             db,
             current_user,
             kind="edit",
-            model=settings.DEEPSEEK_MODEL,
+            model=llm.preferred_model("edit"),
             prompt_chars=len(request_text),
             status="error",
             error=str(error),
