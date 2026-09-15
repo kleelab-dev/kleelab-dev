@@ -28,7 +28,12 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-2.5">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="text-sm text-ink hover:text-accent">
+                    {/* `hover:text-accent` did nothing here - `accent` is the
+                        same hex as `ink`, so the link never responded. */}
+                    <Link
+                      href={link.href}
+                      className="text-sm text-ink underline-offset-2 hover:underline"
+                    >
                       {link.label}
                     </Link>
                   </li>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ButtonLink } from '@/components/marketing/Button';
 import { WorkCard, PostCard } from '@/components/marketing/Cards';
 import { CallToAction } from '@/components/marketing/CallToAction';
 import { Hero } from '@/components/marketing/Hero';
@@ -59,12 +60,9 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
-              <Link
-                href={path.href}
-                className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
-              >
+              <ButtonLink href={path.href} className="mt-6">
                 {path.action}
-              </Link>
+              </ButtonLink>
             </div>
           ))}
         </div>
@@ -87,7 +85,12 @@ export default function HomePage() {
                 {String(index + 1).padStart(2, '0')}
               </dt>
               <dd className="font-serif text-xl leading-snug">
-                <Link href={`/services#${service.slug}`} className="hover:text-accent">
+                {/* Was `hover:text-accent`, which is the same hex as the ink it
+                    already was, so the link gave no sign it was a link. */}
+                <Link
+                  href={`/services#${service.slug}`}
+                  className="underline-offset-4 hover:underline"
+                >
                   {service.name}
                 </Link>
               </dd>

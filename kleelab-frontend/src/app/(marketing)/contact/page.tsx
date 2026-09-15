@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { ButtonLink } from '@/components/marketing/Button';
 import { ContactForm } from '@/components/marketing/ContactForm';
 import { Eyebrow, PageHeader, Section } from '@/components/marketing/Section';
 import { studio } from '@/content/site';
@@ -33,7 +33,10 @@ export default function ContactPage() {
                   </a>
                 </li>
                 <li>
-                  <a href={`tel:${studio.phone.replace(/\s/g, '')}`} className="text-ink hover:text-accent">
+                  <a
+                    href={`tel:${studio.phone.replace(/\s/g, '')}`}
+                    className="text-ink underline-offset-2 hover:underline"
+                  >
                     {studio.phone}
                   </a>
                 </li>
@@ -50,7 +53,10 @@ export default function ContactPage() {
 
             <div>
               <Eyebrow>What happens next</Eyebrow>
-              <ol className="mt-4 space-y-3 text-sm leading-6 text-muted">
+              {/* This is a real sequence, so it gets real markers. Tailwind's
+                  preflight strips `list-style`, which left an `<ol>` that
+                  announced itself as ordered and then showed no numbers. */}
+              <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm leading-6 text-muted marker:font-mono marker:text-xs marker:text-muted">
                 <li>We read your message and reply within two working days.</li>
                 <li>If it looks like a fit, we book thirty minutes to talk it through.</li>
                 <li>You get a written scope and a fixed price before anything starts.</li>
@@ -64,12 +70,9 @@ export default function ContactPage() {
               <p className="mt-2 text-sm leading-6 text-muted">
                 The builder is free and needs no account to start.
               </p>
-              <Link
-                href="/builder/new"
-                className="mt-4 inline-block rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper hover:bg-ink-soft"
-              >
+              <ButtonLink href="/builder/new" className="mt-4">
                 Open the builder
-              </Link>
+              </ButtonLink>
             </div>
           </aside>
         </div>

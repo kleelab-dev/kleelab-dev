@@ -1,6 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  // Tailwind's `hover:` variant fires on touch devices too, where the "hover"
+  // sticks after a tap and the element looks permanently selected. Restricting
+  // it to devices that actually have a pointer makes every hover style below
+  // safe on phones without wrapping each one by hand.
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       // KleeLab's palette: monochrome - ink, paper and ash.
@@ -15,7 +22,12 @@ module.exports = {
           DEFAULT: '#0a0a0a',
           soft: '#3f3f46',
         },
-        muted: '#71717a',
+        // #71717a measured 4.40:1 against `canvas` - just under the 4.5:1 AA
+        // floor for normal text. `canvas` is the background of every
+        // alternating marketing band, so most of the site's secondary copy was
+        // failing. Same hue, two steps darker: 4.80:1 on canvas, 5.28:1 on
+        // paper. Measured, not eyeballed - re-check both if you change it.
+        muted: '#6b6b74',
         line: {
           DEFAULT: '#e4e4e7',
           strong: '#d4d4d8',

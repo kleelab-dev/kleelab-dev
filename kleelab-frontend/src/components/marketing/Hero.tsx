@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { ButtonLink } from '@/components/marketing/Button';
 import { KleeLabMark } from '@/components/marketing/KleeLabLogo';
 
 /**
@@ -118,18 +118,12 @@ export function Hero() {
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Link
-              href="/builder/new"
-              className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
-            >
+            <ButtonLink href="/builder/new" size="lg">
               Start building
-            </Link>
-            <Link
-              href="/contact"
-              className="rounded-full border border-line-strong px-6 py-3 text-sm font-medium text-ink transition-colors hover:border-ink"
-            >
+            </ButtonLink>
+            <ButtonLink href="/contact" variant="outline" size="lg">
               Talk to the studio
-            </Link>
+            </ButtonLink>
           </div>
 
           <p className="mt-6 font-mono text-xs text-muted">

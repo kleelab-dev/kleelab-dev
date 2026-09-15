@@ -9,10 +9,26 @@
   --paper: 255 255 255;
   --canvas: 244 244 245;
   --ink: 10 10 10;
-  --muted: 113 113 122;
+  --muted: 107 107 116;
   --line: 228 228 231;
   --mint: 244 244 245;
   --accent: 10 10 10;
+
+  /* The focus ring is a token rather than a literal because it has to invert
+     on dark surfaces: an ink ring on the ink-coloured call-to-action band is
+     invisible, which is the same as having no ring at all. Anything painted
+     `bg-ink` adds `.on-ink` and the ring flips to paper. */
+  --focus-ring: var(--accent);
+
+  /* Custom curves, because the CSS keywords are too weak to read as
+     intentional. `--ease-out` for anything entering or responding to a click;
+     `--ease-in-out` for something travelling across the screen. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.on-ink {
+  --focus-ring: var(--paper);
 }
 
 body {
@@ -46,9 +62,40 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
-[role="button"]:focus-visible {
-  outline: 2px solid rgb(var(--accent));
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--focus-ring));
   outline-offset: 2px;
+}
+
+/* The skip link's target. Focus has to land there for the skip to work, but
+   `main` is a landmark rather than a control, and a ring around the entire
+   page reads as a glitch. Excluded by name so the rule above stays absolute
+   for anything a keyboard user can actually operate. */
+main[tabindex='-1']:focus,
+main[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/* Keyboard users should not have to tab through the whole nav on every page.
+   Hidden until focused, then it lands as a real button in the top-left. */
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 60;
+  transform: translateY(-200%);
+  border-radius: 9999px;
+  background: rgb(var(--ink));
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgb(var(--paper));
+  transition: transform 160ms var(--ease-out);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 @keyframes kleelab-spin {
@@ -124,10 +171,4 @@ select:focus-visible,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--muted));
-}
-
-.glass-panel {
-  background: rgba(246, 247, 242, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgb(var(--line));
 }

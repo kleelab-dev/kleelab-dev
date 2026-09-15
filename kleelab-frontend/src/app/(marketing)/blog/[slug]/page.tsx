@@ -71,7 +71,7 @@ export default async function PostPage({ params }: Props) {
           {others.map((other) => (
             <Link key={other.slug} href={`/blog/${other.slug}`} className="group border-t border-line pt-5">
               <span className="font-mono text-xs text-muted">{other.topic}</span>
-              <span className="mt-3 block font-serif text-xl leading-snug group-hover:text-accent">
+              <span className="mt-3 block font-serif text-xl leading-snug underline-offset-4 group-hover:underline group-hover:decoration-1">
                 {other.title}
               </span>
             </Link>

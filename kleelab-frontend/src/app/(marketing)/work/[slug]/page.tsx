@@ -51,11 +51,15 @@ export default async function CaseStudyPage({ params }: Props) {
       <Section>
         <dl className="grid gap-8 border-y border-line py-8 sm:grid-cols-2">
           {study.results.map((result) => (
-            <div key={result.label}>
-              <dd className="font-serif text-4xl leading-none tracking-tight">{result.value}</dd>
-              <dt className="mt-3 font-mono text-xs uppercase tracking-label text-muted">
+            /* The number reads first on screen, but a description before its own
+               term is invalid inside a `dl` and leaves a screen reader with an
+               unlabelled figure. So the term leads in the DOM and `flex-col-reverse`
+               puts the number back on top, where the design wants it. */
+            <div key={result.label} className="flex flex-col-reverse gap-3">
+              <dt className="font-mono text-xs uppercase tracking-label text-muted">
                 {result.label}
               </dt>
+              <dd className="font-serif text-4xl leading-none tracking-tight">{result.value}</dd>
             </div>
           ))}
         </dl>
@@ -90,7 +94,9 @@ export default async function CaseStudyPage({ params }: Props) {
           <div>
             <Eyebrow>Next case study</Eyebrow>
             <Link href={`/work/${next.slug}`} className="group mt-3 block">
-              <span className="font-serif text-3xl leading-tight group-hover:text-accent">
+              {/* `group-hover:text-accent` was inert - `accent` and `ink` are
+                  the same hex, so this link never looked like one. */}
+              <span className="font-serif text-3xl leading-tight underline-offset-4 group-hover:underline group-hover:decoration-1">
                 {next.title}
               </span>
             </Link>

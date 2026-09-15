@@ -12,8 +12,16 @@ export default function MarketingLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="flex min-h-screen flex-col bg-paper">
+      {/* First thing in the tab order. Without it, reaching the content on any
+          page means tabbing past the wordmark and five nav links every time.
+          `tabIndex={-1}` on the target is what makes focus actually move. */}
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
       <SiteHeader />
-      <main className="flex-1">{children}</main>
+      <main id="main" tabIndex={-1} className="flex-1">
+        {children}
+      </main>
       <SiteFooter />
     </div>
   );
