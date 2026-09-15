@@ -10,6 +10,7 @@ import {
   documentStyleSheet,
   nodeClasses,
   nodeStyle,
+  webFontHref,
   type KleeLabDocument,
   type Node,
   type NodeType,
@@ -44,11 +45,30 @@ const records = (value: unknown): Record<string, unknown>[] =>
 const stringList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 
-/** Only fall back to default padding when the author has set none. */
-function sectionDefaults(node: Node): string {
+/**
+ * Default padding for a section that sets none of its own.
+ *
+ * Returned as declarations rather than classes so it flows through the design
+ * system like everything else. A section's breathing room is the largest single
+ * contributor to how generous a site feels, and it cannot be the one value a design
+ * is unable to reach.
+ *
+ * One deliberate difference from the classes this replaced: they stepped the
+ * horizontal padding up at the tablet breakpoint (`md:px-10`). That step is gone,
+ * and it costs nothing visible — the container already constrains content to a
+ * 56rem measure and centres it, so the gutter only ever shows on viewports narrower
+ * than that, where the smaller value is the correct one anyway.
+ */
+function sectionDefaults(node: Node): Record<string, string> {
   const style = node.style ?? {};
   const hasPadding = Boolean(style.padding || style.paddingX || style.paddingY);
-  return hasPadding ? '' : 'px-6 py-12 md:px-10';
+  if (hasPadding) return {};
+  return {
+    paddingLeft: 'var(--kl-space-md)',
+    paddingRight: 'var(--kl-space-md)',
+    paddingTop: 'var(--kl-space-lg)',
+    paddingBottom: 'var(--kl-space-lg)',
+  };
 }
 
 function PageNode({ node, children }: NodeComponentProps) {
@@ -68,7 +88,10 @@ function PageNode({ node, children }: NodeComponentProps) {
 
 function SectionNode({ node, children }: NodeComponentProps) {
   return (
-    <section className={clsx(sectionDefaults(node), nodeClasses(node))} style={nodeStyle(node)}>
+    <section
+      className={nodeClasses(node)}
+      style={{ ...sectionDefaults(node), ...nodeStyle(node) }}
+    >
       {children}
     </section>
   );
@@ -149,8 +172,16 @@ function HeadingNode({ node }: NodeComponentProps) {
 function TextNode({ node }: NodeComponentProps) {
   return (
     <p
-      className={clsx('text-sm leading-6', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
+      className={nodeClasses(node)}
+      // Body copy falls back to a small size at a loose leading. A fallback only: a
+      // recipe that names a size or a leading overrides it, and that is now the
+      // normal case — `paragraph()` sets both.
+      style={{
+        color: 'var(--kl-muted)',
+        fontSize: 'var(--kl-size-sm)',
+        lineHeight: 'var(--kl-leading-relaxed)',
+        ...nodeStyle(node),
+      }}
     >
       {text(node.props.text)}
     </p>
@@ -224,7 +255,7 @@ function ButtonNode({ node }: NodeComponentProps) {
       )}
       style={{
         backgroundColor: 'var(--kl-accent)',
-        color: 'var(--kl-paper)',
+        color: 'var(--kl-onAccent)',
         ...nodeStyle(node),
       }}
     >
@@ -279,7 +310,15 @@ function ListNode({ node, children }: NodeComponentProps) {
   const ordered = node.props.ordered === true;
   const Tag = ordered ? 'ol' : 'ul';
   const body = items.map((item, index) => (
-    <li key={`${node.id}-item-${index}`} className="text-sm leading-6" style={{ color: 'var(--kl-muted)' }}>
+    <li
+      key={`${node.id}-item-${index}`}
+      className="text-sm"
+      style={{
+        color: 'var(--kl-muted)',
+        fontSize: 'var(--kl-size-sm)',
+        lineHeight: 'var(--kl-leading-relaxed)',
+      }}
+    >
       {item}
     </li>
   ));
@@ -324,7 +363,7 @@ function FormNode({ node, children }: NodeComponentProps) {
       <button
         type="submit"
         className="mt-1 inline-flex w-fit rounded-full px-5 py-2.5 text-xs font-bold"
-        style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+        style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
       >
         Send
       </button>
@@ -336,8 +375,13 @@ function FormNode({ node, children }: NodeComponentProps) {
 function InputNode({ node }: NodeComponentProps) {
   return (
     <label
-      className={clsx('grid gap-1 text-xs font-bold', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
+      className={clsx('grid font-bold', nodeClasses(node))}
+      style={{
+        gap: 'var(--kl-gap-xs)',
+        fontSize: 'var(--kl-size-xs)',
+        color: 'var(--kl-muted)',
+        ...nodeStyle(node),
+      }}
     >
       {text(node.props.label, 'Field')}
       <input
@@ -358,11 +402,24 @@ function NavNode({ node }: NodeComponentProps) {
   const links = records(node.props.links);
   return (
     <nav
-      className={clsx('flex items-center justify-between gap-6 px-6 py-4', nodeClasses(node))}
-      style={{ borderBottom: '1px solid var(--kl-line)', ...nodeStyle(node) }}
+      className={clsx('flex items-center justify-between', nodeClasses(node))}
+      style={{
+        gap: 'var(--kl-gap-lg)',
+        paddingLeft: 'var(--kl-space-md)',
+        paddingRight: 'var(--kl-space-md)',
+        paddingTop: 'var(--kl-space-sm)',
+        paddingBottom: 'var(--kl-space-sm)',
+        borderBottom: '1px solid var(--kl-line)',
+        ...nodeStyle(node),
+      }}
     >
-      <span className="text-sm font-bold">{text(node.props.brand, 'KleeLab')}</span>
-      <div className="flex items-center gap-5 text-xs font-bold" style={{ color: 'var(--kl-muted)' }}>
+      <span className="font-bold" style={{ fontSize: 'var(--kl-size-sm)' }}>
+        {text(node.props.brand, 'Kleelab')}
+      </span>
+      <div
+        className="flex items-center font-bold"
+        style={{ gap: 'var(--kl-gap-md)', color: 'var(--kl-muted)', fontSize: 'var(--kl-size-xs)' }}
+      >
         {links.map((link, index) => (
           <a key={`${node.id}-link-${index}`} href={text(link.href, '#')}>
             {text(link.label, 'Link')}
@@ -376,8 +433,15 @@ function NavNode({ node }: NodeComponentProps) {
 function FooterNode({ node, children }: NodeComponentProps) {
   return (
     <footer
-      className={clsx('px-6 py-8 text-xs', nodeClasses(node))}
-      style={{ borderTop: '1px solid var(--kl-line)', color: 'var(--kl-muted)', ...nodeStyle(node) }}
+      className={nodeClasses(node)}
+      style={{
+        padding: 'var(--kl-space-md)',
+        fontSize: 'var(--kl-size-xs)',
+        lineHeight: 'var(--kl-leading-normal)',
+        borderTop: '1px solid var(--kl-line)',
+        color: 'var(--kl-muted)',
+        ...nodeStyle(node),
+      }}
     >
       {children}
       {text(node.props.text)}
@@ -393,8 +457,13 @@ function FooterNode({ node, children }: NodeComponentProps) {
 function HtmlNode({ node }: NodeComponentProps) {
   return (
     <div
-      className={clsx('whitespace-pre-wrap text-xs', nodeClasses(node))}
-      style={{ color: 'var(--kl-muted)', ...nodeStyle(node) }}
+      className={clsx('whitespace-pre-wrap', nodeClasses(node))}
+      style={{
+        color: 'var(--kl-muted)',
+        fontSize: 'var(--kl-size-xs)',
+        lineHeight: 'var(--kl-leading-normal)',
+        ...nodeStyle(node),
+      }}
     >
       {text(node.props.html)}
     </div>
@@ -472,6 +541,10 @@ export function DocumentRenderer({ document }: { document: KleeLabDocument }) {
   // because inline styles cannot express a media query. It is server-rendered into
   // the page rather than fetched, so a published site never flashes unstyled.
   const stylesheet = documentStyleSheet(document);
+  // A customer site is set in its own pairing, fetched on demand. React hoists a
+  // stylesheet link out of the tree, so this lands in the head whether the page is
+  // the published site or the builder's preview.
+  const fontHref = webFontHref(document.tokens);
 
   return (
     <div
@@ -481,6 +554,7 @@ export function DocumentRenderer({ document }: { document: KleeLabDocument }) {
         fontFamily: 'var(--kl-font-body)',
       }}
     >
+      {fontHref ? <link rel="stylesheet" href={fontHref} precedence="high" /> : null}
       {stylesheet ? <style dangerouslySetInnerHTML={{ __html: stylesheet }} /> : null}
       <NodeRenderer node={document.root} />
     </div>

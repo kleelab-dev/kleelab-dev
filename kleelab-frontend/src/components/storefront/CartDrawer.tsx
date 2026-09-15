@@ -303,7 +303,7 @@ export function CartDrawer() {
                 disabled={resolved.items.length === 0}
                 onClick={() => setStage('checkout')}
                 className="mt-4 w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
               >
                 Checkout
               </button>
@@ -313,7 +313,7 @@ export function CartDrawer() {
                 form="checkout-form"
                 disabled={placing}
                 className="mt-4 w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
               >
                 {placing ? 'Placing order…' : 'Place order'}
               </button>
@@ -327,7 +327,7 @@ export function CartDrawer() {
               type="button"
               onClick={close}
               className="w-full rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
-              style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+              style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
             >
               Continue shopping
             </button>

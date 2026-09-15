@@ -1,6 +1,7 @@
 import {
   ALIGNMENTS,
   BORDER_WIDTHS,
+  LEADING,
   MAX_WIDTHS,
   RADII,
   SHADOWS,
@@ -161,6 +162,7 @@ export function styleTokens(): Record<string, string[]> {
     borderWidth: [...BORDER_WIDTHS],
     align: [...ALIGNMENTS],
     size: [...TEXT_SIZES],
+    leading: [...LEADING],
     padding: [...SPACE_SCALE],
     paddingX: [...SPACE_SCALE],
     paddingY: [...SPACE_SCALE],

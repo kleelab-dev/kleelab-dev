@@ -26,7 +26,7 @@ export function CartButton({ label = 'Cart' }: { label?: string }) {
       {cart.count > 0 && (
         <span
           className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-          style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+          style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
         >
           {cart.count}
         </span>

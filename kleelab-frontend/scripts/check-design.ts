@@ -29,6 +29,7 @@ import {
   DEFAULT_THEME,
   THEME_SLOTS,
   BORDER_WIDTHS,
+  LEADING,
   MAX_WIDTHS,
   RADII,
   SHADOWS,
@@ -40,11 +41,14 @@ import {
   nodeStyle,
   resolveDesign,
   styleDeclarations,
+  webFontHref,
   type Node,
   type Style,
 } from '@/lib/document';
 import { SECTION_KIT, buildSection, recipeDefaults } from '@/lib/sections/kit';
-import { heading } from '@/lib/sections/_shared';
+import { heading, paragraph } from '@/lib/sections/_shared';
+import { tokensFromDesign } from '@/lib/ai/assemble';
+import type { AiDesign } from '@/types/api';
 
 let failures = 0;
 
@@ -122,6 +126,7 @@ const scaleSteps: [string, readonly string[], string][] = [
   ['shadow', SHADOWS, 'shadow'],
   ['border', BORDER_WIDTHS, 'border'],
   ['measure', MAX_WIDTHS, 'measure'],
+  ['leading', LEADING, 'leading'],
 ];
 
 for (const [label, steps, prefix] of scaleSteps) {
@@ -225,6 +230,35 @@ check(
 check(
   'a measure of "full" is none rather than a variable that means nothing',
   styleDeclarations({ maxWidth: 'full' }).maxWidth === 'none',
+);
+
+/*
+ * Leading is a separate axis from size, and the reason is concrete: body copy wants
+ * looser lines than a label of the same size, so a design that could only set the
+ * size of its text could not set how it reads.
+ */
+check(
+  'a named leading overrides the one the size implies',
+  styleDeclarations({ size: 'sm', leading: 'relaxed' }).lineHeight ===
+    'var(--kl-leading-relaxed)',
+  JSON.stringify(styleDeclarations({ size: 'sm', leading: 'relaxed' })),
+);
+check(
+  'a size on its own still brings its own leading',
+  styleDeclarations({ size: 'sm' }).lineHeight === 'var(--kl-size-sm-lh)',
+);
+check(
+  'body copy is looser than the leading its size implies',
+  parseFloat(resolvedDefaults['--kl-leading-relaxed']) >
+    parseFloat(resolvedDefaults['--kl-size-sm-lh']) /
+      parseFloat(resolvedDefaults['--kl-size-sm']),
+  `${resolvedDefaults['--kl-leading-relaxed']} vs the size ratio`,
+);
+check(
+  'the leading scale increases at every step',
+  LEADING.map((step) => parseFloat(DEFAULT_DESIGN[`leading-${step}`])).every(
+    (value, index, all) => index === 0 || value > all[index - 1],
+  ),
 );
 
 /*
@@ -386,12 +420,100 @@ check(
   'a caller can still override a heading size',
   heading('A heading', 1, { size: 'lg' }).style?.size === 'lg',
 );
+
+// A recipe that sets its own type is the normal case now, so check the one every
+// page's body copy goes through: it must be able to set both axes.
+const bodyCopy = paragraph('Some words about the business.');
+check(
+  'a paragraph sets its own size and leading',
+  bodyCopy.style?.size === 'sm' && bodyCopy.style?.leading === 'relaxed',
+  JSON.stringify(bodyCopy.style),
+);
+check(
+  'a caller can still override a paragraph’s leading',
+  paragraph('Words', { leading: 'tight' }).style?.leading === 'tight',
+);
 check(
   'a heading carries the tablet step all the way into the stylesheet',
   documentStyleSheet({
     schemaVersion: 1,
     root: { id: 'page', type: 'page', props: {}, children: [headingNodes[0]] },
   }).includes('font-size:var(--kl-size-5xl)'),
+);
+
+// --- A chosen design becomes a site ---------------------------------------------
+
+/*
+ * Where the design library meets the document. The server picks a design; this turns
+ * it into the tokens the renderer reads. If this mapping broke, a site would be given
+ * a design and quietly render in the neutral default — the failure would look like
+ * the library having no effect rather than like a bug.
+ */
+const DESIGN: AiDesign = {
+  product_type: 'Bakery/Cafe',
+  style_id: 'minimalism-and-swiss-style',
+  style_name: 'Minimalism & Swiss Style',
+  pairing: 'Classic Elegant',
+  fonts: {
+    display: "'Playfair Display', Georgia, serif",
+    body: "'Inter', system-ui, sans-serif",
+    href: 'https://fonts.googleapis.com/css2?family=Inter&family=Playfair+Display&display=swap',
+  },
+  colours: { accent: '#92400E', onAccent: '#FFFFFF', paper: '#FFFBEB', ink: '#451A03' },
+  tokens: { 'radius-md': '0', 'shadow-sm': 'none' },
+  rationale: 'Warm neutrals and a serif face suit a craft food business.',
+};
+
+const designTokens = tokensFromDesign(DESIGN);
+check(
+  "a design's colours become theme slots",
+  designTokens.accent === '#92400E' && designTokens.onAccent === '#FFFFFF',
+  JSON.stringify(designTokens),
+);
+check(
+  "a design's style tokens become design tokens",
+  resolveDesign(designTokens)['radius-md'] === '0' &&
+    resolveDesign(designTokens)['shadow-sm'] === 'none',
+  JSON.stringify(resolveDesign(designTokens)),
+);
+check(
+  "a design's faces become the display and body stacks",
+  resolveDesign(designTokens)['font-display'] === "'Playfair Display', Georgia, serif" &&
+    resolveDesign(designTokens)['font-body'] === "'Inter', system-ui, sans-serif",
+  JSON.stringify(resolveDesign(designTokens)),
+);
+check(
+  "a design's webfont request is carried separately from the token values",
+  webFontHref(designTokens) === DESIGN.fonts.href,
+  String(webFontHref(designTokens)),
+);
+check(
+  'a design with no webfont request needs no link',
+  webFontHref(tokensFromDesign({ ...DESIGN, fonts: { display: '', body: '', href: '' } })) ===
+    undefined,
+);
+
+/*
+ * The link is the one value on a document that is a URL, and a document is data.
+ * Only Google Fonts is accepted: anywhere else would make a stored document a way to
+ * load a stylesheet of someone else's choosing into a published page.
+ */
+check(
+  'a webfont request pointing anywhere else is refused',
+  webFontHref({ webfonts: 'https://example.com/evil.css' }) === undefined &&
+    webFontHref({ webfonts: 'javascript:alert(1)' }) === undefined &&
+    webFontHref({ webfonts: 'http://fonts.googleapis.com/css2?family=Inter' }) === undefined,
+);
+
+// A design's own keys are checked against the token whitelist before they are
+// emitted, so a colour slot that does not exist cannot become a custom property.
+const withUnknownSlot = tokensFromDesign({
+  ...DESIGN,
+  colours: { notASlot: '#123456' },
+});
+check(
+  'a colour slot that is not part of a theme is ignored',
+  !Object.keys(designVariables(withUnknownSlot)).includes('--kl-notASlot'),
 );
 
 if (failures > 0) {

@@ -92,12 +92,17 @@ export const heading = (text: string, level: 1 | 2 | 3 | 4 = 2, style: Style = {
 /**
  * A paragraph.
  *
+ * Sets its own size and leading rather than inheriting the renderer's, because the
+ * two are the recipe's business: body copy needs to be a step smaller than a
+ * heading and noticeably looser than a label of the same size. Leaving it to the
+ * renderer is how every paragraph on every site ended up at the same fixed pair.
+ *
  * Carries the theme's muted colour by default (the renderer supplies it), so the
  * `style` argument only exists for the cases where a band is dark and the default
  * would be unreadable.
  */
 export const paragraph = (text: string, style: Style = {}): Node =>
-  createNode('text', { text }, { style });
+  createNode('text', { text }, { style: { size: 'sm', leading: 'relaxed', ...style } });
 
 export const button = (label: string, href = '#'): Node =>
   createNode('button', { label, href });

@@ -94,7 +94,7 @@ export function ProductGrid({
                 disabled={!product.in_stock}
                 onClick={() => cart?.add(product.id)}
                 className="rounded-full px-3.5 py-2 text-xs font-medium transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-paper)' }}
+                style={{ backgroundColor: 'var(--kl-accent)', color: 'var(--kl-onAccent)' }}
               >
                 {product.in_stock ? 'Add to cart' : 'Sold out'}
               </button>

@@ -59,6 +59,17 @@ export const CONTAINER_TYPES: readonly NodeType[] = [
 export const SPACE_SCALE = ['none', 'xs', 'sm', 'md', 'lg', 'xl'] as const;
 export const ALIGNMENTS = ['left', 'center', 'right'] as const;
 export const TEXT_SIZES = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl'] as const;
+
+/**
+ * How tightly lines sit.
+ *
+ * A separate axis from size, because the two answer different questions. A
+ * paragraph wants looser lines than a label of the same size: the previous fixed
+ * classes gave body copy `text-sm leading-6` — a ratio of 1.7 — while the same
+ * size token pairs with 1.4. Tying leading to size alone cannot express that, and
+ * the result is body copy that reads as cramped.
+ */
+export const LEADING = ['tight', 'snug', 'normal', 'relaxed'] as const;
 export const RADII = ['none', 'sm', 'md', 'lg', 'full'] as const;
 export const SHADOWS = ['none', 'sm', 'md', 'lg'] as const;
 export const MAX_WIDTHS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
@@ -332,6 +343,13 @@ export const DEFAULT_DESIGN: Record<string, string> = {
   'border-medium': '2px',
   'border-thick': '4px',
 
+  // Leading. Unitless multipliers, so a line-height follows whatever size it is
+  // put next to instead of being pinned to one.
+  'leading-tight': '1.1',
+  'leading-snug': '1.3',
+  'leading-normal': '1.5',
+  'leading-relaxed': '1.7',
+
   // Faces. Customer sites get their own pair; this default is the neutral system
   // stack that the previous rendering implied, so nothing changes until a pairing
   // is chosen for the site.
@@ -374,6 +392,26 @@ export function designVariables(tokens: Record<string, string> | undefined): Rec
   return variables;
 }
 
+/**
+ * The webfont request a site's design needs, if it has one.
+ *
+ * A URL rather than a custom property, so it is deliberately not part of
+ * `DEFAULT_DESIGN` — that map is the whitelist of values a design may set, and a
+ * URL has no business being settable through it. It travels on `tokens` beside the
+ * rest of the design because it is part of the same decision.
+ *
+ * Customer sites do not use KleeLab's own typefaces. They are set in a pairing
+ * chosen for the business, fetched by request rather than bundled: there are 74
+ * pairings and around 150 families, and shipping all of them to every visitor so
+ * that each site can have two is not a trade worth making.
+ */
+export function webFontHref(tokens: Record<string, string> | undefined): string | undefined {
+  const href = tokens?.webfonts;
+  if (typeof href !== 'string') return undefined;
+  const trimmed = href.trim();
+  return trimmed.startsWith('https://fonts.googleapis.com/') ? trimmed : undefined;
+}
+
 export const styleSchema = z.object({
   // Free-form: a theme slot name, a hex value, or any CSS colour function.
   background: z.string().optional(),
@@ -382,6 +420,7 @@ export const styleSchema = z.object({
   borderWidth: z.enum(BORDER_WIDTHS).optional(),
   align: z.enum(ALIGNMENTS).optional(),
   size: z.enum(TEXT_SIZES).optional(),
+  leading: z.enum(LEADING).optional(),
   padding: z.enum(SPACE_SCALE).optional(),
   paddingX: z.enum(SPACE_SCALE).optional(),
   paddingY: z.enum(SPACE_SCALE).optional(),
@@ -526,11 +565,13 @@ export function styleDeclarations(style: Style | undefined): Record<string, stri
   if (style.align) declarations.textAlign = style.align;
 
   if (style.size) {
-    // The line-height travels with the size. Setting one without the other is how
-    // a design system produces cramped headings at 4xl and loose ones at sm.
+    // The line-height travels with the size unless a leading is named, because
+    // setting a size and nothing else is how a design system produces cramped
+    // headings at 5xl and loose ones at xs.
     declarations.fontSize = `var(--kl-size-${style.size})`;
-    declarations.lineHeight = `var(--kl-size-${style.size}-lh)`;
+    if (!style.leading) declarations.lineHeight = `var(--kl-size-${style.size}-lh)`;
   }
+  if (style.leading) declarations.lineHeight = `var(--kl-leading-${style.leading})`;
 
   if (style.padding) declarations.padding = `var(--kl-space-${style.padding})`;
   if (style.paddingX) {

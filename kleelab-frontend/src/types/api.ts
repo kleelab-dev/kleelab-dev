@@ -75,9 +75,39 @@ export interface AiBrief {
 
 export interface AiBriefResponse {
   brief: AiBrief;
+  /**
+   * How the site should look, chosen from the design library by the server.
+   *
+   * Deliberately not the model's decision: the library's palettes are curated and
+   * each ships with contrast-checked foreground pairs, so colour coming from there
+   * is a colour somebody has looked at. `null` means nothing matched the business
+   * well enough, and the site keeps its neutral default.
+   */
+  design: AiDesign | null;
   model: string;
   tokens_in: number;
   tokens_out: number;
+}
+
+/** The two faces a site is set in, as CSS stacks, plus the request that fetches them. */
+export interface AiDesignFonts {
+  display: string;
+  body: string;
+  href: string;
+}
+
+/** A complete design for one site: colour, type, and the shape of its corners. */
+export interface AiDesign {
+  product_type: string;
+  style_id: string;
+  style_name: string;
+  pairing: string;
+  fonts: AiDesignFonts;
+  /** Theme slot -> colour. */
+  colours: Record<string, string>;
+  /** Design token -> value, for the tokens a style states unambiguously. */
+  tokens: Record<string, string>;
+  rationale: string;
 }
 
 /** One section the kit can build, described by the kit itself. */

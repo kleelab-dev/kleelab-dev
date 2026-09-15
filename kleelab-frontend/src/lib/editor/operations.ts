@@ -1,6 +1,7 @@
 import {
   ALIGNMENTS,
   BORDER_WIDTHS,
+  LEADING,
   MAX_WIDTHS,
   PRESET_THEMES,
   RADII,
@@ -37,6 +38,7 @@ const STYLE_VALUES: Record<string, readonly string[]> = {
   borderWidth: BORDER_WIDTHS,
   align: ALIGNMENTS,
   size: TEXT_SIZES,
+  leading: LEADING,
   padding: SPACE_SCALE,
   paddingX: SPACE_SCALE,
   paddingY: SPACE_SCALE,

@@ -19,7 +19,7 @@ import { SECTION_KIT, getRecipe } from '@/lib/sections/kit';
 import { createSiteWithUniqueSubdomain } from '@/lib/sites';
 import { apiService, clearToken, hasSession, ApiError } from '@/services/api';
 import type { KleeLabDocument } from '@/lib/document';
-import type { AiBrief, AiStatus } from '@/types/api';
+import type { AiBrief, AiDesign, AiStatus } from '@/types/api';
 
 /**
  * Starting a site.
@@ -54,6 +54,7 @@ export function AiStart() {
   const [prompt, setPrompt] = useState('');
   const [siteName, setSiteName] = useState('');
   const [brief, setBrief] = useState<AiBrief | null>(null);
+  const [design, setDesign] = useState<AiDesign | null>(null);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [startingBlank, setStartingBlank] = useState(false);
@@ -118,7 +119,7 @@ export function AiStart() {
     setStage('briefing');
     setError(null);
     try {
-      const { brief: value } = await apiService.createBrief({
+      const { brief: value, design: chosen } = await apiService.createBrief({
         prompt: prompt.trim(),
         site_name: siteName.trim() || null,
         // The kit, not the server, decides what can be built — and it sends the
@@ -127,6 +128,11 @@ export function AiStart() {
         sections: sectionSpecs(SECTION_KIT.map((recipe) => recipe.id)),
       });
       setBrief(value);
+      // Kept alongside the brief rather than inside it: the brief is the model's
+      // understanding of the business, and this is the library's answer about how
+      // it should look. They come from different places and neither overrides the
+      // other.
+      setDesign(chosen ?? null);
       setSiteName(value.business_name);
       setStage('review');
     } catch (reason) {
@@ -173,6 +179,10 @@ export function AiStart() {
           page,
           document: buildPageDocument(page.sections, content, {
             title: page.title,
+            // The design wins when the library offered one. The palette is the
+            // fallback for a trade the library does not recognise, so a customer
+            // is never left with the neutral default for want of a product type.
+            design,
             palette: brief.palette,
           }),
         });
@@ -273,6 +283,7 @@ export function AiStart() {
         {stage === 'review' && brief ? (
           <BriefReview
             brief={brief}
+            design={design}
             siteName={siteName}
             busy={busy}
             progress={progress}
@@ -452,6 +463,7 @@ function CapabilityNotice({
 
 function BriefReview({
   brief,
+  design,
   siteName,
   busy,
   progress,
@@ -461,6 +473,7 @@ function BriefReview({
   onConfirm,
 }: {
   brief: AiBrief;
+  design: AiDesign | null;
   siteName: string;
   busy: boolean;
   progress: string;
@@ -518,9 +531,38 @@ function BriefReview({
               </div>
               <div className="flex gap-4 py-2.5">
                 <dt className="w-24 shrink-0 font-mono text-[10px] uppercase tracking-label text-muted">
-                  Palette
+                  Design
                 </dt>
-                <dd className="text-ink capitalize">{brief.palette}</dd>
+                <dd className="text-ink">
+                  {design ? (
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      {/* The colours as swatches, because a palette's name means
+                          nothing and its colours mean everything. */}
+                      <span aria-hidden="true" className="inline-flex overflow-hidden rounded-full border border-line">
+                        {(['paper', 'ink', 'accent', 'onAccent'] as const).map((slot) =>
+                          design.colours[slot] ? (
+                            <span
+                              key={slot}
+                              className="h-4 w-4"
+                              style={{ backgroundColor: design.colours[slot] }}
+                            />
+                          ) : null,
+                        )}
+                      </span>
+                      <span>
+                        {design.style_name || design.product_type}
+                        {design.pairing ? ` · ${design.pairing}` : ''}
+                      </span>
+                    </span>
+                  ) : (
+                    // Said plainly rather than left blank: the customer is about to
+                    // get a plainly-styled site and should know why.
+                    <span className="text-muted capitalize">
+                      {brief.palette} — we could not place this trade closely enough to give it a
+                      designed look yet
+                    </span>
+                  )}
+                </dd>
               </div>
             </dl>
           </div>
