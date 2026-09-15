@@ -2,28 +2,28 @@ import { ButtonLink } from '@/components/marketing/Button';
 import { KleeLabMark } from '@/components/marketing/KleeLabLogo';
 
 /**
- * The hero's canvas: a page being assembled out of blocks on the editor.
+ * The hero's canvas: a page being built by conversation.
  *
- * This is the most characteristic thing in the subject's world - KleeLab is a
- * builder, so the product shows itself working rather than being described. The
- * blocks arrive in sequence, the first one carrying the selection and drag
- * chrome, so the sequence reads as assembly rather than decoration.
+ * This used to be a drag-and-drop mock, with a grab handle and a drop target —
+ * which was accurate once, and became a lie the moment the block palette was
+ * removed. It now shows what the product actually looks like: an instruction on
+ * the left, the page it changed on the right, and the change reported back.
  */
 function CanvasBlock({
   label,
   delay,
-  selected = false,
+  justChanged = false,
   children,
 }: {
   label: string;
   delay: number;
-  selected?: boolean;
+  justChanged?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       className={`animate-block-in relative rounded-lg border p-3.5 ${
-        selected ? 'border-accent bg-accent/[0.04]' : 'border-line'
+        justChanged ? 'border-accent bg-accent/[0.04]' : 'border-line'
       }`}
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -31,29 +31,29 @@ function CanvasBlock({
         {label}
       </span>
 
-      {selected && (
-        <>
-          {/* Drag handle, as the editor draws it. */}
-          <span
-            aria-hidden="true"
-            className="absolute -left-2.5 top-1/2 grid -translate-y-1/2 grid-cols-1 gap-[3px] rounded-full border border-accent bg-white p-1.5"
-          >
-            {[0, 1, 2].map((row) => (
-              <span key={row} className="flex gap-[3px]">
-                <span className="h-[3px] w-[3px] rounded-full bg-accent" />
-                <span className="h-[3px] w-[3px] rounded-full bg-accent" />
-              </span>
-            ))}
-          </span>
-          {/* Drop target below the block. */}
-          <span
-            aria-hidden="true"
-            className="absolute -bottom-[7px] left-0 right-0 h-0.5 rounded-full bg-accent"
-          />
-        </>
+      {justChanged && (
+        <span className="absolute -top-2 right-3 bg-white px-1.5 font-mono text-[10px] uppercase tracking-label text-accent">
+          changed
+        </span>
       )}
 
       {children}
+    </div>
+  );
+}
+
+/** The sentence, drawn as the author typed it. */
+function InstructionBubble() {
+  return (
+    <div className="border-b border-line bg-canvas/60 px-4 py-3.5">
+      <div className="flex justify-end">
+        <p className="max-w-[85%] rounded-2xl rounded-br-sm bg-ink px-3.5 py-2 text-[13px] leading-relaxed text-paper">
+          Make the header warmer and add a section with our opening hours
+        </p>
+      </div>
+      <p className="mt-3 text-[13px] leading-relaxed text-muted">
+        Done — the heading is larger and warmer, and there is a new section below it.
+      </p>
     </div>
   );
 }
@@ -62,7 +62,7 @@ function HeroCanvas() {
   return (
     <div
       role="img"
-      aria-label="Illustration: a page being assembled from heading, text and image blocks on the KleeLab editor canvas."
+      aria-label="Illustration: the author asks for a warmer header and an opening-hours section, and the page updates in reply."
       className="rounded-2xl border border-line bg-white shadow-[0_18px_50px_-24px_rgba(10,10,10,0.35)]"
     >
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -77,8 +77,10 @@ function HeroCanvas() {
         </span>
       </div>
 
+      <InstructionBubble />
+
       <div className="space-y-5 p-5">
-        <CanvasBlock label="Heading" delay={120} selected>
+        <CanvasBlock label="Header" delay={120} justChanged>
           <div className="h-5 w-4/5 rounded-sm bg-ink/85" />
           <div className="mt-2.5 h-5 w-1/2 rounded-sm bg-ink/25" />
         </CanvasBlock>
@@ -114,8 +116,8 @@ export function Hero() {
 
           <p className="mt-6 max-w-measure text-lg leading-8 text-muted">
             Tell us what the business is in a sentence or two. KleeLab chooses the sections each
-            page needs and writes the words, then hands you an editor where you can change
-            anything — or just say what to fix next.
+            page needs and writes the words — then you keep talking to it. Ask for a bigger
+            heading, a warmer palette, another section, and watch the page change.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">

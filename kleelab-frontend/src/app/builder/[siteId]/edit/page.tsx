@@ -1,6 +1,6 @@
-import { EditorShell } from '@/components/editor/EditorShell';
+import { ChatBuilder } from '@/components/builder/ChatBuilder';
 
-export const metadata = { title: 'Editor' };
+export const metadata = { title: 'Builder' };
 
 export default async function EditSitePage({
   params,
@@ -8,5 +8,5 @@ export default async function EditSitePage({
   params: Promise<{ siteId: string }>;
 }) {
   const { siteId } = await params;
-  return <EditorShell siteId={siteId} />;
+  return <ChatBuilder siteId={siteId} />;
 }

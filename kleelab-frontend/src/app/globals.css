@@ -31,6 +31,25 @@
   --focus-ring: var(--paper);
 }
 
+/*
+ * In the builder's preview a photograph can be swapped for the owner's own, and
+ * nothing else there is clickable. The cursor and the ring are the entire
+ * affordance, so they appear only while the pointer is over the preview — the
+ * published page must not look editable. Two tones, because one ring has to read
+ * on both a white site and a near-black one.
+ */
+.kl-preview-live [data-kl-image] {
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+
+.kl-preview-live [data-kl-image]:hover {
+  outline-color: rgb(var(--ink));
+  box-shadow: 0 0 0 4px rgb(var(--mint));
+}
+
 body {
   color: rgb(var(--ink));
   background-color: rgb(var(--paper));

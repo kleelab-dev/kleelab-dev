@@ -33,7 +33,7 @@ const TIERS = [
     features: [
       '1 site, up to 5 pages',
       '3 AI builds per month',
-      'Drag-and-drop editing',
+      'Ask the assistant for changes, in your own words',
       'Publish on a kleelab.com address',
     ],
     cta: 'included',

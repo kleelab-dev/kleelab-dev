@@ -26,9 +26,8 @@ import type { AiBrief, AiStatus } from '@/types/api';
  *
  * Describe the business; the model decides which of our designed sections each
  * page needs and writes the copy; we assemble it into a real document and open
- * the editor. From that point it is an ordinary site — every section is a node
- * the customer can drag, restyle or throw away, exactly as if they had built it
- * by hand.
+ * the builder. From that point it is an ordinary site, and every later change is
+ * made the same way — by describing it — rather than by rearranging blocks.
  *
  * The two-call flow exists so the brief can be *shown and corrected* before the
  * expensive half runs. That is the cheapest possible place to fix a

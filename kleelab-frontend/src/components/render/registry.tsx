@@ -155,6 +155,7 @@ function ImageNode({ node }: NodeComponentProps) {
   if (!src) {
     return (
       <div
+        data-kl-image={node.id}
         className={clsx(frame, 'flex flex-col items-center justify-center gap-2 rounded-lg px-6 py-10 text-center')}
         style={{
           minHeight: '12rem',
@@ -181,7 +182,10 @@ function ImageNode({ node }: NodeComponentProps) {
     );
   }
 
-  return <img src={src} alt={alt || intent} className={frame} />;
+  // Tagged with its node id so the builder's preview can let an owner swap a
+  // placeholder photograph for one of their own: the one thing a generated site
+  // cannot be given, because the model does not have the business's pictures.
+  return <img data-kl-image={node.id} src={src} alt={alt || intent} className={frame} />;
 }
 
 function ButtonNode({ node }: NodeComponentProps) {

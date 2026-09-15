@@ -95,6 +95,64 @@ export interface AiContentResponse {
   tokens_out: number;
 }
 
+/**
+ * One node of a page, as the builder conversation is allowed to see it.
+ *
+ * The model never receives the document. It receives this: a flat list of ids it
+ * may aim an edit at, with just enough text to recognise which is which. Sending
+ * the tree would invite it to return a tree, and a returned tree cannot be
+ * checked — every word nobody asked to change would be rewritten from memory.
+ */
+export interface AiOutlineNode {
+  id: string;
+  type: string;
+  /** Where the node sits, or its own copy — enough to tell two headings apart. */
+  label: string;
+  text: string;
+}
+
+/** The closed set of changes the builder may ask for. */
+export type AiEditOpName =
+  | 'set_text'
+  | 'set_style'
+  | 'set_theme'
+  | 'set_image'
+  | 'replace_section'
+  | 'add_section'
+  | 'remove_section'
+  | 'move_section';
+
+/** One change, aimed at one node. Only the fields its `op` needs are set. */
+export interface AiEditOperation {
+  op: AiEditOpName;
+  node_id?: string | null;
+  after_node_id?: string | null;
+  text?: string | null;
+  style?: Record<string, unknown> | null;
+  slot?: string | null;
+  colour?: string | null;
+  section_id?: string | null;
+  content?: Record<string, unknown> | null;
+  src?: string | null;
+  alt?: string | null;
+}
+
+/**
+ * What the conversation replies with.
+ *
+ * `summary` is the sentence shown in the chat, and it is derived from the
+ * operations that survived validation rather than written by the model alone —
+ * an assistant that describes a change it did not make is worse than one that
+ * admits it could not.
+ */
+export interface AiEditResponse {
+  operations: AiEditOperation[];
+  summary: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+}
+
 export interface Site {
   id: string;
   name: string;

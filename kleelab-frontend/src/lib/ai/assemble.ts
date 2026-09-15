@@ -13,9 +13,9 @@ import type { AiSectionSpec } from '@/types/api';
  *
  * This is where the two halves of the product meet: the model's *choices* become
  * the studio's *design*. Nothing here invents structure — every section goes
- * through `buildSection`, so a generated site is assembled from exactly the same
- * recipes a person can drag out of the palette, and is indistinguishable from one
- * they built by hand once it is on the canvas.
+ * through `buildSection`, so a generated site is assembled from the same recipes
+ * the assistant later draws on, and every change to it goes through the same
+ * section builder, whether it arrived from a build or from a conversation.
  *
  * It also means a failure is survivable. A section whose copy came back wrong, or
  * missing entirely, falls back to the recipe's own placeholder and still renders

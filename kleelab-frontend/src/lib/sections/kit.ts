@@ -14,11 +14,11 @@ import {
  * The catalogue, and the only sanctioned way to turn a recipe into nodes.
  *
  * Everything that builds a section goes through `buildSection`. That matters
- * because there are two callers with very different levels of trust: a person
- * dragging a block from the palette, and a language model returning JSON. Both
- * get the same treatment — content is parsed against the recipe's schema and
- * anything unusable falls back to the recipe's own defaults — so a malformed
- * response can produce a plain section but never a broken one.
+ * because the content is untrusted: a language model wrote it, and a model that
+ * returns the wrong shape for a field would otherwise produce a section that
+ * renders wrongly or not at all. Content is parsed against the recipe's schema
+ * and anything unusable falls back to the recipe's own defaults — so malformed
+ * output can produce a plain section but never a broken one.
  */
 
 export const SECTION_KIT: AnySectionRecipe[] = [

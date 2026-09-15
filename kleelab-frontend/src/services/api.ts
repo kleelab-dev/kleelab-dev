@@ -4,6 +4,8 @@ import {
   AiBrief,
   AiBriefResponse,
   AiContentResponse,
+  AiEditResponse,
+  AiOutlineNode,
   AiSectionSpec,
   AiStatus,
   Asset,
@@ -317,6 +319,31 @@ export const apiService = {
     sections: AiSectionSpec[];
   }): Promise<AiContentResponse> {
     return request<AiContentResponse>('/api/ai/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * One turn of the builder conversation.
+   *
+   * Returns a list of small changes rather than a rewritten page — cheaper on
+   * every turn, and checkable. The outline, the catalogue and the legal style
+   * values are all sent from here, because this side owns the document model:
+   * the server has no copy of it to drift from.
+   */
+  async editSite(payload: {
+    instruction: string;
+    page_title: string;
+    outline: AiOutlineNode[];
+    theme: Record<string, string>;
+    palettes: string[];
+    sections: AiSectionSpec[];
+    style_tokens: Record<string, string[]>;
+    history: string[];
+  }): Promise<AiEditResponse> {
+    return request<AiEditResponse>('/api/ai/edit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

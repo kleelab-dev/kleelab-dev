@@ -237,6 +237,18 @@ export function resolveColour(value: string | undefined | null): string | undefi
   return undefined;
 }
 
+/**
+ * Whether a colour value would survive `resolveColour`.
+ *
+ * Exported so the AI's `set_theme` and `set_style` replies can be judged by the
+ * same rule that decides whether a colour is rendered at all. Anything else would
+ * let the builder accept a colour that silently does nothing, which reads as the
+ * feature being broken rather than the value being wrong.
+ */
+export function isColourToken(value: string | undefined | null): boolean {
+  return resolveColour(value) !== undefined;
+}
+
 /** CSS custom properties for a theme, to be set on the document root. */
 export function themeVariables(tokens: Record<string, string> | undefined): Record<string, string> {
   const theme = resolveTheme(tokens);
