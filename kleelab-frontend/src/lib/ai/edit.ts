@@ -16,6 +16,14 @@ import type { AiEditOperation } from '@/types/api';
 export interface TurnResult {
   operations: AiEditOperation[];
   summary: string;
+  /**
+   * Whether anything was changed. `question` means the assistant is still talking —
+   * answering, or asking — and the interface shows it as something to reply to
+   * rather than as a report.
+   */
+  kind: 'change' | 'question';
+  /** Suggested replies, when it asked something. */
+  choices: string[];
   /** The outline the model was shown. Its `textKeys` must be reused when applying. */
   outline: Outline;
   model: string;
@@ -48,6 +56,8 @@ export async function askForChanges({
   return {
     operations: response.operations,
     summary: response.summary,
+    kind: response.kind,
+    choices: response.choices,
     outline,
     model: response.model,
   };
@@ -62,4 +72,24 @@ export async function askForChanges({
  */
 function recentHistory(history: string[]): string[] {
   return history.slice(-6).map((line) => (line.length > 200 ? `${line.slice(0, 200)}…` : line));
+}
+
+/**
+ * One turn, as the model is shown it.
+ *
+ * Marking the assistant's own questions is what makes "yes" legible. The model could
+ * already see that it had asked something — the text was in the history — but nothing
+ * distinguished a question from a report, so when the owner answered it, the model
+ * responded by trying to make the change it had just asked about. Reading the answer
+ * to your own question is a different act from making a change, and the prompt needs
+ * both the label and a rule for it.
+ */
+export function describeTurnForModel(turn: {
+  role: 'user' | 'assistant';
+  kind?: 'change' | 'question';
+  text: string;
+}): string {
+  if (turn.role === 'user') return `They said: ${turn.text}`;
+  if (turn.kind === 'question') return `You asked: ${turn.text}`;
+  return `You changed: ${turn.text}`;
 }

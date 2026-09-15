@@ -16,6 +16,7 @@
  */
 
 import { createDocument, documentSchema, type KleeLabDocument } from '@/lib/document';
+import { describeTurnForModel } from '@/lib/ai/edit';
 import { buildOutline } from '@/lib/editor/outline';
 import { applyOperations } from '@/lib/editor/operations';
 import { buildSection } from '@/lib/sections/kit';
@@ -241,6 +242,40 @@ for (const [label, result] of [
     parsed.success ? '' : JSON.stringify(parsed.error.issues.slice(0, 2)),
   );
 }
+
+// --- The conversation is described to the model ----------------------------------
+
+/*
+ * Half of the fix for the worst turn this builder has produced. The assistant asked
+ * whether "rebuild" meant the whole page, the colours, or one section; the owner
+ * answered "yes"; and the assistant tried to make the change instead of reading the
+ * answer. It could see its own question in the history — nothing marked it as a
+ * question, so there was nothing to treat as one.
+ */
+const questionTurn = describeTurnForModel({
+  role: 'assistant',
+  kind: 'question',
+  text: 'Do you mean the whole page, the colours, or one section?',
+});
+check(
+  "the assistant's own question is labelled as a question, not as a report",
+  questionTurn.startsWith('You asked:'),
+  questionTurn,
+);
+check(
+  'a change the assistant made is not labelled as a question',
+  describeTurnForModel({ role: 'assistant', kind: 'change', text: 'Made it bigger' }).startsWith(
+    'You changed:',
+  ),
+);
+check(
+  'an assistant turn from before `kind` existed still reads as a report rather than throwing',
+  describeTurnForModel({ role: 'assistant', text: 'Made it bigger' }).startsWith('You changed:'),
+);
+check(
+  "the owner's words are marked as theirs",
+  describeTurnForModel({ role: 'user', text: 'yes' }) === 'They said: yes',
+);
 
 if (failures > 0) {
   console.error(`\n${failures} failure(s).\n`);

@@ -9,6 +9,14 @@ export interface ChatTurn {
   role: 'user' | 'assistant';
   /** What the person asked, or what the assistant replied. */
   text: string;
+  /**
+   * Whether the assistant changed anything. A question is a normal turn, not a
+   * failure, and it is shown differently: it is waiting for an answer, so the
+   * suggested replies are offered as buttons.
+   */
+  kind?: 'change' | 'question';
+  /** Suggested replies, for a question. Each is a complete instruction. */
+  choices?: string[];
   /** What was actually changed, one line each. Only on assistant turns. */
   changed?: string[];
   /** What could not be done, and would otherwise look like it silently failed. */
@@ -105,6 +113,31 @@ export function ChatPanel({
                   >
                     {turn.text}
                   </p>
+                  {/*
+                    A question is waiting for an answer, so the answers are offered
+                    as buttons rather than left to the owner to phrase. This is the
+                    whole fix for the turn that went wrong: the assistant asked
+                    whether "rebuild" meant the page, the colours or a section, the
+                    owner answered "yes" — the only sensible reply to a question with
+                    no answerable form — and got a failure message. Clicking is now
+                    possible, and each choice is a complete instruction.
+                  */}
+                  {turn.kind === 'question' && turn.choices && turn.choices.length > 0 && !busy && (
+                    <ul className="space-y-1.5">
+                      {turn.choices.map((choice) => (
+                        <li key={choice}>
+                          <button
+                            type="button"
+                            onClick={() => onSend(choice)}
+                            disabled={disabled}
+                            className="w-full rounded-lg border border-line bg-white px-3 py-2 text-left text-xs font-medium text-ink transition hover:border-accent hover:text-accent disabled:opacity-40"
+                          >
+                            {choice}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {turn.changed && turn.changed.length > 0 && (
                     <ul className="space-y-1 border-l-2 border-mint pl-3">
                       {turn.changed.map((line, index) => (

@@ -14,7 +14,7 @@ import {
 import { apiService, ApiError } from '@/services/api';
 import { createDocument, parseDocument, type KleeLabDocument } from '@/lib/document';
 import { useBuilderStore, type Device, type SaveState } from '@/lib/editor/store';
-import { askForChanges } from '@/lib/ai/edit';
+import { askForChanges, describeTurnForModel } from '@/lib/ai/edit';
 import type { Page, Site } from '@/types/api';
 import { PagesBar } from '@/components/editor/PagesBar';
 import { ChatPanel, type ChatTurn } from './ChatPanel';
@@ -203,22 +203,36 @@ export function ChatBuilder({ siteId }: { siteId: string }) {
           document: useBuilderStore.getState().document,
           instruction,
           pageTitle,
-          history: turns.map((turn) => `${turn.role === 'user' ? 'They' : 'You'}: ${turn.text}`),
+          history: turns.map(describeTurnForModel),
         });
 
         // Applying through the store is what makes the change undoable, autosaved,
         // and rendered — the same path the author's own image swaps take.
         const applied = useBuilderStore.getState().apply(result.operations, result.outline.textKeys);
 
+        /*
+         * The server's `kind` describes what survived *its* validation, and this side
+         * validates again against the real tree. So the displayed kind follows what
+         * actually happened here: if an operation reached us and did not apply, this
+         * is a question whether the server thought so or not, and the summary cannot
+         * be allowed to claim a change the author can see did not happen.
+         */
+        const lostInTranslation = result.operations.length > 0 && applied.applied.length === 0;
+        const changed = applied.applied.length > 0;
+
         const reply: ChatTurn = {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          text: result.summary || 'I could not tell what to change — try saying it another way.',
+          text: lostInTranslation
+            ? "I couldn't apply that to the page, so nothing has moved. Tell me which part you mean and I'll do it."
+            : result.summary || 'I could not tell what to change — try saying it another way.',
+          kind: changed ? 'change' : 'question',
+          choices: changed ? [] : result.choices,
           changed: applied.applied,
           refused: applied.refused,
         };
         setTurns((current) => [...current, reply]);
-        if (applied.applied.length > 0) setShowImageHint(true);
+        if (changed) setShowImageHint(true);
       } catch (reason) {
         const message =
           reason instanceof Error ? reason.message : 'The assistant could not be reached.';
@@ -310,7 +324,11 @@ export function ChatBuilder({ siteId }: { siteId: string }) {
         {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          text: result.applied.length > 0 ? 'Swapped that picture for yours.' : 'That picture could not be changed.',
+          text:
+            result.applied.length > 0
+              ? 'Swapped that picture for yours.'
+              : 'That picture could not be changed.',
+          kind: result.applied.length > 0 ? 'change' : 'question',
           changed: result.applied,
           refused: result.refused,
           failed: result.applied.length === 0,

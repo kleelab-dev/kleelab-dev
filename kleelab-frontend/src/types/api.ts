@@ -178,6 +178,15 @@ export interface AiEditOperation {
 export interface AiEditResponse {
   operations: AiEditOperation[];
   summary: string;
+  /**
+   * `question` whenever nothing was changed — either the assistant answered
+   * something, or it is asking. Without this the interface cannot tell "I am
+   * waiting for an answer" from "that did not work", which is how a question about
+   * a rebuild got answered with "yes" and met with a failure message.
+   */
+  kind: 'change' | 'question';
+  /** Suggested replies, so a question can be answered by clicking. */
+  choices: string[];
   model: string;
   tokens_in: number;
   tokens_out: number;
