@@ -1,4 +1,5 @@
 import {
+  Account,
   ActivityEvent,
   Asset,
   BuilderBlock,
@@ -13,6 +14,45 @@ import {
   Template,
   User,
 } from '@/types/api';
+
+/**
+ * A failed API call, with the server's error code preserved.
+ *
+ * The backend answers refusals with `{"error": {"code": ..., "message": ...,
+ * "details": ...}}`. Collapsing that into a plain message loses the distinction
+ * between "your plan does not allow this" and "something went wrong" — and the
+ * interface needs that distinction to decide between offering an upgrade and
+ * offering a retry. A sentence cannot be reliably pattern-matched for this.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details: Record<string, unknown> | undefined;
+
+  constructor(
+    message: string,
+    status: number,
+    code = 'http_error',
+    details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+
+  /** True when the account's plan, not the request, is the problem. */
+  get isPlanLimit(): boolean {
+    return this.code === 'plan_limit';
+  }
+
+  /** Where to send someone who hit a plan limit. */
+  get upgradePath(): string | null {
+    const path = this.details?.upgradePath;
+    return typeof path === 'string' ? path : null;
+  }
+}
 
 // Preferred path: leave this empty so requests go to the relative /api/* routes
 // and Next.js proxies them to the backend (see `rewrites` in next.config.mjs).
@@ -134,14 +174,21 @@ async function request<T>(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
+    const errorCode: string = payload?.error?.code ?? 'http_error';
+    const details: Record<string, unknown> | undefined = payload?.error?.details;
     const message =
-      payload?.detail ??
       payload?.error?.message ??
+      payload?.detail ??
       payload?.message ??
       (response.status === 429
         ? 'Too many attempts. Please wait a moment and try again.'
         : `Request failed (${response.status})`);
-    throw new Error(typeof message === 'string' ? message : `Request failed (${response.status})`);
+    throw new ApiError(
+      typeof message === 'string' ? message : `Request failed (${response.status})`,
+      response.status,
+      errorCode,
+      details,
+    );
   }
 
   // 204 or an empty body must not be parsed as JSON.
@@ -210,6 +257,16 @@ export const apiService = {
     return request<User>('/api/auth/me');
   },
 
+  /**
+   * The account with its plan, limits and current usage.
+   *
+   * Used wherever the interface needs to know what it may offer — the dashboard
+   * plan card and the upgrade page.
+   */
+  async getAccount(): Promise<Account> {
+    return request<Account>('/api/auth/me');
+  },
+
   /** Exchange an emailed verification link token for a verified account. */
   async verifyEmail(token: string): Promise<void> {
     return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
@@ -244,6 +301,29 @@ export const apiService = {
 
   async createSite(data: Partial<Site>): Promise<Site> {
     return request<Site>('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  },
+
+  /**
+   * Send an enquiry to the studio.
+   *
+   * Sent with the session attached when there is one, so an in-app upgrade
+   * enquiry arrives already tied to an account the reply can reference. The
+   * `source` marker is what tells the two intake paths apart in the inbox.
+   */
+  async submitLead(payload: {
+    email: string;
+    name?: string | null;
+    company?: string | null;
+    interest?: 'pro' | 'enterprise' | 'migration' | 'general';
+    budget?: 'under_5k' | '5k_15k' | '15k_50k' | 'over_50k' | 'unsure';
+    message: string;
+    project_type?: string | null;
+  }): Promise<{ status: string }> {
+    return request<{ status: string }>('/api/agency/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, source: 'app' }),
+    });
   },
 
   async updateSite(siteId: string, data: Partial<Site>): Promise<Site> {

@@ -17,7 +17,8 @@ import {
 import { apiService, getToken } from '@/services/api';
 import { KleeLabLogo } from '@/components/marketing/KleeLabLogo';
 import { Overview } from '@/components/dashboard/Overview';
-import type { Site, User } from '@/types/api';
+import { PlanCard } from '@/components/dashboard/PlanCard';
+import type { Account, Site } from '@/types/api';
 
 type Status = 'checking' | 'signed-out' | 'ready';
 type ResendState = 'idle' | 'sending' | 'done' | 'failed';
@@ -25,7 +26,7 @@ type ResendState = 'idle' | 'sending' | 'done' | 'failed';
 export default function DashboardPage() {
   const router = useRouter();
   const [sites, setSites] = useState<Site[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Account | null>(null);
   const [status, setStatus] = useState<Status>('checking');
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -50,10 +51,10 @@ export default function DashboardPage() {
         if (!active) return;
         setSites(data);
         setStatus('ready');
-        // Verification state only drives a banner, so a failure here must not
-        // take the page down with it.
+        // Verification state and the plan card only decorate the page, so a
+        // failure here must not take the dashboard down with it.
         try {
-          const me = await apiService.getCurrentUser();
+          const me = await apiService.getAccount();
           if (active) setUser(me);
         } catch {
           if (active) setUser(null);
@@ -214,6 +215,12 @@ export default function DashboardPage() {
         )}
 
         {status === 'ready' && user && <Overview />}
+
+        {status === 'ready' && user && (
+          <section aria-label="Plan" className="mb-10">
+            <PlanCard account={user} />
+          </section>
+        )}
 
         {status === 'ready' && sites.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line-strong bg-white p-10 text-center">

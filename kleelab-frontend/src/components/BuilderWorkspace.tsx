@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiService } from '@/services/api';
 import { documentFromTemplate } from '@/lib/templates';
+import { PlanLimitHint } from '@/components/dashboard/PlanLimitHint';
 import type { Site, Template } from '@/types/api';
 
 /**
@@ -33,6 +34,9 @@ export function BuilderWorkspace() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // The failing value itself, kept alongside the message so a refusal the plan
+  // explains can offer the upgrade instead of only reporting that it happened.
+  const [errorCause, setErrorCause] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
@@ -102,6 +106,7 @@ export function BuilderWorkspace() {
     const name = siteName.trim() || 'My new website';
     setIsCreatingSite(true);
     setError(null);
+    setErrorCause(null);
     try {
       const site = await apiService.createSite({
         name,
@@ -117,6 +122,7 @@ export function BuilderWorkspace() {
       setNotice(null);
       router.push(`/builder/${site.id}/edit`);
     } catch (reason) {
+      setErrorCause(reason);
       setError(reason instanceof Error ? reason.message : 'Unable to create your site');
     } finally {
       setIsCreatingSite(false);
@@ -170,7 +176,10 @@ export function BuilderWorkspace() {
           className="animate-rise mt-6 flex items-start gap-3 rounded-xl border border-danger-line bg-danger-surface px-4 py-3 text-sm text-danger"
         >
           <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">{error}</span>
+          <span className="flex-1">
+            {error}
+            <PlanLimitHint error={errorCause} />
+          </span>
           <button onClick={() => setError(null)} className="text-xs font-bold underline underline-offset-2">
             Dismiss
           </button>

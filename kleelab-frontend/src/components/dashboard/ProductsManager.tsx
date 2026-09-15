@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PencilSquareIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { SitePageShell } from '@/components/dashboard/SiteNav';
+import { PlanLimitHint } from '@/components/dashboard/PlanLimitHint';
 import { apiService } from '@/services/api';
 import { formatMoney } from '@/lib/storefront';
 import type { Product, ProductInput, Site } from '@/types/api';
@@ -134,6 +135,9 @@ export function ProductsManager({ siteId }: { siteId: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
+  // Kept alongside the message so a plan refusal can offer the upgrade rather
+  // than looking like a fault in the form.
+  const [errorCause, setErrorCause] = useState<unknown>(null);
   const [editing, setEditing] = useState<FormTarget>(null);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -166,6 +170,7 @@ export function ProductsManager({ siteId }: { siteId: string }) {
   const save = async (values: ProductInput) => {
     setBusy(true);
     setError(null);
+    setErrorCause(null);
     try {
       if (editing && editing !== 'new') {
         const updated = await apiService.updateProduct(siteId, editing.id, values);
@@ -176,6 +181,7 @@ export function ProductsManager({ siteId }: { siteId: string }) {
       }
       setEditing(null);
     } catch (reason) {
+      setErrorCause(reason);
       setError(reason instanceof Error ? reason.message : 'Could not save the product.');
     } finally {
       setBusy(false);
@@ -243,6 +249,7 @@ export function ProductsManager({ siteId }: { siteId: string }) {
           className="mb-6 rounded-xl border border-danger-line bg-danger-surface px-4 py-3 text-sm text-danger"
         >
           {error}
+          <PlanLimitHint error={errorCause} />
         </div>
       )}
 

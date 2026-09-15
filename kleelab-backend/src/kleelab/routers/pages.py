@@ -14,6 +14,7 @@ from kleelab.models.user import User
 from kleelab.models.page_version import PageVersion
 from kleelab.schemas.document import validate_document_payload
 from kleelab.schemas.page import PageCreate, PageOut, PageUpdate
+from kleelab.services.plans import enforce_page_quota
 
 
 router = APIRouter(prefix="/api/sites/{site_id}/pages", tags=["pages"])
@@ -76,6 +77,7 @@ async def create_page(
     db: AsyncSession = Depends(get_db),
 ) -> Page:
     await verify_site_ownership(site_id, current_user, db)
+    await enforce_page_quota(db, current_user, site_id)
     payload = page_data.model_dump()
     validate_content(payload.get("content"))
     page = Page(site_id=site_id, **payload)

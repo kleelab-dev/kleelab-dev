@@ -16,9 +16,20 @@ from kleelab.core.security import (
     verify_password,
 )
 from kleelab.models.user import User
-from kleelab.schemas.auth import LogoutRequest, RefreshRequest, Token, UserCreate, UserLogin, UserOut
+from kleelab.schemas.auth import (
+    AccountOut,
+    LogoutRequest,
+    PlanLimitsOut,
+    PlanUsageOut,
+    RefreshRequest,
+    Token,
+    UserCreate,
+    UserLogin,
+    UserOut,
+)
 from kleelab.services import sessions
 from kleelab.services.email import send_verification_email, send_password_reset_email, send_welcome_email
+from kleelab.services.plans import plan_state
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -228,8 +239,24 @@ async def reset_password(token: str, new_password: str, db: AsyncSession = Depen
     return {"status": "password_reset"}
 
 
-@router.get("/me", response_model=UserOut)
-async def get_me(current_user: User = Depends(get_current_user)) -> User:
-    """Return the authenticated user."""
+@router.get("/me", response_model=AccountOut)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AccountOut:
+    """Return the authenticated user with its plan and usage."""
 
-    return current_user
+    state = await plan_state(db, current_user)
+    return AccountOut(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        avatar_url=current_user.avatar_url,
+        is_verified=current_user.is_verified,
+        plan=state["plan"],
+        created_at=current_user.created_at,
+        plan_label=state["label"],
+        plan_blurb=state["blurb"],
+        limits=PlanLimitsOut(**state["limits"]),
+        usage=PlanUsageOut(**state["usage"]),
+    )

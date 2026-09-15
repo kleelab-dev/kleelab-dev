@@ -13,6 +13,7 @@ from kleelab.models.product import Product
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.schemas.product import ProductCreate, ProductOut, ProductUpdate
+from kleelab.services.plans import enforce_feature
 
 
 router = APIRouter(prefix="/api/sites/{site_id}/products", tags=["products"])
@@ -62,6 +63,7 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
 ) -> Product:
     await verify_site_ownership(site_id, current_user, db)
+    enforce_feature(current_user, "storefront")
     product = Product(
         site_id=site_id,
         price=Decimal(str(product_data.price)),

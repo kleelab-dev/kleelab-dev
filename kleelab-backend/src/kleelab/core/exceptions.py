@@ -1,8 +1,9 @@
 """Consistent API exception handlers."""
 
 import logging
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,8 +12,60 @@ from sqlalchemy.exc import SQLAlchemyError
 logger = logging.getLogger(__name__)
 
 
+class PlanLimitError(Exception):
+    """A request refused because the account's plan does not allow it.
+
+    Deliberately not an ``HTTPException``. The generic handler collapses a detail
+    payload into a string, and this needs to arrive as structured data: the
+    interface has to tell the difference between "you ran out of sites" (offer an
+    upgrade) and "something went wrong" (offer a retry), and a sentence it has to
+    pattern-match on cannot do that reliably.
+    """
+
+    def __init__(
+        self,
+        *,
+        resource: str,
+        limit: int,
+        current: int,
+        plan: str,
+        message: str,
+        retryable_tomorrow: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.resource = resource
+        self.limit = limit
+        self.current = current
+        self.plan = plan
+        self.message = message
+        self.retryable_tomorrow = retryable_tomorrow
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register consistent handlers for expected API failures."""
+
+    @app.exception_handler(PlanLimitError)
+    async def plan_limit_handler(request: Request, exc: PlanLimitError) -> JSONResponse:
+        del request
+        details: dict[str, Any] = {
+            "resource": exc.resource,
+            "limit": exc.limit,
+            "current": exc.current,
+            "plan": exc.plan,
+            "upgradePath": "/builder/upgrade",
+        }
+        if exc.retryable_tomorrow:
+            details["retryableTomorrow"] = True
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "error": {
+                    "code": "plan_limit",
+                    "message": exc.message,
+                    "details": details,
+                }
+            },
+        )
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

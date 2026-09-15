@@ -56,6 +56,7 @@ export function EditorShell({ siteId }: { siteId: string }) {
   const [pages, setPages] = useState<Page[]>([]);
   const [pageId, setPageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCause, setErrorCause] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
@@ -161,6 +162,7 @@ export function EditorShell({ siteId }: { siteId: string }) {
       setPages((current) => [...current, created]);
       await openPage(created);
     } catch (reason) {
+      setErrorCause(reason);
       useEditorStore.getState().setError(
         reason instanceof Error ? reason.message : 'Unable to create page',
       );
@@ -277,8 +279,10 @@ export function EditorShell({ siteId }: { siteId: string }) {
       <EditorBanner
         error={error}
         notice={notice}
+        cause={errorCause}
         onDismiss={() => {
           setError(null);
+          setErrorCause(null);
           setNotice(null);
         }}
       />

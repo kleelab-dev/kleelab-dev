@@ -4,7 +4,40 @@ export interface User {
   full_name: string | null;
   avatar_url: string | null;
   is_verified: boolean;
+  /** Commercial tier key: `free`, `pro` or `enterprise`. */
+  plan: string;
   created_at: string;
+}
+
+/** What a plan includes. Mirrors `services/plans.PlanLimits` on the backend. */
+export interface PlanLimits {
+  sites: number;
+  pages_per_site: number;
+  ai_builds_per_month: number;
+  ai_calls_per_day: number;
+  custom_domain: boolean;
+  storefront: boolean;
+}
+
+export interface PlanUsage {
+  sites: number;
+  ai_builds_this_month: number;
+  ai_calls_today: number;
+}
+
+/**
+ * The signed-in account as `/api/auth/me` returns it.
+ *
+ * Limits and usage come from the server rather than being hardcoded here: a
+ * client that believes its own copy of the rules disagrees with the server the
+ * first time a limit changes, and the disagreement shows up as a confusing
+ * refusal at the exact moment someone tries to act.
+ */
+export interface Account extends User {
+  plan_label: string;
+  plan_blurb: string;
+  limits: PlanLimits;
+  usage: PlanUsage;
 }
 
 export interface Site {

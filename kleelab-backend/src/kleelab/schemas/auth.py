@@ -51,4 +51,39 @@ class UserOut(BaseModel):
     full_name: str | None
     avatar_url: str | None
     is_verified: bool
+    plan: str
     created_at: datetime
+
+
+class PlanLimitsOut(BaseModel):
+    """What a plan includes. Mirrors `services/plans.PlanLimits`."""
+
+    sites: int
+    pages_per_site: int
+    ai_builds_per_month: int
+    ai_calls_per_day: int
+    custom_domain: bool
+    storefront: bool
+
+
+class PlanUsageOut(BaseModel):
+    """What the account has used."""
+
+    sites: int
+    ai_builds_this_month: int
+    ai_calls_today: int
+
+
+class AccountOut(UserOut):
+    """`/api/auth/me`.
+
+    Carries the limits and current usage alongside the account so the interface
+    never has to hardcode a quota. Hardcoded client limits and server-enforced
+    limits disagree the first time a limit changes, and the disagreement always
+    surfaces as a confusing error at the moment a user tries to act.
+    """
+
+    plan_label: str
+    plan_blurb: str
+    limits: PlanLimitsOut
+    usage: PlanUsageOut

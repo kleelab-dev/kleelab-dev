@@ -11,3 +11,8 @@ email-validator==2.2.0
 sentry-sdk==2.0.0
 jinja2==3.1.2
 resend==0.1.0
+# Pinned explicitly, not relied on transitively. It was previously only present
+# as a dependency of `resend`, which meant it could vanish on a resend bump and
+# take the test client and the AI client with it. Also needed for the language
+# model call and for starlette's TestClient.
+httpx==0.28.1

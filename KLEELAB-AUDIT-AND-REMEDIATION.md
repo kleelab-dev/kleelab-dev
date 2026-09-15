@@ -705,6 +705,79 @@ stock      Clover Mug 8 → 5, Field Notebook 20 → 19 — the public checkout 
 
 ---
 
+## R9 — The AI Builder, and a Commercial Spine  *(plan agreed 2026-09-15)*
+
+**The change of direction.** The product becomes **AI-first**: a customer describes their business in plain language, the AI builds the site, and they then refine it by drag-and-drop, by changing the colour scheme, or by asking for changes in words. KleeLab's own high-end delivery stays a **human agency service**, reachable from inside the app rather than only from the marketing site.
+
+**The load-bearing insight.** This codebase already has the thing AI site builders normally lack: a canonical, validated document schema consumed by **one shared component registry** used by both the editor canvas and the published route. So the model is not asked to write a website. It is asked to write **choices and words**:
+
+| The model decides | Code decides |
+|---|---|
+| What the business is, its audience and tone | The node tree, nesting and ids |
+| Which sections the page needs | Spacing scale, radius, shadow, max-width |
+| The copy: headings, body, CTAs, item lists | Responsive behaviour (tablet/mobile overrides) |
+| A colour palette, from a validated set | Colour resolution and CSS variables |
+
+Freeform LLM page generation reliably looks amateur because layout is what the model is worst at and design judgement is what we already encoded. Splitting the work this way means output is structurally valid by construction, is immediately editable through paths that already work, and costs two short calls instead of one long one.
+
+### Locked decisions
+
+| # | Decision | Choice | Why |
+|---|----------|--------|-----|
+| **A1** | Provider | **DeepSeek** (OpenAI-compatible, JSON mode), server-side only | A key exists; the interface lives in one file so swapping is trivial |
+| **A2** | Generation strategy | **Hybrid** — AI composes a curated **Section Kit** + theme, and may freeform-generate beyond it | Quality comes from the kit, not the prompt |
+| **A3** | Post-build editing | **Both** manual drag-and-drop/theme **and** AI chat edits, applied through the store's commit path so Ctrl+Z reverts them | Reuses the history the editor already has |
+| **A4** | Tiers | **Plan flags now, Stripe later.** Free 1 site / 5 pages / 3 AI builds a month. Pro 5 sites / 25 pages / 100 builds, custom domain, shop. Enterprise delivered by us | Quotas need one source of truth before billing exists |
+| **A5** | "Not hosted on our platform" | **KleeLab builds it for them** | Removes self-serve export from scope entirely |
+| **A6** | Enterprise intake | In-app upgrade flow feeding `agency_leads` | The only intake that can be qualified and routed |
+| **A7** | Anonymous trial | Sign-in required before prompting | AI calls cost money and are abusable |
+| **A8** | AI edit application | Apply immediately, undoable | A confirm dialog per change is tedious for multi-step edits |
+
+### R9 Phase A — the commercial spine  *(DONE 2026-09-15)*
+
+Deliberately built **before** any AI code, because it is the only thing bounded by real money and it is independently shippable.
+
+| Task | Status | Notes |
+|------|--------|-------|
+| `users.plan` | ✅ | Migration `add_user_plan`. Deliberately a string, not an enum: the limits a plan implies live in one dict, so adding a tier is not a migration. Existing rows default to `free`, which is the honest answer — nothing has ever been paid for |
+| AI ledger | ✅ | Migration `add_ai_generations`. One row per outbound call (`kind`, `model`, token counts, status, brief payload) with an index on `(user_id, kind, created_at)`. Serves the quota **and** the cost trail from the same data, so a quota can never disagree with what was actually spent |
+| Lead qualification | ✅ | Migration `add_lead_qualification` — `company`, `interest`, `budget`, `source` on `agency_leads`. Both intake paths share the table because to whoever picks them up they are the same thing |
+| `services/plans.py` | ✅ | `PLAN_LIMITS` + `limits_for` / `usage_for` / `plan_state` / `enforce_site_quota` / `enforce_page_quota` / `enforce_ai_quota` / `enforce_feature`. One module, because quotas enforced in several places drift and a quota enforced nowhere turns a paid tier into a promise |
+| Gate wiring | ✅ | `sites.create_site`, `pages.create_page`, `sites.update_site` (custom domain), `products.create_product` (shop) |
+| `/api/auth/me` | ✅ | Now returns `plan`, `plan_label`, `plan_blurb`, `limits` and `usage`, so the interface never hardcodes a rule it cannot enforce |
+| Frontend | ✅ | `PlanCard` (usage meters against the **server's** limits), `/builder/upgrade`, and `PlanLimitHint` — wired into site creation, the editor banner and products. New route count 12 → 13 |
+
+**Two design notes worth keeping.**
+
+1. **A limit refusal is structured data, not a sentence.** `PlanLimitError` is not an `HTTPException`, because the generic handler collapses a detail payload into a string and the UI has to tell "your plan does not allow this" from "something went wrong" — the first has a next step worth offering. It returns `403 {"error": {"code": "plan_limit", "details": {resource, limit, current, plan, upgradePath}}}`. The frontend `ApiError` preserves `code` and `details` so the distinction survives the wire.
+2. **A daily AI cap is not an upsell.** The day-limited refusal carries `retryableTomorrow: true`, and the hint then says you can carry on with the editor rather than pushing an upgrade. Presenting a self-resolving cap as a reason to pay is the kind of thing that costs trust.
+
+**Verified (2026-09-15).** Migration chain is a single linear head at `add_lead_qualification`, and `alembic upgrade add_currency:head --sql` renders only additive DDL — three `ADD COLUMN`s, one `CREATE TABLE`, one index. No existing row is touched and no column is dropped. The gates were then driven **through the HTTP layer** with the real app, real routing, real Pydantic response models and the real exception handler, with only the database stubbed:
+
+```
+free + 1 site   -> create site        403 plan_limit  {resource: sites, limit: 1, current: 1}
+free + 5 pages  -> create page        403 plan_limit  {resource: pages, limit: 5, current: 5}
+free            -> create product     403 plan_limit  {resource: storefront}
+free            -> set custom domain  403 plan_limit  {resource: custom_domain}
+free            -> clear custom domain    not refused   (a downgraded account can still get back on a kleelab.com address)
+free + 0 sites  -> create site            not refused   (the gate does not over-fire)
+pro             -> set custom domain      not refused
+free at 3/3 builds       -> refused  (ai_builds)
+free at 40/40 daily calls -> refused (ai_calls, retryableTomorrow)
+/api/auth/me   -> 200 with plan, limits and usage
+unknown plan   -> falls back to free  (fails closed)
+```
+
+**A dependency gap found while verifying.** `httpx` was only ever present as a transitive dependency of `resend`, and a clean check confirmed `starlette.testclient` could not even import without it. It is now pinned explicitly — it is also what the language-model client will use in Phase C.
+
+**Not yet verified, and why.** The live round trip against the configured Neon database, because the migrations have **not been applied**. That was left to the operator rather than run unattended against a database this document describes as live-ish. **Ordering matters:** the new code reads `users.plan`, so an API restarted before `alembic upgrade head` fails every user query with `UndefinedColumn` — logins and registration included. The migration must ship with the code, not after it.
+
+**Gate:** backend `compileall` OK · import smoke 75 routes · frontend `eslint` 0 problems · `tsc --noEmit` clean · `next build` clean (13 routes).
+
+**Next, in order:** Phase B (the Section Kit — where site quality is actually decided, and hand-testable before any AI exists), then Phase C (`services/llm.py` + `/api/ai/*`).
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |

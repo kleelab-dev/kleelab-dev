@@ -15,6 +15,7 @@ from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.schemas.site import SiteCreate, SiteOut, SiteUpdate
 from kleelab.services import storage
+from kleelab.services.plans import enforce_feature, enforce_site_quota
 
 
 router = APIRouter(prefix="/api/sites", tags=["sites"])
@@ -90,6 +91,7 @@ async def create_site(
 ) -> Site:
     """Create a site owned by the authenticated user."""
 
+    await enforce_site_quota(db, current_user)
     await ensure_subdomain_available(site_data.subdomain, db)
     site = Site(
         user_id=current_user.id,
@@ -125,6 +127,10 @@ async def update_site(
 
     site = await get_owned_site(site_id, current_user, db)
     updates = site_data.model_dump(exclude_unset=True)
+    # Only gate an actual assignment. Clearing a custom domain is always allowed,
+    # so a downgraded account can still get its site back onto a KleeLab address.
+    if updates.get("custom_domain"):
+        enforce_feature(current_user, "custom_domain")
     if "subdomain" in updates:
         await ensure_subdomain_available(updates["subdomain"], db, site.id)
     for field, value in updates.items():

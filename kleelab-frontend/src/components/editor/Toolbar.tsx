@@ -14,6 +14,7 @@ import {
   RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import { useEditorStore, type Device, type SaveState } from '@/lib/editor/store';
+import { PlanLimitHint } from '@/components/dashboard/PlanLimitHint';
 
 const DEVICES: { value: Device; label: string; Icon: typeof ComputerDesktopIcon }[] = [
   { value: 'desktop', label: 'Desktop', Icon: ComputerDesktopIcon },
@@ -137,10 +138,18 @@ export function Toolbar({ siteName, publicUrl, saveState, isPublishing, onPublis
 export function EditorBanner({
   error,
   notice,
+  cause,
   onDismiss,
 }: {
   error: string | null;
   notice: string | null;
+  /**
+   * The value that produced the error, when available.
+   *
+   * Only used to tell a plan refusal apart from a failure: the first has a next
+   * step worth offering, the second does not.
+   */
+  cause?: unknown;
   onDismiss: () => void;
 }) {
   if (!error && !notice) return null;
@@ -157,7 +166,10 @@ export function EditorBanner({
       ) : (
         <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
       )}
-      <span className="flex-1">{error ?? notice}</span>
+      <span className="flex-1">
+        {error ?? notice}
+        <PlanLimitHint error={cause} />
+      </span>
       <button type="button" onClick={onDismiss} className="font-bold underline underline-offset-2">
         Dismiss
       </button>

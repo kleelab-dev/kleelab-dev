@@ -28,6 +28,12 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     provider: Mapped[str] = mapped_column(String(50), default="email", nullable=False)
+    # Commercial tier. Deliberately a string rather than an enum: the limits a
+    # plan implies live in `services/plans.py`, so adding a tier is a code change
+    # in one dict, not a database migration.
+    plan: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="free", server_default="free"
+    )
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
