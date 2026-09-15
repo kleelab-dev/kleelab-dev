@@ -368,9 +368,10 @@ export function AiStart() {
                   <button
                     type="button"
                     onClick={() => void askForBrief()}
-                    disabled={busy || capability === 'checking'}
+                    disabled={busy || capability === 'checking' || !canBuild}
                     aria-busy={busy}
-                    className="inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper disabled:opacity-60"
+                    title={canBuild ? undefined : 'The AI builder is not switched on'}
+                    className="inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper disabled:opacity-50"
                   >
                     {stage === 'briefing' ? (
                       <>
@@ -380,19 +381,33 @@ export function AiStart() {
                     ) : (
                       <>
                         <SparklesIcon className="h-4 w-4" aria-hidden />
-                        {signedIn ? 'Build my site' : 'Sign in and build'}
-                        <ArrowRightIcon className="h-4 w-4" aria-hidden />
+                        {!canBuild ? 'AI builder is off' : signedIn ? 'Build my site' : 'Sign in and build'}
+                        {canBuild && <ArrowRightIcon className="h-4 w-4" aria-hidden />}
                       </>
                     )}
                   </button>
 
+                  {/*
+                    When the AI cannot run, this becomes the primary action rather
+                    than a footnote. A button that looks live and answers with a 503
+                    is how "nothing happened" turns into a support question — which
+                    is exactly what happened here.
+                  */}
                   <button
                     type="button"
                     onClick={() => void startBlank()}
                     disabled={busy}
-                    className="text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:opacity-50"
+                    className={
+                      canBuild
+                        ? 'text-sm text-muted underline underline-offset-2 transition-colors hover:text-ink disabled:opacity-50'
+                        : 'inline-flex items-center gap-2 rounded-full border border-line-strong px-6 py-3 text-sm font-medium transition-colors hover:border-ink disabled:opacity-50'
+                    }
                   >
-                    {startingBlank ? 'Creating…' : 'Or start with an empty page'}
+                    {startingBlank
+                      ? 'Creating…'
+                      : canBuild
+                        ? 'Or start with an empty page'
+                        : 'Start with an empty page'}
                   </button>
                 </div>
               </section>

@@ -104,13 +104,77 @@ def _walk(value: Any, *, path: str, describe: str, counter: list[int]) -> Any:
     return value
 
 
-def fill_images(content: dict[str, Any], *, describe: str) -> dict[str, Any]:
-    """Return `content` with every empty image field pointing at a photograph.
+def _seed_from_example(
+    content: dict[str, Any],
+    example: dict[str, Any],
+    *,
+    path: str,
+    describe: str,
+    counter: list[int],
+) -> None:
+    """Add the image fields the recipe promises but the model left out.
 
-    `describe` seeds the choice — normally the business name plus the section id,
-    so the same site generates the same pictures every time it is rebuilt.
+    The model is told to return `imageSrc` as an empty string, and usually does.
+    When it omits the key entirely instead, the walk below never sees it and the
+    slot renders as an empty frame — which is the failure that made generated
+    pages look dead, and it is invisible in the response because a missing key
+    and an empty one look the same once the schema has supplied its default.
+
+    The recipe's own example is the list of keys that are supposed to exist, and
+    the client sends it with every request. So the gap closes without the server
+    knowing anything about the kit.
+
+    Nested shapes are followed, because a gallery keeps its photo at
+    `items[].src` and an alternating feature at `items[].imageSrc`.
+    """
+
+    for key, template in example.items():
+        if key in IMAGE_KEYS and isinstance(template, str):
+            existing = content.get(key)
+            if isinstance(existing, str) and existing.strip():
+                continue  # the model supplied one after all
+            counter[0] += 1
+            content[key] = _photo_url(f"{describe}-{path}.{key}-{counter[0]}".strip("-"))
+            continue
+
+        if isinstance(template, dict) and isinstance(content.get(key), dict):
+            _seed_from_example(
+                content[key], template, path=f"{path}.{key}", describe=describe, counter=counter
+            )
+            continue
+
+        if isinstance(template, list) and template and isinstance(content.get(key), list):
+            first = template[0]
+            if not isinstance(first, dict):
+                continue
+            for index, item in enumerate(content[key]):
+                if isinstance(item, dict):
+                    _seed_from_example(
+                        item,
+                        first,
+                        path=f"{path}.{key}.{index}",
+                        describe=describe,
+                        counter=counter,
+                    )
+
+
+def fill_images(
+    content: dict[str, Any],
+    *,
+    describe: str,
+    example: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return `content` with every image field pointing at a photograph.
+
+    `describe` seeds the choice — the business name plus the section id — so the
+    same site generates the same pictures every time it is rebuilt. `example` is
+    the recipe's own shape, used to restore image keys the model omitted.
     """
 
     if not settings.STOCK_IMAGES_ENABLED:
         return content
-    return _walk(content, path="", describe=describe, counter=[0])
+
+    counter = [0]
+    if isinstance(example, dict):
+        _seed_from_example(content, example, path="", describe=describe, counter=counter)
+    return _walk(content, path="", describe=describe, counter=counter)

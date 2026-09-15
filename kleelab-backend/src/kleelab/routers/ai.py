@@ -44,6 +44,7 @@ from kleelab.services.site_brief import (
     brief_prompt,
     clean_brief,
     content_prompt,
+    ensure_imagery,
 )
 from kleelab.services.stock_images import fill_images
 
@@ -157,7 +158,8 @@ async def create_brief(
 
     await enforce_ai_quota(db, current_user)
 
-    allowed = {spec.id for spec in payload.sections}
+    catalogue = {spec.id: spec for spec in payload.sections}
+    allowed = set(catalogue)
     request_text = brief_prompt(
         prompt=payload.prompt,
         site_name=payload.site_name,
@@ -183,6 +185,9 @@ async def create_brief(
         # everything the rest of the system relies on is still checked.
         brief = Brief.model_validate(result.data if isinstance(result.data, dict) else {})
         brief = clean_brief(brief, allowed)
+        # A prompt asking for an image-bearing header is not a guarantee, and a
+        # site that opens with no picture is the first thing anyone notices.
+        brief = ensure_imagery(brief, catalogue)
     except (ValidationError, ValueError) as error:
         await _record(
             db,
@@ -298,10 +303,12 @@ async def create_content(
             continue
         # Photographs are filled in here rather than asked for: the model can name
         # an image slot but it cannot produce pixels, and a page of empty frames
-        # is what makes a generated site look dead.
+        # is what makes a generated site look dead. The recipe's example is passed
+        # so an image field the model omitted is restored rather than left blank.
         content = fill_images(
             content,
             describe=f"{payload.brief.business_name}-{section_id}",
+            example=requested[section_id].example,
         )
         written.append(SectionContent(id=section_id, content=content))
 

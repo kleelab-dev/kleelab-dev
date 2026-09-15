@@ -902,6 +902,28 @@ the prompt is passed, but the allowed section ids stay pinned in the request
 
 ---
 
+### R10 follow-up 2 — why nothing generated, and two guarantees
+
+The same feedback came back again: still plain, still no pictures, and generation "isn't shown". It was not a design problem. **`kleelab-backend/.env` contained neither `AI_ENABLED` nor `DEEPSEEK_API_KEY`**, so `AI_ENABLED` fell back to its `False` default and every call was refused with `503 ai_not_configured`. Nothing had ever been generated. What was being judged was the **blank page** start — one heading, the sentence *"Start building your page."*, and one button — which is exactly what "too basic" describes. The deployed instance is in the same state, because `render.yaml` does not set those variables either.
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F10.8** | **P1** | **The server was silent about being switched off.** "Off" and "broken" look identical from the interface, so the only way to discover the truth was to read the config. **Fixed:** the app now logs at boot which of the two is missing and where to set it — which is the line that would have saved this entire round trip |
+| **F10.9** | **P1** | **"Build my site" stayed enabled when the AI could not run**, so clicking it returned a 503. A button that looks live and answers with an error is how "nothing happened" becomes a support question. **Fixed:** disabled with the reason on it, and the working path becomes the primary action rather than a footnote |
+| **F10.10** | **P1** | **`fill_images` only filled image keys that were present *and* empty.** A model that **omits** `imageSrc` produced no picture at all — and the omission is invisible, because the schema quietly restores the default, so an omitted key and an empty one look identical in the response. **Fixed:** the recipe's `example`, which the client already sends on every request, is used to restore the keys that should exist. Nested shapes (`items[].src`, `items[].imageSrc`) are covered too |
+| **F10.11** | **P1** | **Nothing guaranteed a picture in the header.** `hero.centered` has no image field, so a model choosing it produced a site that opens with no photograph — and a prompt *asking* for an image-bearing header is not a guarantee. **Fixed:** `ensure_imagery` checks the home page against the catalogue and **replaces** a text-only header in place. Replaced rather than inserted, because inserting leaves the page with two headers. Secondary pages are deliberately left alone: a contact page legitimately has no photograph, and forcing a full-width header image onto one is a worse page |
+
+**A trap found while writing the tests, worth keeping.** The first version of the `check_ai.py` catalogue carried no `example` objects, so `ensure_imagery` had nothing to inspect and the guarantee silently did nothing — five tests failed and the feature had never worked. That is a silent no-op in production too: a client sending bare ids gets no image guarantee and no error. It is now documented on the function, and the fixture carries real examples.
+
+**Verified.** `check_ai.py` grew to 25 cases, including: a page with no picture is given an image-bearing header; a text-only header is swapped leaving exactly one header and the rest of the page intact; a page that already carries a picture is left alone; a secondary page without a picture is left as the model designed it; an image key the model omitted is restored from the recipe's example; an omitted key inside a list is restored; two pictures in one section are not the same picture. The boot warning was confirmed by importing the app. **Gate:** `compileall` OK · import smoke 54 paths · `eslint` 0 · `tsc --noEmit` clean · `next build` clean · `check:sections` · `check:auth`.
+
+**Two blockers remain for anyone testing this, and neither is code:** `alembic upgrade head` has still not been run against the local database, so `users.plan` is missing and *login itself* fails; and `AUTO_VERIFY_EMAILS=false` with no mail provider means a new local account cannot publish, with the verification link only in the backend log.
+
+---
+
+
+---
+
 ## 9. Decisions (Locked)
 
 | # | Decision | Chosen | Consequence |

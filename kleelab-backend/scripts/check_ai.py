@@ -107,14 +107,66 @@ PROMPT = "A bakery in Bristol selling sourdough and running weekend classes."
 
 
 def catalogue() -> list[dict]:
-    """What the frontend sends: the kit's own names and purposes, not bare ids."""
+    """What the frontend sends: the kit's own names, purposes and shapes.
+
+    The `example` objects are not decoration. `ensure_imagery` decides which
+    sections can hold a photograph by looking for image keys in them, so a
+    catalogue without examples would let the image guarantee silently do nothing —
+    which is exactly what happened the first time this fixture was written
+    without them.
+    """
 
     return [
-        {"id": "nav.bar", "name": "Navigation bar", "description": "Brand and links."},
-        {"id": "hero.centered", "name": "Header — centred", "description": "A centred statement."},
-        {"id": "hero.split", "name": "Header — text and image", "description": "Copy beside a photo."},
-        {"id": "contact.form", "name": "Contact", "description": "Details and an enquiry form."},
-        {"id": "footer.columns", "name": "Footer", "description": "Closing details."},
+        {
+            "id": "nav.bar",
+            "name": "Navigation bar",
+            "description": "Brand and links.",
+            "example": {"brand": "", "links": [{"label": "Link", "href": "#"}]},
+        },
+        {
+            "id": "hero.centered",
+            "name": "Header — centred",
+            "description": "A centred statement.",
+            "example": {"heading": "", "body": "", "ctaLabel": "", "ctaHref": "#"},
+        },
+        {
+            "id": "hero.split",
+            "name": "Header — text and image",
+            "description": "Copy beside a photo.",
+            "example": {
+                "heading": "",
+                "body": "",
+                "ctaLabel": "",
+                "ctaHref": "#",
+                "imageSrc": "",
+                "imageAlt": "",
+                "imageIntent": "",
+            },
+        },
+        {
+            "id": "hero.image-below",
+            "name": "Header — image below",
+            "description": "Centred copy over a wide photo.",
+            "example": {
+                "heading": "",
+                "body": "",
+                "imageSrc": "",
+                "imageAlt": "",
+                "imageIntent": "",
+            },
+        },
+        {
+            "id": "contact.form",
+            "name": "Contact",
+            "description": "Details and an enquiry form.",
+            "example": {"heading": "", "body": "", "details": [], "fields": []},
+        },
+        {
+            "id": "footer.columns",
+            "name": "Footer",
+            "description": "Closing details.",
+            "example": {"columns": [{"title": "", "body": ""}], "copyright": ""},
+        },
     ]
 
 
@@ -208,8 +260,87 @@ brief = client([0, 0]).post("/api/ai/brief", json=brief_body())
 kept = brief.json()["brief"]["pages"][0]["sections"] if brief.status_code == 200 else []
 check(
     "an invented section id is dropped, the brief survives",
-    brief.status_code == 200 and kept == ["nav.bar", "footer.columns"],
+    brief.status_code == 200 and kept == ["nav.bar", "hero.split", "footer.columns"],
     brief.text,
+)
+check(
+    "a page with no picture is given an image-bearing header in place",
+    brief.status_code == 200
+    and kept.count("hero.split") == 1
+    and not any(section.startswith("hero.centered") for section in kept),
+    brief.text,
+)
+
+# A text-only header must be replaced, never added alongside, or the page ends up
+# with two headers — worse than the problem being fixed.
+stub_model(
+    {
+        "business_name": "Fern & Field",
+        "palette": "warm",
+        "pages": [
+            {
+                "title": "Home",
+                "slug": "/",
+                "purpose": "",
+                "sections": ["nav.bar", "hero.centered", "contact.form", "footer.columns"],
+            }
+        ],
+    }
+)
+swapped = client([0, 0]).post("/api/ai/brief", json=brief_body())
+sections = swapped.json()["brief"]["pages"][0]["sections"] if swapped.status_code == 200 else []
+headers = [section for section in sections if section.startswith("hero.")]
+check(
+    "a text-only header is swapped, leaving exactly one header",
+    swapped.status_code == 200 and len(headers) == 1 and headers[0] == "hero.split",
+    swapped.text,
+)
+check(
+    "the rest of the page is preserved when the header is swapped",
+    sections == ["nav.bar", "hero.split", "contact.form", "footer.columns"],
+    swapped.text,
+)
+
+# A page that already has a picture must be left completely alone.
+stub_model(
+    {
+        "business_name": "Fern & Field",
+        "palette": "warm",
+        "pages": [
+            {
+                "title": "Home",
+                "slug": "/",
+                "purpose": "",
+                "sections": ["nav.bar", "hero.image-below", "footer.columns"],
+            }
+        ],
+    }
+)
+untouched = client([0, 0]).post("/api/ai/brief", json=brief_body())
+check(
+    "a page that already carries a picture is left alone",
+    untouched.json()["brief"]["pages"][0]["sections"]
+    == ["nav.bar", "hero.image-below", "footer.columns"],
+    untouched.text,
+)
+
+# A non-home page is not forced to carry a photograph: a contact page legitimately
+# has none, and a full-width header image on one would be a worse page.
+stub_model(
+    {
+        "business_name": "Fern & Field",
+        "palette": "warm",
+        "pages": [
+            {"title": "Home", "slug": "/", "purpose": "", "sections": ["hero.split"]},
+            {"title": "Contact", "slug": "/contact", "purpose": "", "sections": ["contact.form"]},
+        ],
+    }
+)
+secondary = client([0, 0]).post("/api/ai/brief", json=brief_body())
+check(
+    "a secondary page without a picture is left as the model designed it",
+    secondary.json()["brief"]["pages"][1]["sections"] == ["contact.form"],
+    secondary.text,
 )
 
 # A brief with no home page should have one promoted rather than fail.
@@ -406,6 +537,53 @@ check(
     plain.text,
 )
 settings.STOCK_IMAGES_ENABLED = True
+
+# The model sometimes *omits* the key rather than returning it empty, and an
+# omitted key is invisible in the response — the schema quietly puts the default
+# back and the slot renders as an empty frame. The recipe's example is what says
+# the key belongs there.
+stub_model({"sections": [{"id": "hero.split", "content": {"heading": "H", "body": "B"}}]})
+omitted = client([0, 0]).post("/api/ai/content", json=content_body([hero]))
+body = omitted.json()["sections"][0]["content"] if omitted.status_code == 200 else {}
+check(
+    "an image key the model omitted is restored from the recipe's example",
+    str(body.get("imageSrc", "")).startswith("https://picsum.photos/seed/"),
+    str(body),
+)
+
+# Nested shapes: a gallery keeps its photograph at items[].src.
+gallery = {
+    "id": "gallery.grid",
+    "name": "Gallery",
+    "description": "",
+    "example": {"heading": "", "items": [{"src": "", "alt": "", "intent": ""}]},
+}
+stub_model(
+    {
+        "sections": [
+            {
+                "id": "gallery.grid",
+                "content": {"heading": "G", "items": [{"alt": "one"}, {"alt": "two"}]},
+            }
+        ]
+    }
+)
+nested = client([0, 0]).post("/api/ai/content", json=content_body([gallery]))
+items = (
+    nested.json()["sections"][0]["content"].get("items", [])
+    if nested.status_code == 200
+    else []
+)
+check(
+    "an omitted key inside a list is restored too",
+    len(items) == 2 and all(str(item.get("src", "")).startswith("http") for item in items),
+    str(items),
+)
+check(
+    "two pictures in one section are not the same picture",
+    len(items) == 2 and items[0].get("src") != items[1].get("src"),
+    str(items),
+)
 
 settings.AI_ENABLED = False
 settings.DEEPSEEK_API_KEY = None

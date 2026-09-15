@@ -19,8 +19,16 @@ from __future__ import annotations
 import json
 
 from kleelab.schemas.ai import Brief, BriefPage, SectionSpec
+from kleelab.services.stock_images import IMAGE_KEYS
 
-__all__ = ["BRIEF_SYSTEM", "CONTENT_SYSTEM", "brief_prompt", "content_prompt", "clean_brief"]
+__all__ = [
+    "BRIEF_SYSTEM",
+    "CONTENT_SYSTEM",
+    "brief_prompt",
+    "content_prompt",
+    "clean_brief",
+    "ensure_imagery",
+]
 
 
 BRIEF_SYSTEM = """You are a senior designer at a small studio that builds websites for small \
@@ -233,3 +241,83 @@ def _rebuild(brief: Brief, pages: list[BriefPage]) -> Brief:
         palette=brief.palette,
         pages=pages,
     )
+
+
+def _has_image(example: object) -> bool:
+    """Whether a recipe's shape contains room for a photograph."""
+
+    if isinstance(example, dict):
+        for key, value in example.items():
+            if key in IMAGE_KEYS and isinstance(value, str):
+                return True
+            if _has_image(value):
+                return True
+        return False
+    if isinstance(example, list):
+        return any(_has_image(item) for item in example)
+    return False
+
+
+def ensure_imagery(brief: Brief, catalogue: dict[str, SectionSpec]) -> Brief:
+    """Guarantee the home page can show a photograph.
+
+    A text-only header (`hero.centered`) has no image field at all, so there is
+    nothing for a photograph to fill and the site opens with no picture — which
+    is the first thing anyone notices, and the one thing that makes a generated
+    page look unliving. The prompt asks for an image-bearing header; a prompt is
+    not a guarantee.
+
+    So the home page is checked against the catalogue the client sent. If no
+    chosen section can hold a photograph, the header is **replaced in place**
+    with one that can — replaced, not inserted, because inserting would leave the
+    page with two headers, which is worse than the problem being solved. A page
+    with no header at all gets one directly after its navigation.
+
+    Only the home page is treated this way. A contact or shop page legitimately
+    has no photograph, and forcing a large header image onto one would be a
+    worse page, not a better one.
+
+    This leans entirely on the client sending each section's `example`. A client
+    that sent bare ids would get no guarantee and no error, which is a silent
+    no-op — acceptable because the only client is ours and it always sends them,
+    but it is the reason the fixture in `check_ai.py` has to carry real examples.
+    """
+
+    image_bearing = [spec.id for spec in catalogue.values() if _has_image(spec.example)]
+    if not image_bearing:
+        return brief  # the kit cannot show a picture at all; nothing to guarantee
+
+    preferred = next(
+        (section_id for section_id in ("hero.split", "hero.image-below") if section_id in image_bearing),
+        image_bearing[0],
+    )
+
+    pages: list[BriefPage] = []
+    for index, page in enumerate(brief.pages):
+        if index != 0 or any(section_id in image_bearing for section_id in page.sections):
+            pages.append(page)
+            continue
+
+        sections = list(page.sections)
+        header_at = next(
+            (position for position, section_id in enumerate(sections) if section_id.startswith("hero.")),
+            None,
+        )
+        if header_at is not None:
+            sections[header_at] = preferred
+        else:
+            insert_at = 1 if sections and sections[0].startswith("nav.") else 0
+            sections.insert(insert_at, preferred)
+
+        pages.append(
+            BriefPage(
+                title=page.title,
+                slug=page.slug,
+                purpose=page.purpose,
+                # The schema caps a page at twelve sections, and this has just
+                # added one to whatever the model chose.
+                sections=sections[:12],
+            )
+        )
+
+    return _rebuild(brief, pages)

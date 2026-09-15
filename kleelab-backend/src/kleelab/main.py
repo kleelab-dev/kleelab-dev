@@ -40,6 +40,24 @@ logger = logging.getLogger(__name__)
 if sentry_sdk is not None and settings.SENTRY_DSN:
     sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
 
+# Say so out loud. The AI builder fails closed, which is right, but "switched off"
+# and "broken" look identical from the interface: the start page simply offers a
+# blank page and a customer has no way to tell what happened. A line in the log at
+# boot is the difference between a two-minute fix and an afternoon spent reading
+# code — and `.env` overrides the code defaults, so this is the only place that
+# reports what the running process actually believes.
+if not settings.AI_ENABLED or not settings.DEEPSEEK_API_KEY:
+    logger.warning(
+        "AI site builder is OFF: AI_ENABLED=%s, DEEPSEEK_API_KEY=%s. "
+        "/api/ai/* will refuse with 503 ai_not_configured. Set AI_ENABLED=true and "
+        "DEEPSEEK_API_KEY in kleelab-backend/.env (and in the host's environment for "
+        "a deployed instance) to switch it on.",
+        settings.AI_ENABLED,
+        "set" if settings.DEEPSEEK_API_KEY else "missing",
+    )
+else:
+    logger.info("AI site builder is on, using %s", settings.DEEPSEEK_MODEL)
+
 app = FastAPI(title="KleeLab API", version="1.0.0")
 register_exception_handlers(app)
 app.add_middleware(RequestLoggingMiddleware)
