@@ -41,8 +41,40 @@ class PlanLimitError(Exception):
         self.retryable_tomorrow = retryable_tomorrow
 
 
+class AIUnavailableError(Exception):
+    """The AI builder cannot serve this request.
+
+    A separate type from a plain 503 so the interface can say something specific
+    — "the AI builder is switched off" or "the model returned something unusable"
+    — rather than a generic failure. Those are different sentences to a customer,
+    and only one of them is worth retrying.
+    """
+
+    def __init__(
+        self, message: str, *, code: str = "ai_unavailable", retryable: bool = True
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.retryable = retryable
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register consistent handlers for expected API failures."""
+
+    @app.exception_handler(AIUnavailableError)
+    async def ai_unavailable_handler(request: Request, exc: AIUnavailableError) -> JSONResponse:
+        del request
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": {"retryable": exc.retryable},
+                }
+            },
+        )
 
     @app.exception_handler(PlanLimitError)
     async def plan_limit_handler(request: Request, exc: PlanLimitError) -> JSONResponse:

@@ -45,6 +45,28 @@ class Settings(BaseSettings):
     # Upload guard rails for site media.
     MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
 
+    # --- AI site builder -------------------------------------------------------
+    # Fails closed. Everything AI-related is refused with a clear 503 until this
+    # is explicitly switched on with a key present, so a missing or rotated
+    # credential degrades to an honest message rather than a traceback on a
+    # customer's first impression of the product.
+    AI_ENABLED: bool = False
+    # DeepSeek speaks the OpenAI chat-completions dialect, so this is a base URL
+    # rather than a provider name. Swapping provider is a config change plus
+    # whatever `services/llm.py` needs, not a rewrite.
+    DEEPSEEK_API_KEY: str | None = None
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
+    # A brief is a small answer; a page of copy is a large one. 60s is generous
+    # for both and still short enough that a stalled request cannot hold a worker
+    # for minutes.
+    AI_TIMEOUT_SECONDS: float = 60.0
+    AI_MAX_OUTPUT_TOKENS: int = 4000
+    # Bounds one request's cost and prompt size. The section list is supplied by
+    # the client, so it is also the main shape a malicious caller could abuse.
+    AI_MAX_SECTIONS_PER_REQUEST: int = 12
+    AI_MAX_PROMPT_CHARS: int = 2000
+
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env",
         env_file_encoding="utf-8",

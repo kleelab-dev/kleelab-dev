@@ -1,6 +1,11 @@
 import {
   Account,
   ActivityEvent,
+  AiBrief,
+  AiBriefResponse,
+  AiContentResponse,
+  AiSectionSpec,
+  AiStatus,
   Asset,
   BuilderBlock,
   DashboardStats,
@@ -286,6 +291,48 @@ export const apiService = {
     });
   },
 
+  /**
+   * Whether the AI builder can run, and how much allowance is left.
+   *
+   * Asked before showing a prompt box so "the AI is off" and "you have used this
+   * month's builds" are answered without the customer typing a paragraph first.
+   */
+  async getAiStatus(): Promise<AiStatus> {
+    return request<AiStatus>('/api/ai/status');
+  },
+
+  /** Understand the business, and choose the sections its pages need. */
+  async createBrief(payload: {
+    prompt: string;
+    site_name?: string | null;
+    section_ids: string[];
+  }): Promise<AiBriefResponse> {
+    return request<AiBriefResponse>('/api/ai/brief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Write the copy for one page's sections.
+   *
+   * The kit describes each section, not this module and not the server: the
+   * recipe's own example object is sent as the shape to fill in, so there is only
+   * ever one definition of what a section contains.
+   */
+  async createContent(payload: {
+    brief: AiBrief;
+    page_title: string;
+    sections: AiSectionSpec[];
+  }): Promise<AiContentResponse> {
+    return request<AiContentResponse>('/api/ai/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getTemplates(): Promise<Template[]> {
     const templates = await request<Record<string, unknown>[]>('/api/templates');
     return templates.map(normalizeTemplate);
@@ -376,7 +423,7 @@ export const apiService = {
     siteId: string,
     pageId: string,
     document: unknown,
-    meta: Partial<Pick<Page, 'title' | 'seo_title' | 'seo_description'>> = {},
+    meta: Partial<Pick<Page, 'title' | 'meta_title' | 'meta_description'>> = {},
   ): Promise<Page> {
     return this.updatePage(siteId, pageId, { content_json: { document }, ...meta });
   },

@@ -36,6 +36,11 @@ jobs:
         # as a blank gap or an invalid document on a customer's page.
         run: npm run check:sections
 
+      - name: Sign-in redirect safety
+        # `?next=` is attacker-controlled; a sign-in page that forwards anywhere
+        # is a phishing tool wearing our domain.
+        run: npm run check:auth
+
       - name: Build
         run: npm run build
         env:
@@ -63,6 +68,16 @@ jobs:
       - name: Import smoke test
         # Importing the app exercises every router/schema without touching a database.
         run: python -c "from kleelab.main import app; print('routes:', len(app.openapi()['paths']))"
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production
+
+      - name: AI endpoint checks
+        # What we do when the model answers wrongly: an invented section id, a page
+        # with no home, a hostile slug, an answer of the wrong shape. Each must
+        # degrade to a plainer site or a clear message, never a traceback.
+        run: python scripts/check_ai.py
         env:
           PYTHONPATH: src
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab

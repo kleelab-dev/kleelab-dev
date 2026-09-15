@@ -808,9 +808,73 @@ unknown plan   -> falls back to free  (fails closed)
 
 **Still not verified:** the palette group and section dragging have not been exercised in a browser, because that needs a running backend. The recipe *logic* is proven; the drag wiring is not.
 
-### R9 Phase C — the DeepSeek service  *(next)*
+### R9 Phase C — the DeepSeek service  *(delivered as part of R10 below)*
 
-`services/llm.py` (one OpenAI-compatible JSON-mode client — provider swapping stays a one-file change), `config.py` AI switches including an `AI_ENABLED` kill switch that fails closed, and `routers/ai.py` with `POST /api/ai/brief`, `/content` and `/edit`. The content endpoint takes its per-section schema **from the request**, so the backend stays schema-agnostic and the kit remains the only definition of that contract.
+---
+
+## R10 — The front door, and the AI that was never built
+
+**Reported by the owner:** *"it still has the old way flow and it's not bringing AI page to type prompt and build site with AI, the UX flow from landing page to where to build site is wrong and not professional, and after editing with drag and drop the feature is wrong too."*
+
+Accurate, and broader than it sounds. R9 Phases C and D had not been built — so there was no AI at all — but **two independent problems** were also present, and they are what made the product feel unfinished.
+
+### Findings
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| **F10.1** | **P0** | **Sign-in had no home.** There was no `/login` and no `/register` route anywhere in the app. The auth form existed only *inside* the new-site wizard, so the only way to sign in was to start creating a site you did not want. `/builder/dashboard` signed out had exactly one action, and it sent you to `/builder/new`. The marketing site could not sign anyone in at all |
+| **F10.2** | **P0** | **The front door sold the old product.** The hero was a static illustration of manual block assembly; the builder path on the landing page read *"Pick a layout, drop in your words and pictures, publish."* Nothing anywhere mentioned AI |
+| **F10.3** | **P1** | **`/builder/new` was a marketing screen stacked on a template wizard** — a full-viewport hero, then a required template, then an auth modal that replaced the page. Four steps and two marketing screens before a site existed |
+| **F10.4** | **P1** | **Abandoned brand values were still hardcoded in the onboarding** — `rgba(226,93,63,…)` (the old orange `#e25d3f`), `rgba(23,35,28,…)` (the old ink `#17231c`) and a `#b9cbb6` gradient. R0.2 deferred this sweep because the file was to be rewritten; R2 rewrote it and these three survived |
+| **F10.5** | **P1** | **The hero promised "no email required to try the builder."** That stopped being true the moment generation started costing money per call |
+| **F10.6** | **P2** | **The frontend `Page` type declared `seo_title`/`seo_description`.** The backend has never had those fields. Pydantic ignores unknown keys, so passing them would have been accepted and silently discarded — a save reporting success and changing nothing. Nothing called it with them yet, so this was a trap rather than a live bug |
+| **F10.7** | **P1** | **Still open:** the editor's canvas chrome (drag handle, Duplicate, Delete) is `opacity-0 group-hover:opacity-100` while `tailwind.config.js` sets `hoverOnlyWhenSupported: true` — on touch the chrome never appears, so dragging is impossible on a phone. Also still open: no layers tree, no preview before publishing, and a 32-item palette wall (a regression from R9 Phase B) |
+
+### What was built
+
+**Real auth routes.** `AuthPanel` (one component, two modes) behind `/login` and `/register`, with `?next=` — and `safeNext()` rejects anything that is not a same-site path. An absolute URL, a protocol-relative `//host`, a `/\\host` (which some browsers normalise to a slash), `javascript:` and `data:` are all refused. A sign-in page that forwards anywhere is a phishing tool wearing our domain, so this is covered by `npm run check:auth` and a CI step rather than by a comment. The modal in the wizard is deleted, not extended.
+
+**A real front door.** `BuilderWorkspace` is gone; `/builder/new` is `AiStart`, and the template picker is now the *second* option rather than the only one. The landing hero and its two paths were rewritten around what the product now does.
+
+**The AI builder.** `services/llm.py` (one OpenAI-compatible JSON-mode client — provider swapping is one file), `routers/ai.py` with `/status`, `/brief` and `/content`, and `services/site_brief.py` for the prompts and their validation.
+
+**The decision that makes it safe.** The **Section Kit lives only in the frontend**, and the server never keeps its own copy of what a section contains. On every call the client sends each recipe's own filled-in example as the shape to match, so the example shown to the model and the schema that validates its answer are the same object and cannot drift. A third copy of the document contract is exactly the mistake this codebase has already paid for twice.
+
+**The decision that makes it good.** The model chooses *which* sections a page needs and writes the copy. It never does layout — spacing, hierarchy and colour come from the recipes, so a generated site is assembled from the same designed sections a person can drag out of the palette, and is indistinguishable from one they built by hand.
+
+**An honesty rule in both prompts.** A model asked to write marketing copy for a plumber will invent a twenty-year guarantee, three five-star reviews and a Fleet Street address. Those are not harmless flourishes — they are claims on a live website, they belong to someone else, and the customer may not notice before publishing. So the prompts forbid inventing testimonials, awards, prices, addresses, hours and contact details, and instruct it to keep the example's placeholder instead.
+
+**Two calls, not one.** A single request that briefs, writes and assembles takes half a minute, gives no feedback, and loses everything if the connection drops. Splitting it means each request is short, the progress shown is real, and the brief becomes an **editable checkpoint before the expensive call** — the cheapest possible place to correct a misunderstanding. Nothing is written to the database until every page's copy has come back, so a failure halfway cannot leave a half-built site behind.
+
+### Verification
+
+`PYTHONPATH=src python scripts/check_ai.py`, now a CI step — no network, no database, no key. The provider is replaced with canned answers, which is the point: the interesting behaviour is what happens when the model answers *wrongly*.
+
+```
+status reports not_configured / brief 503 ai_not_configured
+status available with allowance / an exhausted quota reported, not hidden
+an invented section id is dropped, the brief survives
+a missing home page is promoted, order preserved
+a brief with nothing buildable is a clean 503
+a hostile slug ("../../etc/passwd") is rejected by validation
+only requested sections with object content survive
+a shapeless content answer is a clean 503
+an empty content answer is returned, not treated as a failure
+a 2-character prompt is rejected before any model call
+the prompt is passed, but the allowed section ids stay pinned in the request
+```
+
+`npm run check:auth` — 15 cases, including the two halves used together, because an encoding mistake only appears in the round trip rather than in either half.
+
+**Gate:** frontend `eslint` 0 · `tsc --noEmit` clean · `next build` clean (13 routes) · `check:sections` passing · `check:auth` passing · backend `compileall` OK · import smoke 54 paths · `check_ai.py` passing.
+
+**Not verified, and why.** Live generation, because no DeepSeek key is configured — `AI_ENABLED` defaults to false and the endpoints fail closed with `503 ai_not_configured`. The honest consequence is that the interface says the AI is not switched on yet, and offers the template path, rather than showing a button that fails. Nobody has seen a model-written site; that is the first thing to do once a key exists. The browser flow also needs the migrated database (see below).
+
+### Still to do
+
+- **R10-C**: touch-visible canvas chrome (a correctness bug, not polish), a layers tree, the palette wall, a drop indicator, and a **preview route** — there is still no way to see a site before publishing it, which the AI flow needs to feel finished.
+- **AI chat editing**: `/api/ai/edit` and the editor panel. Rounds 2 and 3 of "make the hero bigger" are the feature that makes the builder feel like a collaborator, and it is the natural next step.
+- **A prompt box on the marketing hero**: deliberately deferred. Putting it there before the AI is proven sets an expectation the product cannot yet meet.
 
 ---
 

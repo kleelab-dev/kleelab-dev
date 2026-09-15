@@ -12,11 +12,11 @@ import { caseStudies } from '@/content/work';
 const PATHS = [
   {
     eyebrow: 'Do it yourself',
-    title: 'Start with the builder',
-    body: 'Pick a layout, drop in your words and pictures, publish. The editor and the live site share one renderer, so what you arrange is what visitors get.',
-    points: ['Free to try', 'Publish to your own domain', 'Edit it any time'],
+    title: 'Describe it, and we build it',
+    body: 'Tell us what the business is in a sentence or two. We choose the sections each page needs and write the words, then open it in an editor where you can change anything by hand or just say what to fix next.',
+    points: ['No template to choose', 'Change anything afterwards', 'Publish when it feels right'],
     href: '/builder/new',
-    action: 'Open the builder',
+    action: 'Describe your site',
   },
   {
     eyebrow: 'Hand it over',

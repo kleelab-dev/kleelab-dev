@@ -199,18 +199,30 @@ export default function DashboardPage() {
         )}
 
         {status === 'signed-out' && (
-          <div className="rounded-2xl border border-line bg-white p-8 text-center">
+          <div className="rounded-2xl border border-line bg-paper p-8 text-center">
             <p className="font-serif text-2xl">Sign in to see your sites</p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-              Your sites are tied to your account. Create one to get started.
+              Your sites are tied to your account.
             </p>
-            <button
-              type="button"
-              onClick={() => router.push('/builder/new')}
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-bold text-white hover:bg-accent-dark"
-            >
-              Start building <ArrowRightIcon className="h-4 w-4" />
-            </button>
+            {/* This used to have a single action, and it sent you to the new-site
+                wizard — so the only way back into your own account was to start
+                creating a site you did not want. */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/login?next=%2Fbuilder%2Fdashboard')}
+                className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper hover:bg-ink-soft"
+              >
+                Sign in <ArrowRightIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/register?next=%2Fbuilder%2Fdashboard')}
+                className="rounded-full border border-line-strong px-5 py-3 text-sm font-medium hover:border-ink"
+              >
+                Create an account
+              </button>
+            </div>
           </div>
         )}
 
@@ -223,15 +235,16 @@ export default function DashboardPage() {
         )}
 
         {status === 'ready' && sites.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-line-strong bg-white p-10 text-center">
+          <div className="rounded-2xl border border-dashed border-line-strong bg-paper p-10 text-center">
             <p className="font-serif text-2xl">No sites yet</p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-              Pick a template and publish your first site in minutes.
+              Describe your business in a sentence or two, and we will build the first version
+              for you to edit and publish.
             </p>
             <button
               type="button"
               onClick={() => router.push('/builder/new')}
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-bold text-white hover:bg-accent-dark"
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-medium text-paper hover:bg-ink-soft"
             >
               <PlusIcon className="h-4 w-4" /> Create a site
             </button>

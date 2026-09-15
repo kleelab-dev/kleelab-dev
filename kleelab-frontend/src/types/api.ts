@@ -40,6 +40,61 @@ export interface Account extends User {
   usage: PlanUsage;
 }
 
+// ---------------------------------------------------------------------------
+// AI site builder
+// ---------------------------------------------------------------------------
+
+export type AiPalette = 'neutral' | 'warm' | 'ocean' | 'forest' | 'plum' | 'dark';
+
+/** Whether the builder can run, asked before offering a prompt box. */
+export interface AiStatus {
+  available: boolean;
+  /** `not_configured` or `quota_exhausted` when unavailable. */
+  reason: string | null;
+  builds_remaining: number;
+  builds_per_month: number;
+}
+
+export interface AiBriefPage {
+  title: string;
+  slug: string;
+  purpose: string;
+  /** Section ids, chosen from the kit and validated by the server. */
+  sections: string[];
+}
+
+export interface AiBrief {
+  business_name: string;
+  tagline: string;
+  summary: string;
+  audience: string;
+  tone: string;
+  palette: AiPalette;
+  pages: AiBriefPage[];
+}
+
+export interface AiBriefResponse {
+  brief: AiBrief;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+}
+
+/** One section the kit can build, described by the kit itself. */
+export interface AiSectionSpec {
+  id: string;
+  name: string;
+  description: string;
+  example: Record<string, unknown>;
+}
+
+export interface AiContentResponse {
+  sections: { id: string; content: Record<string, unknown> }[];
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+}
+
 export interface Site {
   id: string;
   name: string;
@@ -64,8 +119,16 @@ export interface Page {
   slug: string;
   content_json: Record<string, unknown>;
   is_published: boolean;
-  seo_title?: string;
-  seo_description?: string;
+  // These were declared as `seo_title` / `seo_description`, which the backend has
+  // never had. Pydantic ignores unknown fields, so passing them would have been
+  // accepted and then silently discarded — a save that reports success and
+  // changes nothing. They match `PageOut` now.
+  meta_title?: string | null;
+  meta_description?: string | null;
+  meta_keywords?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image?: string | null;
   created_at: string;
   updated_at: string;
 }

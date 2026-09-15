@@ -63,7 +63,7 @@ function HeroCanvas() {
     <div
       role="img"
       aria-label="Illustration: a page being assembled from heading, text and image blocks on the KleeLab editor canvas."
-      className="rounded-2xl border border-line bg-white shadow-[0_18px_50px_-24px_rgba(23,35,28,0.35)]"
+      className="rounded-2xl border border-line bg-white shadow-[0_18px_50px_-24px_rgba(10,10,10,0.35)]"
     >
       <div className="flex items-center justify-between border-b border-line px-4 py-3">
         <span className="inline-flex items-center gap-2">
@@ -109,25 +109,28 @@ export function Hero() {
           </p>
 
           <h1 className="mt-5 font-serif text-4xl leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-            Build it yourself, or have us build it.
+            Describe your site. We build it.
           </h1>
 
           <p className="mt-6 max-w-measure text-lg leading-8 text-muted">
-            KleeLab is a small studio in London. Use our builder to put a site up yourself this
-            afternoon, or hand it over and we will design and build it properly.
+            Tell us what the business is in a sentence or two. KleeLab chooses the sections each
+            page needs and writes the words, then hands you an editor where you can change
+            anything — or just say what to fix next.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <ButtonLink href="/builder/new" size="lg">
-              Start building
+              Describe your site
             </ButtonLink>
             <ButtonLink href="/contact" variant="outline" size="lg">
-              Talk to the studio
+              Have us build it
             </ButtonLink>
           </div>
 
           <p className="mt-6 font-mono text-xs text-muted">
-            No card, no trial, no email required to try the builder.
+            {/* This used to promise no email was needed, which stopped being true
+                the moment the builder started costing money per generation. */}
+            You will need an account, which is free — your sites stay in it.
           </p>
         </div>
 
