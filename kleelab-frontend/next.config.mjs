@@ -30,7 +30,8 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "img-src 'self' data: blob: https:",
-              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+              // thravic.onrender.com serves the traffic analytics script.
+              `script-src 'self' 'unsafe-inline' https://thravic.onrender.com${isDev ? " 'unsafe-eval'" : ''}`,
               "style-src 'self' 'unsafe-inline'",
               "font-src 'self' data:",
               "connect-src 'self' https:",

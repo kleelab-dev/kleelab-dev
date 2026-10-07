@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter, Newsreader } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 /**
@@ -56,7 +57,16 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${newsreader.variable} ${plexMono.variable}`}
     >
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        {children}
+        {/* Thravic traffic analytics. */}
+        <Script
+          id="thravic"
+          src="https://thravic.onrender.com/tf.js"
+          strategy="afterInteractive"
+          data-tracking-id="TF-2083C319"
+        />
+      </body>
     </html>
   );
 }
