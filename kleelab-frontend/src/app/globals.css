@@ -3,77 +3,106 @@
 @tailwind utilities;
 
 :root {
-  /* RGB triplet tokens mirrored from tailwind.config.js so raw CSS can
-     reference the same palette (e.g. rgb(var(--accent))).
-     Monochrome: ink, paper and ash. */
-  --paper: 255 255 255;
-  --canvas: 244 244 245;
-  --ink: 10 10 10;
-  --muted: 107 107 116;
-  --line: 228 228 231;
-  --mint: 244 244 245;
-  --accent: 10 10 10;
+  --paper: 243 246 252;
+  --grid: 223 230 246;
+  --ink: 14 21 48;
+  --cobalt: 35 64 232;
+  --sun: 255 210 63;
 
-  /* The focus ring is a token rather than a literal because it has to invert
-     on dark surfaces: an ink ring on the ink-coloured call-to-action band is
-     invisible, which is the same as having no ring at all. Anything painted
-     `bg-ink` adds `.on-ink` and the ring flips to paper. */
-  --focus-ring: var(--accent);
+  /* Flips to paper on ink surfaces, where an ink ring would vanish. */
+  --focus-ring: var(--cobalt);
 
-  /* Custom curves, because the CSS keywords are too weak to read as
-     intentional. `--ease-out` for anything entering or responding to a click;
-     `--ease-in-out` for something travelling across the screen. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 .on-ink {
-  --focus-ring: var(--paper);
-}
-
-/*
- * In the builder's preview a photograph can be swapped for the owner's own, and
- * nothing else there is clickable. The cursor and the ring are the entire
- * affordance, so they appear only while the pointer is over the preview — the
- * published page must not look editable. Two tones, because one ring has to read
- * on both a white site and a near-black one.
- */
-.kl-preview-live [data-kl-image] {
-  cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  transition: outline-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
-}
-
-.kl-preview-live [data-kl-image]:hover {
-  outline-color: rgb(var(--ink));
-  box-shadow: 0 0 0 4px rgb(var(--mint));
+  --focus-ring: var(--sun);
 }
 
 body {
   color: rgb(var(--ink));
   background-color: rgb(var(--paper));
   min-height: 100vh;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Interactive elements must always feel alive: pointer cursor, a visible
-   keyboard focus ring, and press feedback instead of a dead click. */
+@layer components {
+  /* Graph paper. Used on the public site and the dashboard canvas. */
+  .bg-graph {
+    background-color: rgb(var(--paper));
+    background-image:
+      linear-gradient(rgb(var(--grid)) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--grid)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* A mono label with a short leading rule, like an annotation on a drawing. */
+  .tag {
+    @apply inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-label text-cobalt;
+  }
+  .tag::before {
+    content: '';
+    width: 18px;
+    height: 1px;
+    background: currentColor;
+  }
+
+  /* The yellow highlighter on a headline word. */
+  .mark {
+    display: inline-block;
+    background: rgb(var(--sun));
+    padding: 0 0.12em;
+    border-radius: 6px;
+    transform: rotate(-1.5deg);
+  }
+
+  /* A dimension line above a card: ---- label ---- */
+  .dim {
+    @apply pointer-events-none absolute -top-6 left-0 right-0 flex items-center gap-2 font-mono text-[10px] uppercase tracking-label text-cobalt;
+  }
+  .dim::before,
+  .dim::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+  }
+
+  /* The rotated approval stamp. */
+  .stamp {
+    @apply inline-block rounded-md border-[1.5px] border-cobalt bg-paper px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-label text-cobalt;
+    transform: rotate(4deg);
+  }
+
+  .card {
+    @apply rounded-2xl border-[1.5px] border-ink bg-white;
+  }
+
+  .field {
+    @apply w-full rounded-xl border-[1.5px] border-line bg-white px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-cobalt;
+  }
+
+  .label {
+    @apply mb-1.5 block font-mono text-[11px] uppercase tracking-label text-ink;
+  }
+}
+
 button,
-[role="button"],
+[role='button'],
 a {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 button:disabled,
-button[aria-disabled="true"] {
+button[aria-disabled='true'] {
   cursor: not-allowed;
 }
 
 button:not(:disabled):active,
-[role="button"]:not([aria-disabled="true"]):active {
-  transform: scale(0.98);
+[role='button']:not([aria-disabled='true']):active {
+  transform: translateY(1px);
 }
 
 button:focus-visible,
@@ -81,23 +110,18 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
-[role="button"]:focus-visible,
+summary:focus-visible,
+[role='button']:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid rgb(var(--focus-ring));
   outline-offset: 2px;
 }
 
-/* The skip link's target. Focus has to land there for the skip to work, but
-   `main` is a landmark rather than a control, and a ring around the entire
-   page reads as a glitch. Excluded by name so the rule above stays absolute
-   for anything a keyboard user can actually operate. */
 main[tabindex='-1']:focus,
 main[tabindex='-1']:focus-visible {
   outline: none;
 }
 
-/* Keyboard users should not have to tab through the whole nav on every page.
-   Hidden until focused, then it lands as a real button in the top-left. */
 .skip-link {
   position: absolute;
   left: 0.75rem;
@@ -108,7 +132,7 @@ main[tabindex='-1']:focus-visible {
   background: rgb(var(--ink));
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   color: rgb(var(--paper));
   transition: transform 160ms var(--ease-out);
 }
@@ -117,26 +141,10 @@ main[tabindex='-1']:focus-visible {
   transform: translateY(0);
 }
 
-@keyframes kleelab-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.spinner {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 9999px;
-  animation: kleelab-spin 0.6s linear infinite;
-}
-
-@keyframes kleelab-rise {
+@keyframes kl-rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -144,25 +152,23 @@ main[tabindex='-1']:focus-visible {
   }
 }
 
-.animate-rise {
-  animation: kleelab-rise 220ms ease-out both;
-}
-
-/* Blocks arriving on the hero canvas. Travels further than .animate-rise so the
-   sequence reads as assembly rather than as a fade. */
-@keyframes kleelab-block-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.985);
+@keyframes kl-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
   }
-  to {
+  40% {
     opacity: 1;
-    transform: none;
   }
 }
 
-.animate-block-in {
-  animation: kleelab-block-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.kl-rise {
+  animation: kl-rise 320ms var(--ease-out) both;
+}
+
+.kl-dot {
+  animation: kl-blink 1.2s infinite both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -172,22 +178,5 @@ main[tabindex='-1']:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
-}
-
-/* Custom crisp scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: rgb(var(--canvas));
-}
-::-webkit-scrollbar-thumb {
-  background: rgb(var(--line));
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--muted));
 }

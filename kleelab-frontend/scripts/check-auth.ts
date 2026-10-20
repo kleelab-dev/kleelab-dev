@@ -22,11 +22,11 @@ function expect(label: string, actual: unknown, expected: unknown): void {
   console.error(`FAIL  ${label}\n        expected ${JSON.stringify(expected)}\n        got      ${JSON.stringify(actual)}`);
 }
 
-const FALLBACK = '/builder/dashboard';
+const FALLBACK = '/dashboard';
 
 // --- Accepted: same-site paths ---------------------------------------------------
-expect('a plain path is kept', safeNext('/builder/new'), '/builder/new');
-expect('a path with a query is kept', safeNext('/builder/new?prompt=hello'), '/builder/new?prompt=hello');
+expect('a plain path is kept', safeNext('/dashboard/projects/abc'), '/dashboard/projects/abc');
+expect('a path with a query is kept', safeNext('/dashboard/projects/abc?prompt=hello'), '/dashboard/projects/abc?prompt=hello');
 expect('an empty value falls back', safeNext(undefined), FALLBACK);
 expect('an empty string falls back', safeNext(''), FALLBACK);
 
@@ -41,16 +41,16 @@ expect('a data: URL is refused', safeNext('data:text/html,<script>alert(1)</scri
 // --- Duplicated query parameters must not become a way through -------------------
 expect(
   'an array takes the first value',
-  safeNext(['/builder/new', 'https://evil.example']),
-  '/builder/new',
+  safeNext(['/dashboard/projects/abc', 'https://evil.example']),
+  '/dashboard/projects/abc',
 );
 expect('an array of only bad values falls back', safeNext(['https://evil.example']), FALLBACK);
 
 // --- The link builder encodes the nested query correctly --------------------------
 expect(
   'loginHref encodes a nested query',
-  loginHref('/builder/new?prompt=a b&c=d'),
-  '/login?next=%2Fbuilder%2Fnew%3Fprompt%3Da%20b%26c%3Dd',
+  loginHref('/dashboard/projects/abc?prompt=a b&c=d'),
+  '/login?next=%2Fdashboard%2Fprojects%2Fabc%3Fprompt%3Da%20b%26c%3Dd',
 );
 expect('loginHref can target register', loginHref('/a', 'register'), '/register?next=%2Fa');
 
@@ -59,8 +59,8 @@ expect('loginHref can target register', loginHref('/a', 'register'), '/register?
  * decode back to a value `safeNext` accepts. Testing the two halves separately
  * would miss an encoding mistake that only appears when they are used together.
  */
-const rebuilt = decodeURIComponent(loginHref('/builder/new?prompt=coffee & tea').split('next=')[1]);
-expect('the round trip preserves the destination', safeNext(rebuilt), '/builder/new?prompt=coffee & tea');
+const rebuilt = decodeURIComponent(loginHref('/dashboard/projects/abc?prompt=coffee & tea').split('next=')[1]);
+expect('the round trip preserves the destination', safeNext(rebuilt), '/dashboard/projects/abc?prompt=coffee & tea');
 
 if (failures > 0) {
   console.error(`\n${failures} failure${failures === 1 ? '' : 's'}.\n`);

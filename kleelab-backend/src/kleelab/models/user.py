@@ -34,6 +34,11 @@ class User(Base):
     plan: Mapped[str] = mapped_column(
         String(20), nullable=False, default="free", server_default="free"
     )
+    # 'client' | 'staff'. Staff run projects from the admin view; everyone else
+    # only ever sees projects they are the client on.
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="client", server_default="client"
+    )
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

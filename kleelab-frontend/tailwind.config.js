@@ -2,71 +2,63 @@
 module.exports = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   // Tailwind's `hover:` variant fires on touch devices too, where the "hover"
-  // sticks after a tap and the element looks permanently selected. Restricting
-  // it to devices that actually have a pointer makes every hover style below
-  // safe on phones without wrapping each one by hand.
+  // sticks after a tap. Restricting it to real pointers keeps phones honest.
   future: {
     hoverOnlyWhenSupported: true,
   },
   theme: {
     extend: {
-      // KleeLab's palette: monochrome - ink, paper and ash.
-      //
-      // Note this is the *studio's* palette, used by the marketing site and the
-      // builder's own chrome. Customer sites no longer share it: their colours
-      // live in a per-site theme (see THEME_SLOTS in src/lib/document.ts).
+      // Blueprint: an engineering drawing with a sense of humour. Graph paper,
+      // ink linework, a cobalt pen for annotations and a yellow highlighter.
       colors: {
-        paper: '#ffffff',
-        canvas: '#f4f4f5',
+        paper: '#f3f6fc',
+        grid: '#dfe6f6',
+        white: '#ffffff',
         ink: {
-          DEFAULT: '#0a0a0a',
-          soft: '#3f3f46',
+          DEFAULT: '#0e1530',
+          soft: '#2b3555',
         },
-        // #71717a measured 4.40:1 against `canvas` - just under the 4.5:1 AA
-        // floor for normal text. `canvas` is the background of every
-        // alternating marketing band, so most of the site's secondary copy was
-        // failing. Same hue, two steps darker: 4.80:1 on canvas, 5.28:1 on
-        // paper. Measured, not eyeballed - re-check both if you change it.
-        muted: '#6b6b74',
+        // 6.0:1 on paper and 6.5:1 on white, so it carries secondary copy.
+        muted: '#55607f',
         line: {
-          DEFAULT: '#e4e4e7',
-          strong: '#d4d4d8',
-          soft: '#f4f4f5',
+          DEFAULT: '#cfd8ec',
+          strong: '#0e1530',
         },
-        mint: '#f4f4f5',
-        accent: {
-          DEFAULT: '#0a0a0a',
-          dark: '#3f3f46',
+        cobalt: {
+          DEFAULT: '#2340e8',
+          dark: '#1a30b8',
+          soft: '#e6eafd',
         },
-        // Status tones are greyscale too, to keep the palette honest. Errors and
-        // confirmations are told apart by their icon, weight and border rather
-        // than by hue - which is also what WCAG 1.4.1 asks for.
+        sun: {
+          DEFAULT: '#ffd23f',
+          soft: '#fff3c4',
+        },
+        mint: '#d9f5e5',
         danger: {
-          DEFAULT: '#18181b',
-          surface: '#fafafa',
-          line: '#a1a1aa',
-        },
-        success: {
-          DEFAULT: '#18181b',
-          surface: '#fafafa',
-          line: '#d4d4d8',
+          DEFAULT: '#b42318',
+          soft: '#fde8e6',
         },
       },
       fontFamily: {
-        // Three roles, deliberately distinct:
-        //   serif -> editorial display (headings, pull quotes)
-        //   sans  -> body and interface copy
-        //   mono  -> labels, eyebrows, metadata (the studio's technical voice)
-        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-display)', 'ui-serif', 'Georgia', 'serif'],
+        // display -> headlines; sans -> body and interface; mono -> labels,
+        // references, dimensions and anything that is a piece of data.
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
+      boxShadow: {
+        // The hard offset shadow is the house signature on cards that matter.
+        block: '6px 6px 0 0 #0e1530',
+        'block-sm': '3px 3px 0 0 #0e1530',
+        'block-cobalt': '6px 6px 0 0 #2340e8',
+      },
       maxWidth: {
-        content: '1200px',
-        measure: '68ch',
+        content: '1180px',
+        measure: '66ch',
       },
       letterSpacing: {
-        label: '0.14em',
+        label: '0.08em',
+        tightest: '-0.04em',
       },
     },
   },

@@ -28,22 +28,23 @@ export const privacy: LegalDocument = {
   slug: 'privacy',
   title: 'Privacy',
   summary: 'What we collect, why we hold it, and how to get rid of it.',
-  updated: '2025-11-04',
+  updated: '2026-10-20',
   sections: [
     {
       heading: 'What we collect',
       paragraphs: ['We collect as little as we can while still running the service.'],
       list: [
         'Account details: your email address, and a name if you give us one. Passwords are stored only as a hash, never in a readable form.',
-        'Site content: the pages, text and images you create in the builder.',
-        'Enquiries: anything you send through the contact form, along with your email address.',
+        'Project records: the updates, messages, approvals and requests on your client dashboard.',
+        'Enquiries: anything you send through the contact form or the chat, along with your email address.',
+        'Chat messages: what you type into the assistant on our site, used to answer you and not kept once the conversation ends unless you choose to send it to the team as an enquiry.',
         'Technical basics: IP address and browser details, recorded in server logs for security and rate limiting.',
       ],
     },
     {
       heading: 'Why we hold it',
       paragraphs: [
-        'To provide the service you asked for: running your account, storing and publishing your site, and answering when you get in touch.',
+        'To provide the service you asked for: running your client dashboard, delivering your project, and answering when you get in touch.',
         'We also have a legitimate interest in keeping the service working and preventing abuse, which is why we keep short-lived server logs and apply rate limits to sign-in and contact attempts.',
       ],
     },
@@ -53,15 +54,16 @@ export const privacy: LegalDocument = {
         'We use a small number of processors to run the service. They only handle data on our instructions:',
       ],
       list: [
-        'Cloudinary — stores images you upload to your sites.',
-        'Resend — delivers account emails such as verification links.',
+        'Resend — delivers account and project emails, such as invitations and update notices.',
+        'DeepSeek and Google (Gemini) — generate replies in the site chat when it is switched on. Only the conversation is sent, never your account details.',
+        'Thravic — counts visits to the public pages so we know which ones are read.',
         'Our hosting providers — run the application and the database.',
       ],
     },
     {
       heading: 'How long we keep it',
       paragraphs: [
-        'Account and site data are kept while your account exists. Delete your account and your sites, pages and uploaded files are deleted with it.',
+        'Account and project data are kept while your account exists, so you can always look back at decisions and approvals. Delete your account and your project records are deleted with it.',
         'Enquiries are kept for two years so we can follow up on a project, then deleted.',
         'Server logs are kept for a short period and then rotated out.',
       ],
@@ -69,14 +71,14 @@ export const privacy: LegalDocument = {
     {
       heading: 'Your rights',
       paragraphs: [
-        'You can ask for a copy of your data, ask us to correct it, or ask us to delete it. The account section includes an export that produces a machine-readable copy of everything we hold about you.',
+        'You can ask for a copy of your data, ask us to correct it, or ask us to delete it. We can send you a machine-readable copy of everything we hold about you.',
         `To make a request, email ${CONTACT}. We answer within one month.`,
       ],
     },
     {
       heading: 'Cookies and local storage',
       paragraphs: [
-        'We do not use advertising cookies. We do store a sign-in token in your browser so you do not have to log in on every page — see the cookies page for detail.',
+        'We do not use advertising cookies. We do store a sign-in token in your browser so you do not have to log in on every page, and we count page visits — see the cookies page for detail.',
       ],
     },
   ],
@@ -85,26 +87,26 @@ export const privacy: LegalDocument = {
 export const terms: LegalDocument = {
   slug: 'terms',
   title: 'Terms',
-  summary: 'The agreement between you and KleeLab when you use the service.',
-  updated: '2025-11-04',
+  summary: 'The basics of working with KleeLab and using your client dashboard.',
+  updated: '2026-10-20',
   sections: [
     {
       heading: 'Using the service',
       paragraphs: [
-        'You need an account to publish a site. You are responsible for keeping your password to yourself, and for anything done through your account.',
-        'You must be at least 16 to hold an account.',
+        'Client accounts are created by us when a project starts. You are responsible for keeping your password to yourself, and for anything done through your account, including approvals.',
+        'Each project also has its own written scope and quote. Where that agreement and these terms disagree, the project agreement wins.',
       ],
     },
     {
-      heading: 'Your content stays yours',
+      heading: 'What you own',
       paragraphs: [
-        'You own everything you put into the builder — your text, your images, your design. We claim no ownership over it.',
-        'You give us permission to store it and to serve it to visitors when you publish. That permission ends when you delete the content or your account.',
+        'Anything you give us, such as text, images and data, stays yours. We only use it to deliver your project.',
+        'Once a project is paid for, the code, designs and accounts we built for it are handed over to you. We may reuse general know-how and open-source tools, but never your content or data.',
       ],
     },
     {
-      heading: 'What you must not publish',
-      paragraphs: ['Some things we will not host, and we may remove a site without notice if it:'],
+      heading: 'What we will not build or host',
+      paragraphs: ['We may decline or stop work, or take down a site we host, if it:'],
       list: [
         'breaks the law, or helps others break it;',
         'impersonates a person or organisation;',
@@ -114,9 +116,9 @@ export const terms: LegalDocument = {
       ],
     },
     {
-      heading: 'Paid plans',
+      heading: 'Care plans',
       paragraphs: [
-        'Paid features are billed in advance and renew until cancelled. You can cancel at any time and keep access until the end of the period you have paid for.',
+        'Hosting and maintenance are billed monthly in advance and renew until cancelled. You can cancel with a month of notice, and we help move everything to you or your new provider.',
         'If we change a price, we tell you before it takes effect and you can cancel first.',
       ],
     },
@@ -131,7 +133,7 @@ export const terms: LegalDocument = {
       heading: 'Changes and governing law',
       paragraphs: [
         'If we change these terms we will tell you, and continued use after the change means you accept them.',
-        'These terms are governed by the law of England and Wales, and the courts of England and Wales have exclusive jurisdiction.',
+        'The governing law is set out in your project agreement.',
       ],
     },
   ],
@@ -141,20 +143,20 @@ export const cookies: LegalDocument = {
   slug: 'cookies',
   title: 'Cookies',
   summary: 'What we store in your browser, and why it is a very short list.',
-  updated: '2025-11-04',
+  updated: '2026-10-20',
   sections: [
     {
       heading: 'The short version',
       paragraphs: [
-        'We do not use advertising or tracking cookies. No third-party analytics script follows you around this site.',
+        'We do not use advertising cookies, and we do not sell or share what we learn about visitors. A small analytics script counts visits to our public pages.',
       ],
     },
     {
       heading: 'What we do store',
-      paragraphs: ['When you sign in, the builder stores two values in your browser:'],
+      paragraphs: ['When you sign in to your dashboard, we store two values in your browser:'],
       list: [
         'An access token, which expires after 15 minutes.',
-        'A refresh token, which lets the builder get a new access token without asking you to log in again.',
+        'A refresh token, which gets a new access token without asking you to log in again.',
       ],
     },
     {

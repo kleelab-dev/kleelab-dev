@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 # Endpoints that get the stricter per-minute budget.
 AUTH_PATHS = {"/api/auth/login", "/api/auth/register", "/api/auth/refresh"}
+# The visitor chat calls a paid model on every message and needs no account, so
+# it gets its own, much smaller hourly budget.
+CHAT_PATHS = {"/api/chat"}
 
 DEFAULT_MAX_TRACKED_CLIENTS = 10_000
 
@@ -162,11 +165,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         is_auth = path in AUTH_PATHS
         if is_auth:
-            limit, window = settings.AUTH_RATE_LIMIT_PER_MINUTE, 60.0
+            limit, window, bucket = settings.AUTH_RATE_LIMIT_PER_MINUTE, 60.0, "auth"
+        elif path in CHAT_PATHS:
+            limit, window, bucket = settings.CHAT_RATE_LIMIT_PER_HOUR, 3600.0, "chat"
         else:
-            limit, window = self.limit, float(self.window_seconds)
+            limit, window, bucket = self.limit, float(self.window_seconds), "general"
 
-        key = f"{client_ip(request)}:{'auth' if is_auth else 'general'}"
+        key = f"{client_ip(request)}:{bucket}"
 
         allowed, retry_after = True, 0
         if self._redis is not None and self._redis.available():

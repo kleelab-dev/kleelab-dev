@@ -8,10 +8,6 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "types:api": "openapi-typescript openapi.json -o src/types/api.gen.ts",
-    "check:sections": "tsx scripts/check-sections.ts",
-    "check:operations": "tsx scripts/check-operations.ts",
-    "check:design": "tsx scripts/check-design.ts",
     "check:auth": "tsx scripts/check-auth.ts"
   },
   "dependencies": {

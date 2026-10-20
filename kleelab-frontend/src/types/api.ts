@@ -1,387 +1,235 @@
+/**
+ * Shapes returned by the KleeLab API.
+ *
+ * Mirrors kleelab-backend/src/kleelab/schemas. Dates arrive as ISO strings.
+ */
+
+export type Role = 'client' | 'staff';
+
 export interface User {
   id: string;
   email: string;
   full_name: string | null;
   avatar_url: string | null;
   is_verified: boolean;
-  /** Commercial tier key: `free`, `pro` or `enterprise`. */
-  plan: string;
+  role: Role;
   created_at: string;
 }
 
-/** What a plan includes. Mirrors `services/plans.PlanLimits` on the backend. */
-export interface PlanLimits {
-  sites: number;
-  pages_per_site: number;
-  ai_builds_per_month: number;
-  ai_calls_per_day: number;
-  custom_domain: boolean;
-  storefront: boolean;
+export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';
+export type StageStatus = 'upcoming' | 'in_progress' | 'waiting_on_client' | 'done';
+/** `note` is team-only: the client never receives it. */
+export type UpdateKind = 'progress' | 'message' | 'approval' | 'note';
+export type ApprovalStatus = 'pending' | 'approved' | 'changes_requested';
+export type RequestKind = 'deployment' | 'hosting' | 'maintenance' | 'change';
+export type RequestStatus = 'open' | 'accepted' | 'declined' | 'done';
+export type InvoiceStatus = 'unpaid' | 'paid' | 'cancelled';
+export type Currency = 'USD' | 'GBP' | 'EUR' | 'NGN' | 'CAD' | 'AUD';
+
+export interface Stage {
+  id: string;
+  position: number;
+  name: string;
+  description: string | null;
+  status: StageStatus;
+  due_date: string | null;
+  completed_at: string | null;
 }
 
-export interface PlanUsage {
-  sites: number;
-  ai_builds_this_month: number;
-  ai_calls_today: number;
-}
-
-/**
- * The signed-in account as `/api/auth/me` returns it.
- *
- * Limits and usage come from the server rather than being hardcoded here: a
- * client that believes its own copy of the rules disagrees with the server the
- * first time a limit changes, and the disagreement shows up as a confusing
- * refusal at the exact moment someone tries to act.
- */
-export interface Account extends User {
-  plan_label: string;
-  plan_blurb: string;
-  limits: PlanLimits;
-  usage: PlanUsage;
-}
-
-// ---------------------------------------------------------------------------
-// AI site builder
-// ---------------------------------------------------------------------------
-
-export type AiPalette = 'neutral' | 'warm' | 'ocean' | 'forest' | 'plum' | 'dark';
-
-/** Whether the builder can run, asked before offering a prompt box. */
-export interface AiStatus {
-  available: boolean;
-  /** `not_configured` or `quota_exhausted` when unavailable. */
-  reason: string | null;
-  builds_remaining: number;
-  builds_per_month: number;
-}
-
-export interface AiBriefPage {
-  title: string;
-  slug: string;
-  purpose: string;
-  /** Section ids, chosen from the kit and validated by the server. */
-  sections: string[];
-}
-
-export interface AiBrief {
-  business_name: string;
-  tagline: string;
-  summary: string;
-  audience: string;
-  tone: string;
-  palette: AiPalette;
-  pages: AiBriefPage[];
-}
-
-export interface AiBriefResponse {
-  brief: AiBrief;
-  /**
-   * How the site should look, chosen from the design library by the server.
-   *
-   * Deliberately not the model's decision: the library's palettes are curated and
-   * each ships with contrast-checked foreground pairs, so colour coming from there
-   * is a colour somebody has looked at. `null` means nothing matched the business
-   * well enough, and the site keeps its neutral default.
-   */
-  design: AiDesign | null;
-  model: string;
-  tokens_in: number;
-  tokens_out: number;
-}
-
-/** The two faces a site is set in, as CSS stacks, plus the request that fetches them. */
-export interface AiDesignFonts {
-  display: string;
+export interface ProjectUpdate {
+  id: string;
+  stage_id: string | null;
+  kind: UpdateKind;
+  title: string | null;
   body: string;
-  href: string;
-}
-
-/** A complete design for one site: colour, type, and the shape of its corners. */
-export interface AiDesign {
-  product_type: string;
-  style_id: string;
-  style_name: string;
-  pairing: string;
-  fonts: AiDesignFonts;
-  /** Theme slot -> colour. */
-  colours: Record<string, string>;
-  /** Design token -> value, for the tokens a style states unambiguously. */
-  tokens: Record<string, string>;
-  rationale: string;
-}
-
-/** One section the kit can build, described by the kit itself. */
-export interface AiSectionSpec {
-  id: string;
-  name: string;
-  description: string;
-  example: Record<string, unknown>;
-}
-
-export interface AiContentResponse {
-  sections: { id: string; content: Record<string, unknown> }[];
-  model: string;
-  tokens_in: number;
-  tokens_out: number;
-}
-
-/**
- * One node of a page, as the builder conversation is allowed to see it.
- *
- * The model never receives the document. It receives this: a flat list of ids it
- * may aim an edit at, with just enough text to recognise which is which. Sending
- * the tree would invite it to return a tree, and a returned tree cannot be
- * checked — every word nobody asked to change would be rewritten from memory.
- */
-export interface AiOutlineNode {
-  id: string;
-  type: string;
-  /** Where the node sits, or its own copy — enough to tell two headings apart. */
-  label: string;
-  text: string;
-}
-
-/** The closed set of changes the builder may ask for. */
-export type AiEditOpName =
-  | 'set_text'
-  | 'set_style'
-  | 'set_theme'
-  | 'set_image'
-  | 'replace_section'
-  | 'add_section'
-  | 'remove_section'
-  | 'move_section';
-
-/** One change, aimed at one node. Only the fields its `op` needs are set. */
-export interface AiEditOperation {
-  op: AiEditOpName;
-  node_id?: string | null;
-  after_node_id?: string | null;
-  text?: string | null;
-  style?: Record<string, unknown> | null;
-  slot?: string | null;
-  colour?: string | null;
-  section_id?: string | null;
-  content?: Record<string, unknown> | null;
-  src?: string | null;
-  alt?: string | null;
-}
-
-/**
- * What the conversation replies with.
- *
- * `summary` is the sentence shown in the chat, and it is derived from the
- * operations that survived validation rather than written by the model alone —
- * an assistant that describes a change it did not make is worse than one that
- * admits it could not.
- */
-export interface AiEditResponse {
-  operations: AiEditOperation[];
-  summary: string;
-  /**
-   * `question` whenever nothing was changed — either the assistant answered
-   * something, or it is asking. Without this the interface cannot tell "I am
-   * waiting for an answer" from "that did not work", which is how a question about
-   * a rebuild got answered with "yes" and met with a failure message.
-   */
-  kind: 'change' | 'question';
-  /** Suggested replies, so a question can be answered by clicking. */
-  choices: string[];
-  model: string;
-  tokens_in: number;
-  tokens_out: number;
-}
-
-export interface Site {
-  id: string;
-  name: string;
-  subdomain: string | null;
-  custom_domain?: string | null;
-  is_published: boolean;
-  /** ISO-4217. What this site sells in; used to render every price it shows. */
-  currency: string;
-  template_id?: string | null;
-  // Optional: present only on endpoints that join extra data.
-  owner_id?: string;
-  pages_count?: number;
-  products_count?: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface Page {
-  id: string;
-  site_id: string;
-  title: string;
-  slug: string;
-  content_json: Record<string, unknown>;
-  is_published: boolean;
-  // These were declared as `seo_title` / `seo_description`, which the backend has
-  // never had. Pydantic ignores unknown fields, so passing them would have been
-  // accepted and then silently discarded — a save that reports success and
-  // changes nothing. They match `PageOut` now.
-  meta_title?: string | null;
-  meta_description?: string | null;
-  meta_keywords?: string | null;
-  og_title?: string | null;
-  og_description?: string | null;
-  og_image?: string | null;
+  link_url: string | null;
+  link_label: string | null;
+  approval_status: ApprovalStatus | null;
+  approval_note: string | null;
+  resolved_at: string | null;
   created_at: string;
-  updated_at: string;
+  author_name: string | null;
+  from_team: boolean;
 }
 
-export type BlockType = 'hero' | 'text' | 'image' | 'features' | 'testimonials' | 'contact';
-
-export interface BuilderBlock {
+export interface ProjectRequest {
   id: string;
-  type: BlockType;
-  eyebrow?: string;
-  title?: string;
-  body?: string;
-  cta?: string;
-  image_url?: string;
-  items?: string[];
-}
-
-export interface PageVersion {
-  id: string;
-  page_id: string;
-  version_number: number;
-  content_json: Record<string, unknown>;
+  kind: RequestKind;
+  message: string | null;
+  status: RequestStatus;
   created_at: string;
-  created_by?: string;
 }
 
-export interface Product {
+export interface ProjectFile {
   id: string;
-  site_id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  images: string[] | null;
-  stock: number;
-  category: string | null;
-  variants: Record<string, unknown> | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Matches ALLOWED_STATUSES in `routers/orders.py`. */
-export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'refunded';
-
-/**
- * One line of an order.
- *
- * Orders store a snapshot rather than a foreign key, because products can be
- * edited or deleted and an order has to stay readable regardless.
- */
-export interface OrderLine {
-  product_id: string;
-  name: string;
-  unit_price: number;
-  quantity: number;
-  line_total: number;
-}
-
-export interface Order {
-  id: string;
-  site_id: string;
-  customer_email: string;
-  customer_name: string | null;
-  total: number;
-  currency: string;
-  status: OrderStatus;
-  items: OrderLine[];
-  created_at: string;
-  updated_at: string;
-}
-
-/** What the owner sends when creating or editing a product. */
-export interface ProductInput {
-  name: string;
-  description?: string | null;
-  price: number;
-  stock: number;
-  category?: string | null;
-  images?: string[] | null;
-  is_active?: boolean;
-}
-
-export interface DashboardStats {
-  site_count: number;
-  page_count: number;
-  product_count: number;
-  order_count: number;
-  total_revenue: number;
-  monthly_views: number;
-}
-
-export interface ActivityEvent {
-  type: 'order_received' | 'site_published' | 'page_updated';
-  title: string;
-  description: string;
-  /** Present on order events, so the client does the formatting. */
-  amount?: number;
-  currency?: string;
-  timestamp: string;
-}
-
-export interface OrderSeriesDay {
-  date: string;
-  orders: number;
-  revenue: number;
-}
-
-export interface OrderSeries {
-  days: OrderSeriesDay[];
-}
-
-export interface Asset {
-  id: string;
-  site_id: string | null;
   filename: string;
-  file_type: string;
-  file_size: number;
-  url: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+  uploaded_by_name: string | null;
+  from_team: boolean;
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  title: string;
+  amount_cents: number;
+  currency: Currency;
+  due_date: string | null;
+  status: InvoiceStatus;
+  pay_url: string | null;
+  paid_at: string | null;
   created_at: string;
 }
 
-/**
- * Storefront (shopper-facing) shapes.
- *
- * These come from the public router, which deliberately does not expose the raw
- * stock count - only whether the item can be bought.
- */
-export interface PublicProduct {
+export interface ProjectSummary {
+  id: string;
+  reference: string;
+  title: string;
+  status: ProjectStatus;
+  target_date: string | null;
+  current_stage: string | null;
+  stages_done: number;
+  stages_total: number;
+  pending_approvals: number;
+  open_requests: number;
+  unpaid_invoices: number;
+  updated_at: string;
+  client_email: string | null;
+  client_name: string | null;
+  owner_id: string | null;
+  owner_name: string | null;
+  awaiting_reply: boolean;
+}
+
+export interface ProjectDetail {
+  id: string;
+  reference: string;
+  title: string;
+  summary: string | null;
+  status: ProjectStatus;
+  start_date: string | null;
+  target_date: string | null;
+  live_url: string | null;
+  created_at: string;
+  updated_at: string;
+  stages: Stage[];
+  updates: ProjectUpdate[];
+  requests: ProjectRequest[];
+  files: ProjectFile[];
+  invoices: Invoice[];
+  client_email: string | null;
+  client_name: string | null;
+  owner_id: string | null;
+  owner_name: string | null;
+  lead_id: string | null;
+}
+
+export interface ProjectCreateInput {
+  client_email: string;
+  client_name?: string | null;
+  title: string;
+  summary?: string | null;
+  start_date?: string | null;
+  target_date?: string | null;
+  stages?: string[] | null;
+  owner_id?: string | null;
+  lead_id?: string | null;
+}
+
+export interface ProjectPatchInput {
+  title?: string;
+  summary?: string | null;
+  status?: ProjectStatus;
+  start_date?: string | null;
+  target_date?: string | null;
+  live_url?: string | null;
+  owner_id?: string | null;
+}
+
+export interface StagePatchInput {
+  name?: string;
+  status?: StageStatus;
+  due_date?: string | null;
+  description?: string | null;
+}
+
+export interface StaffUpdateInput {
+  kind: UpdateKind;
+  title?: string | null;
+  body: string;
+  stage_id?: string | null;
+  link_url?: string | null;
+  link_label?: string | null;
+}
+
+export interface InvoiceCreateInput {
+  title: string;
+  amount_cents: number;
+  currency: Currency;
+  due_date?: string | null;
+  pay_url?: string | null;
+}
+
+export interface InvoicePatchInput {
+  status?: InvoiceStatus;
+  due_date?: string | null;
+  pay_url?: string | null;
+}
+
+export interface StaffMember {
   id: string;
   name: string;
-  description: string | null;
-  price: number;
-  currency: string;
-  images: string[];
-  category: string | null;
-  in_stock: boolean;
+  email: string;
 }
 
-export interface PublicOrder {
+export type AttentionKind =
+  | 'new_enquiry'
+  | 'client_message'
+  | 'open_request'
+  | 'waiting_approval'
+  | 'overdue_step'
+  | 'unpaid_invoice';
+
+export interface AttentionItem {
+  kind: AttentionKind;
+  project_id: string | null;
+  reference: string | null;
+  project_title: string | null;
+  text: string;
+  since: string | null;
+  owner_name: string | null;
+  lead_id: string | null;
+}
+
+export type LeadStatus = 'new' | 'contacted' | 'won' | 'lost';
+
+export interface Lead {
   id: string;
-  status: string;
-  total: number;
-  currency: string;
-  items: OrderLine[];
+  email: string;
+  name: string | null;
+  company: string | null;
+  interest: string | null;
+  budget: string | null;
+  source: string;
+  feature_requested: string | null;
+  message: string | null;
+  status: LeadStatus;
   created_at: string;
+  project_id: string | null;
 }
 
-/** What a shopper sends. Note the absence of any price - the server decides. */
-export interface OrderLineInput {
-  product_id: string;
-  quantity: number;
+export type ChatRole = 'visitor' | 'assistant';
+
+export interface ChatTurn {
+  role: ChatRole;
+  content: string;
 }
 
-export interface PublicOrderCreate {
-  customer_email: string;
-  customer_name?: string | null;
-  items: OrderLineInput[];
-  note?: string | null;
+export interface ChatReply {
+  reply: string;
+  suggestions: string[];
+  offer_contact: boolean;
+  source: 'ai' | 'fallback';
 }

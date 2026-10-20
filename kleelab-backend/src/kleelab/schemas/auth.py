@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 def validate_password_size(value: str) -> str:
@@ -25,6 +25,15 @@ class UserLogin(BaseModel):
     password: str
 
     _validate_password = field_validator("password")(validate_password_size)
+
+
+class PasswordResetRequest(BaseModel):
+    """Carried in the body: a password in a query string ends up in access logs."""
+
+    token: str
+    new_password: str = Field(min_length=8)
+
+    _validate_password = field_validator("new_password")(validate_password_size)
 
 
 class Token(BaseModel):
@@ -52,6 +61,8 @@ class UserOut(BaseModel):
     avatar_url: str | None
     is_verified: bool
     plan: str
+    # client | staff. The interface uses it to show the team their admin view.
+    role: str = "client"
     created_at: datetime
 
 

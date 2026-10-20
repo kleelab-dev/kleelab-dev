@@ -10,7 +10,7 @@
  * `https://evil.com` — browsers read a leading double slash as a protocol-relative
  * absolute URL, so a check for "starts with a slash" alone is not enough.
  */
-export function safeNext(value: string | string[] | undefined, fallback = '/builder/dashboard'): string {
+export function safeNext(value: string | string[] | undefined, fallback = '/dashboard'): string {
   const candidate = Array.isArray(value) ? value[0] : value;
   if (!candidate) return fallback;
   if (!candidate.startsWith('/')) return fallback;

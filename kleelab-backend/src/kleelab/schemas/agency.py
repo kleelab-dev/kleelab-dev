@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 # routed or reported on, which is why the in-app flow asks this instead.
 LeadInterest = Literal["pro", "enterprise", "migration", "general"]
 LeadBudget = Literal["under_5k", "5k_15k", "15k_50k", "over_50k", "unsure"]
-LeadSource = Literal["marketing", "app"]
+LeadSource = Literal["marketing", "app", "chat"]
 
 
 class LeadCreate(BaseModel):
@@ -50,3 +50,5 @@ class LeadOut(BaseModel):
     message: str | None
     status: str
     created_at: datetime
+    # Set when a project was started from this enquiry.
+    project_id: UUID | None = None

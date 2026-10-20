@@ -3,7 +3,7 @@ services:
     name: kleelab-api
     runtime: python
     rootDir: kleelab-backend
-    buildCommand: pip install -r requirements.txt && alembic upgrade head && PYTHONPATH=src python scripts/seed_templates.py
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
     startCommand: uvicorn --app-dir src kleelab.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -22,8 +22,7 @@ services:
       # committed: a key written here is a key written to git history.
       #
       # AI_ENABLED is the one to check first. With it false, or with no provider
-      # key, every /api/ai/* call is refused with a 503 and a set key looks faulty
-      # rather than switched off.
+      # key, the visitor enquiry chat answers from written replies only.
       - key: AI_ENABLED
         sync: false
       - key: DEEPSEEK_API_KEY
@@ -47,6 +46,10 @@ services:
       - key: AUTO_VERIFY_EMAILS
         sync: false
       - key: RESEND_API_KEY
+        sync: false
+      # Where new enquiries, client messages and add-on requests are emailed.
+      # Falls back to SENDGRID_FROM_EMAIL, which is usually a no-reply address.
+      - key: TEAM_INBOX
         sync: false
 
 databases:

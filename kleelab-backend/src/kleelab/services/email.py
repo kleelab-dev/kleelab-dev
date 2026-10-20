@@ -1,4 +1,5 @@
 import logging
+from html import escape
 from urllib.parse import quote
 
 import resend
@@ -73,4 +74,53 @@ def send_subscription_confirmation(email: str, plan: str) -> None:
 
 
 def send_agency_lead_notification(lead_email: str, feature: str) -> None:
-    _send(settings.SENDGRID_FROM_EMAIL, "New KleeLab agency lead", f"<p>{lead_email}: {feature}</p>")
+    # Both values come from a public form, so they are escaped before they reach
+    # an inbox that renders HTML.
+    _send(
+        settings.TEAM_INBOX or settings.SENDGRID_FROM_EMAIL,
+        "New KleeLab enquiry",
+        f"<p>{escape(lead_email)}: {escape(feature)}</p>",
+    )
+
+# --- Client projects ------------------------------------------------------
+# Everything interpolated here can come from a client or a visitor, so it is
+# escaped: these land in our own inbox and a client's, and an email client
+# renders HTML.
+
+
+def _dashboard_link(project_id: str) -> str:
+    return f"{settings.FRONTEND_URL.rstrip('/')}/dashboard/projects/{project_id}"
+
+
+def send_project_invite_email(email: str, name: str | None, project_title: str, token: str) -> bool:
+    """Invite a client whose account we created when we set up their project."""
+
+    url = _link("reset-password", token)
+    return _send(
+        email,
+        f"Your KleeLab project: {project_title}",
+        f"<p>Hi {escape(name or 'there')},</p>"
+        f"<p>We have set up <strong>{escape(project_title)}</strong> on your KleeLab dashboard. "
+        "You can follow every step there, from discovery to handover.</p>"
+        f'<p>Choose a password to sign in:</p><p><a href="{url}">{url}</a></p>'
+        "<p>This link expires in 7 days.</p>",
+    )
+
+
+def send_client_project_notice(email: str, project_id: str, project_title: str, headline: str) -> bool:
+    """Tell a client something happened on their project."""
+
+    url = _dashboard_link(project_id)
+    return _send(
+        email,
+        f"{project_title}: {headline}",
+        f"<p>{escape(headline)}</p>"
+        f'<p><a href="{url}">Open your project dashboard</a></p>',
+    )
+
+
+def send_team_notice(subject: str, lines: list[str]) -> bool:
+    """Tell the KleeLab team something happened that needs a person."""
+
+    body = "".join(f"<p>{escape(line)}</p>" for line in lines)
+    return _send(settings.TEAM_INBOX or settings.SENDGRID_FROM_EMAIL, subject, body)

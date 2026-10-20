@@ -18,7 +18,7 @@ Base = declarative_base()
 
 from kleelab.models import (  # noqa: E402, F401
     agency_lead, analytics, asset, order, page, page_version, product,
-    site, template, user,
+    project, site, template, user,
 )
 
 

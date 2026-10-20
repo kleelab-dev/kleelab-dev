@@ -1,23 +1,20 @@
-import {
-  Account,
-  ActivityEvent,
-  AiBrief,
-  AiBriefResponse,
-  AiContentResponse,
-  AiEditResponse,
-  AiOutlineNode,
-  AiSectionSpec,
-  AiStatus,
-  Asset,
-  BuilderBlock,
-  DashboardStats,
-  Order,
-  OrderSeries,
-  OrderStatus,
-  Page,
-  Product,
-  ProductInput,
-  Site,
+import type {
+  AttentionItem,
+  ChatReply,
+  ChatTurn,
+  InvoiceCreateInput,
+  InvoicePatchInput,
+  Lead,
+  LeadStatus,
+  ProjectCreateInput,
+  ProjectDetail,
+  ProjectPatchInput,
+  ProjectSummary,
+  RequestKind,
+  RequestStatus,
+  StaffMember,
+  StagePatchInput,
+  StaffUpdateInput,
   User,
 } from '@/types/api';
 
@@ -26,9 +23,8 @@ import {
  *
  * The backend answers refusals with `{"error": {"code": ..., "message": ...,
  * "details": ...}}`. Collapsing that into a plain message loses the distinction
- * between "your plan does not allow this" and "something went wrong" — and the
- * interface needs that distinction to decide between offering an upgrade and
- * offering a retry. A sentence cannot be reliably pattern-matched for this.
+ * between "you have already answered this" and "something went wrong" — and the
+ * interface needs that distinction to decide what to offer next. A sentence cannot be reliably pattern-matched for this.
  */
 export class ApiError extends Error {
   readonly status: number;
@@ -48,16 +44,6 @@ export class ApiError extends Error {
     this.details = details;
   }
 
-  /** True when the account's plan, not the request, is the problem. */
-  get isPlanLimit(): boolean {
-    return this.code === 'plan_limit';
-  }
-
-  /** Where to send someone who hit a plan limit. */
-  get upgradePath(): string | null {
-    const path = this.details?.upgradePath;
-    return typeof path === 'string' ? path : null;
-  }
 }
 
 // Preferred path: leave this empty so requests go to the relative /api/* routes
@@ -203,32 +189,29 @@ async function request<T>(
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-function normalizePage(page: Record<string, unknown>): Page {
-  return { ...page, content_json: page.content || {} } as Page;
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+function post<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 }
 
-/**
- * Translate the frontend Page shape into the backend payload.
- *
- * `content` is only included when `content_json` was supplied — otherwise a
- * metadata-only update would overwrite the stored document with `{}`.
- */
-function serializePagePayload(pageData: Partial<Page>, isCreate = false): Record<string, unknown> {
-  const { content_json, ...rest } = pageData;
-  const payload: Record<string, unknown> = { ...rest };
-  if (content_json !== undefined || isCreate) {
-    payload.content = content_json ?? {};
-  }
-  return payload;
+function patch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(body) });
 }
 
 export const apiService = {
+  // --- Accounts ------------------------------------------------------------
+
   async register(data: { email: string; password: string; full_name: string }): Promise<User> {
-    return request<User>('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return post<User>('/api/auth/register', data);
   },
 
   async login(email: string, password: string): Promise<void> {
-    const result = await request<{ access_token: string; refresh_token?: string }>('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/login', { email, password });
     setSession(result.access_token, result.refresh_token ?? null);
   },
 
@@ -239,7 +222,7 @@ export const apiService = {
       if (refreshToken) {
         await fetch(`${API_BASE_URL}/api/auth/logout`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: JSON_HEADERS,
           body: JSON.stringify({ refresh_token: refreshToken }),
         });
       }
@@ -253,257 +236,175 @@ export const apiService = {
     return request<User>('/api/auth/me');
   },
 
-  /**
-   * The account with its plan, limits and current usage.
-   *
-   * Used wherever the interface needs to know what it may offer — the dashboard
-   * plan card and the upgrade page.
-   */
-  async getAccount(): Promise<Account> {
-    return request<Account>('/api/auth/me');
-  },
-
-  /** Exchange an emailed verification link token for a verified account. */
   async verifyEmail(token: string): Promise<void> {
-    return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {
-      method: 'POST',
-    });
+    return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
+  },
+
+  /** Always answers the same way, so it cannot be used to find out who has an account. */
+  async requestPasswordReset(email: string): Promise<void> {
+    await request<unknown>(`/api/auth/request-password-reset?email=${encodeURIComponent(email)}`, { method: 'POST' });
+  },
+
+  /** Used both by "forgot password" and by the invite a new client receives. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await post<unknown>('/api/auth/reset-password', { token, new_password: newPassword });
+  },
+
+  // --- Public enquiries ----------------------------------------------------
+
+  async chat(messages: ChatTurn[], page?: string): Promise<ChatReply> {
+    return post<ChatReply>('/api/chat', { messages, page });
   },
 
   /**
-   * Ask for a fresh verification link.
-   *
-   * `delivered` is false when no email provider is configured, in which case the
-   * backend writes the link to its log rather than pretending it was sent.
-   */
-  async resendVerification(): Promise<{ status: string; delivered: boolean }> {
-    return request<{ status: string; delivered: boolean }>('/api/auth/resend-verification', {
-      method: 'POST',
-    });
-  },
-
-  /**
-   * Whether the AI builder can run, and how much allowance is left.
-   *
-   * Asked before showing a prompt box so "the AI is off" and "you have used this
-   * month's builds" are answered without the customer typing a paragraph first.
-   */
-  async getAiStatus(): Promise<AiStatus> {
-    return request<AiStatus>('/api/ai/status');
-  },
-
-  /** Understand the business, and choose the sections its pages need. */
-  async createBrief(payload: {
-    prompt: string;
-    site_name?: string | null;
-    /** The catalogue, so the model chooses from a real menu rather than guessing at ids. */
-    sections: AiSectionSpec[];
-  }): Promise<AiBriefResponse> {
-    return request<AiBriefResponse>('/api/ai/brief', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  },
-
-  /**
-   * Write the copy for one page's sections.
-   *
-   * The kit describes each section, not this module and not the server: the
-   * recipe's own example object is sent as the shape to fill in, so there is only
-   * ever one definition of what a section contains.
-   */
-  async createContent(payload: {
-    brief: AiBrief;
-    page_title: string;
-    sections: AiSectionSpec[];
-  }): Promise<AiContentResponse> {
-    return request<AiContentResponse>('/api/ai/content', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  },
-
-  /**
-   * One turn of the builder conversation.
-   *
-   * Returns a list of small changes rather than a rewritten page — cheaper on
-   * every turn, and checkable. The outline, the catalogue and the legal style
-   * values are all sent from here, because this side owns the document model:
-   * the server has no copy of it to drift from.
-   */
-  async editSite(payload: {
-    instruction: string;
-    page_title: string;
-    outline: AiOutlineNode[];
-    theme: Record<string, string>;
-    palettes: string[];
-    sections: AiSectionSpec[];
-    style_tokens: Record<string, string[]>;
-    history: string[];
-  }): Promise<AiEditResponse> {
-    return request<AiEditResponse>('/api/ai/edit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-  },
-
-  async getSites(): Promise<Site[]> {
-    return request<Site[]>('/api/sites');
-  },
-
-  async getSite(siteId: string): Promise<Site> {
-    return request<Site>(`/api/sites/${siteId}`);
-  },
-
-  async createSite(data: Partial<Site>): Promise<Site> {
-    return request<Site>('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-  },
-
-  /**
-   * Send an enquiry to the studio.
-   *
-   * Sent with the session attached when there is one, so an in-app upgrade
-   * enquiry arrives already tied to an account the reply can reference. The
-   * `source` marker is what tells the two intake paths apart in the inbox.
+   * Send an enquiry to the team. `source` tells the inbox whether it came from
+   * the contact page or from the chat.
    */
   async submitLead(payload: {
     email: string;
     name?: string | null;
     company?: string | null;
-    interest?: 'pro' | 'enterprise' | 'migration' | 'general';
     budget?: 'under_5k' | '5k_15k' | '15k_50k' | 'over_50k' | 'unsure';
     message: string;
     project_type?: string | null;
+    source?: 'marketing' | 'chat';
+    website?: string;
   }): Promise<{ status: string }> {
-    return request<{ status: string }>('/api/agency/leads', {
+    return post<{ status: string }>('/api/agency/leads', { source: 'marketing', ...payload });
+  },
+
+  // --- Client dashboard ----------------------------------------------------
+
+  async getProjects(): Promise<ProjectSummary[]> {
+    return request<ProjectSummary[]>('/api/projects');
+  },
+
+  /** Clients see their own projects; the team can open any of them. */
+  async getProject(projectId: string): Promise<ProjectDetail> {
+    return request<ProjectDetail>(`/api/projects/${projectId}`);
+  },
+
+  async sendMessage(projectId: string, body: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/messages`, { body });
+  },
+
+  async answerApproval(
+    projectId: string,
+    updateId: string,
+    decision: 'approved' | 'changes_requested',
+    note?: string,
+  ): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/approvals/${updateId}`, { decision, note: note || null });
+  },
+
+  async requestService(projectId: string, kind: RequestKind, message?: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/requests`, { kind, message: message || null });
+  },
+
+  /**
+   * Share one file on a project. The body is the file itself, not a form: the
+   * server reads the name from X-File-Name and stops reading past 10 MB.
+   */
+  async uploadFile(projectId: string, file: File): Promise<ProjectDetail> {
+    return request<ProjectDetail>(`/api/projects/${projectId}/files`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, source: 'app' }),
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
     });
   },
 
-  async updateSite(siteId: string, data: Partial<Site>): Promise<Site> {
-    return request<Site>(`/api/sites/${siteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  async deleteFile(projectId: string, fileId: string): Promise<ProjectDetail> {
+    return request<ProjectDetail>(`/api/projects/${projectId}/files/${fileId}`, { method: 'DELETE' });
   },
 
-  async deleteSite(siteId: string): Promise<void> {
-    return request<void>(`/api/sites/${siteId}`, { method: 'DELETE' });
+  /**
+   * Download a shared file. A plain link cannot carry the sign-in token, so the
+   * file is fetched here and handed to the browser to save.
+   */
+  async downloadFile(projectId: string, fileId: string, filename: string): Promise<void> {
+    const path = `/api/projects/${projectId}/files/${fileId}`;
+    let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    if (response.status === 401 && (await refreshSession())) {
+      response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    }
+    if (!response.ok) throw new ApiError('That file could not be downloaded.', response.status);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
 
-  async unpublishSite(siteId: string): Promise<void> {
-    return request<void>(`/api/sites/${siteId}/unpublish`, { method: 'POST' });
+  // --- Team admin ----------------------------------------------------------
+
+  async adminStaff(): Promise<StaffMember[]> {
+    return request<StaffMember[]>('/api/admin/staff');
   },
 
-  async getPages(siteId: string): Promise<Page[]> {
-    const pages = await request<Record<string, unknown>[]>(`/api/sites/${siteId}/pages`);
-    return pages.map(normalizePage);
+  async adminOverview(): Promise<AttentionItem[]> {
+    return request<AttentionItem[]>('/api/admin/overview');
   },
 
-  async createPage(siteId: string, pageData: Partial<Page>): Promise<Page> {
-    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializePagePayload(pageData, true)) });
-    return normalizePage(page);
+  async adminProjects(): Promise<ProjectSummary[]> {
+    return request<ProjectSummary[]>('/api/admin/projects');
   },
 
-  async updatePage(siteId: string, pageId: string, pageData: Partial<Page>): Promise<Page> {
-    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages/${pageId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializePagePayload(pageData)) });
-    return normalizePage(page);
+  async adminCreateProject(input: ProjectCreateInput): Promise<{ project: ProjectDetail; invited: boolean }> {
+    return post<{ project: ProjectDetail; invited: boolean }>('/api/admin/projects', input);
   },
 
-  /** Update SEO metadata without touching page content. */
-  async updatePageSeo(
-    siteId: string,
-    pageId: string,
-    seo: { meta_title?: string; meta_description?: string },
-  ): Promise<Page> {
-    const page = await request<Record<string, unknown>>(`/api/sites/${siteId}/pages/${pageId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seo) });
-    return normalizePage(page);
+  async adminUpdateProject(projectId: string, input: ProjectPatchInput): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/projects/${projectId}`, input);
   },
 
-  async publishSite(siteId: string): Promise<{ message: string; url: string }> {
-    return request<{ message: string; url: string }>(`/api/sites/${siteId}/publish`, { method: 'POST' });
+  /** Email the client a fresh sign-in link. */
+  async adminResendInvite(projectId: string): Promise<{ status: string; email: string }> {
+    return post<{ status: string; email: string }>(`/api/admin/projects/${projectId}/invite`);
   },
 
-  async savePage(siteId: string, pageId: string, blocks: BuilderBlock[]): Promise<Page> {
-    return this.updatePage(siteId, pageId, { content_json: { version: 1, blocks } });
+  async adminAddStage(projectId: string, name: string, description?: string | null): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/stages`, { name, description: description || null });
   },
 
-  /** Persist a canonical document as the page content. */
-  async saveDocument(
-    siteId: string,
-    pageId: string,
-    document: unknown,
-    meta: Partial<Pick<Page, 'title' | 'meta_title' | 'meta_description'>> = {},
-  ): Promise<Page> {
-    return this.updatePage(siteId, pageId, { content_json: { document }, ...meta });
+  async adminUpdateStage(projectId: string, stageId: string, input: StagePatchInput): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}`, input);
   },
 
-  async getAssets(siteId: string): Promise<Asset[]> {
-    return request<Asset[]>(`/api/sites/${siteId}/assets`);
+  async adminMoveStage(projectId: string, stageId: string, direction: 'up' | 'down'): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}/move`, { direction });
   },
 
-  /** Upload an image (as a base64 data URL) and return the stored asset. */
-  async uploadAsset(siteId: string, payload: { filename: string; data: string }): Promise<Asset> {
-    return request<Asset>(`/api/sites/${siteId}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  async adminDeleteStage(projectId: string, stageId: string): Promise<ProjectDetail> {
+    return request<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}`, { method: 'DELETE' });
   },
 
-  async deleteAsset(siteId: string, assetId: string): Promise<void> {
-    return request<void>(`/api/sites/${siteId}/assets/${assetId}`, { method: 'DELETE' });
+  async adminPostUpdate(projectId: string, input: StaffUpdateInput): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/updates`, input);
   },
 
-  // ---- Dashboard -------------------------------------------------------
-
-  async getDashboardStats(): Promise<DashboardStats> {
-    return request<DashboardStats>('/api/dashboard/stats');
+  async adminUpdateRequest(projectId: string, requestId: string, status: RequestStatus): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/requests/${requestId}`, { status });
   },
 
-  async getRecentActivity(): Promise<ActivityEvent[]> {
-    return request<ActivityEvent[]>('/api/dashboard/recent-activity');
+  async adminCreateInvoice(projectId: string, input: InvoiceCreateInput): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/invoices`, input);
   },
 
-  async getOrderSeries(): Promise<OrderSeries> {
-    return request<OrderSeries>('/api/dashboard/chart-data');
+  async adminUpdateInvoice(projectId: string, invoiceId: string, input: InvoicePatchInput): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/invoices/${invoiceId}`, input);
   },
 
-  // ---- Products --------------------------------------------------------
-
-  async getProducts(siteId: string): Promise<Product[]> {
-    return request<Product[]>(`/api/sites/${siteId}/products`);
+  async adminLeads(): Promise<Lead[]> {
+    return request<Lead[]>('/api/admin/leads');
   },
 
-  async createProduct(siteId: string, data: ProductInput): Promise<Product> {
-    return request<Product>(`/api/sites/${siteId}/products`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  },
-
-  async updateProduct(siteId: string, productId: string, data: Partial<ProductInput>): Promise<Product> {
-    return request<Product>(`/api/sites/${siteId}/products/${productId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  },
-
-  async deleteProduct(siteId: string, productId: string): Promise<void> {
-    return request<void>(`/api/sites/${siteId}/products/${productId}`, { method: 'DELETE' });
-  },
-
-  // ---- Orders ----------------------------------------------------------
-
-  async getOrders(siteId: string): Promise<Order[]> {
-    return request<Order[]>(`/api/sites/${siteId}/orders`);
-  },
-
-  async updateOrderStatus(siteId: string, orderId: string, status: OrderStatus): Promise<Order> {
-    return request<Order>(`/api/sites/${siteId}/orders/${orderId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
+  async adminUpdateLead(leadId: string, status: LeadStatus): Promise<Lead> {
+    return patch<Lead>(`/api/admin/leads/${leadId}`, { status });
   },
 };

@@ -1,96 +1,85 @@
 import type { Metadata } from 'next';
-import { CallToAction } from '@/components/marketing/CallToAction';
-import { PageHeader, Section, SectionHeading } from '@/components/marketing/Section';
-import { Statement } from '@/components/marketing/Statement';
-import { studio } from '@/content/site';
+import { CallToAction } from '@/components/site/CallToAction';
+import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 
 export const metadata: Metadata = {
-  title: 'Studio',
-  description:
-    'KleeLab is a small London studio building websites and digital products. How we work, and what we turn down.',
+  title: 'About',
+  description: 'KleeLab is a small, remote team that designs and builds websites and systems for organisations of every size.',
 };
 
-const PRINCIPLES = [
+const BELIEFS = [
   {
-    heading: 'Small on purpose',
-    body: 'Two or three people, working on a handful of projects at a time. Nobody you speak to is handing your work to someone you have not met.',
+    title: 'The people you meet do the work',
+    body: 'A small team working on a handful of projects at a time. Nobody you speak to is handing your project to someone you have never met.',
   },
   {
-    heading: 'Boring where it counts',
-    body: 'Passwords, payments and data handling are not places to be interesting. We use well-understood tools there, and save the invention for the parts people see.',
+    title: 'Boring where it matters',
+    body: 'Passwords, payments and data handling are not places to be clever. We use well-understood tools there and save the invention for the parts people see.',
   },
   {
-    heading: 'You keep the keys',
-    body: 'Domains, hosting and accounts are registered in your name. If you ever want to leave, you take everything with you, and we will help you move it.',
+    title: 'Everything in your name',
+    body: 'Domains, hosting and accounts are registered to you. If you ever want to leave, you take everything with you and we help you move it.',
   },
   {
-    heading: 'Finished means finished',
-    body: 'We would rather hand over a smaller site that is completely done than a larger one with three pages that nearly work.',
+    title: 'Done beats nearly done',
+    body: 'We would rather hand over a smaller system that is completely finished than a bigger one with three parts that nearly work.',
   },
 ];
 
-const DECLINES = [
-  'Projects where the brief is a competitor’s website.',
-  'Work where the person who decides will not be in the room.',
+const TURN_DOWN = [
+  'Projects where the brief is a copy of a competitor’s website.',
+  'Work where the person who decides will never be in the room.',
   'Anything that needs an answer faster than it can be done properly.',
 ];
 
 export default function AboutPage() {
   return (
     <>
-      <PageHeader
-        eyebrow="Studio"
-        title={`A small studio, founded in ${studio.founded}.`}
-        lead="We build websites and digital products for people who have a clear idea of what they need and no interest in becoming web developers to get it."
+      <PageHero
+        tag="About KleeLab"
+        title={
+          <>
+            A small team that builds <span className="mark">properly.</span>
+          </>
+        }
+        intro="We design and build websites, web apps and internal systems for start-ups, charities, clinics, schools, shops and everyone in between. We work remotely with clients wherever they are, and we show our work as we go."
       />
 
-      <Section>
-        <Statement>
-          We would rather ship one thing that works than five that nearly do.
-        </Statement>
-      </Section>
-
-      <Section tone="canvas">
-        <SectionHeading
-          eyebrow="How we work"
-          title="Four rules we do not bend."
-        />
-        <div className="mt-12 grid gap-10 md:grid-cols-2 md:gap-x-14">
-          {PRINCIPLES.map((principle) => (
-            <div key={principle.heading} className="border-t border-line pt-6">
-              <h3 className="font-serif text-xl leading-snug">{principle.heading}</h3>
-              <p className="mt-3 max-w-measure text-sm leading-6 text-muted">{principle.body}</p>
+      <Section tone="white">
+        <SectionHeading tag="What we believe" title="Four rules we do not bend." />
+        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border-[1.5px] border-ink bg-ink sm:grid-cols-2">
+          {BELIEFS.map((belief, index) => (
+            <div key={belief.title} className="bg-white p-7 sm:p-9">
+              <span className="font-mono text-xs text-cobalt">R-{String(index + 1).padStart(2, '0')}</span>
+              <h3 className="mt-3 font-display text-2xl font-extrabold tracking-tight">{belief.title}</h3>
+              <p className="mt-3 leading-relaxed text-muted">{belief.body}</p>
             </div>
           ))}
         </div>
       </Section>
 
       <Section>
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
           <SectionHeading
-            eyebrow="What we say no to"
-            title="Turning work down is part of the job."
-            lead="Every project we accept costs another one a place. These are the ones we have learned to decline, even when the budget is good."
+            tag="Why the dashboard"
+            title="Because waiting in the dark is the worst part."
+            intro="Most people who have had a website built remember the silence: weeks between emails, then a big reveal that was not quite right. Our client dashboard exists so that never happens. You see the work while it can still change."
           />
-          <ul className="space-y-5 lg:pt-2">
-            {DECLINES.map((item) => (
-              <li key={item} className="flex gap-3 border-b border-line pb-5 text-base leading-7">
-                <span aria-hidden="true" className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                {item}
-              </li>
-            ))}
-          </ul>
+          <div className="card relative p-7 shadow-block">
+            <div className="dim">what we turn down</div>
+            <ul className="grid gap-4">
+              {TURN_DOWN.map((item) => (
+                <li key={item} className="flex gap-3 leading-relaxed">
+                  <span className="mt-1 font-mono text-sm text-danger" aria-hidden>✕</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </Section>
 
-      <Section tone="canvas">
-        <CallToAction
-          title="Come and talk to us."
-          body="If your project is a fit we will tell you how we would approach it. If it is not, we will point you somewhere better."
-          primary={{ href: '/contact', label: 'Talk to the studio' }}
-          secondary={{ href: '/services', label: 'What we do' }}
-        />
-      </Section>
+      <CallToAction />
     </>
   );
 }

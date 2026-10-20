@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Requests allowed per IP per hour for every other route. The builder autosaves
     # while editing, so this needs enough headroom for a real session.
     RATE_LIMIT_PER_HOUR: int = 1000
+    # Messages per IP per hour to the visitor enquiry chat.
+    CHAT_RATE_LIMIT_PER_HOUR: int = 60
     # Development convenience: mark new accounts as email-verified immediately so
     # publishing is testable without a configured mail provider. Never enable this
     # in production.
@@ -45,6 +47,9 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str | None = None
     SENDGRID_FROM_EMAIL: str = "noreply@kleelab.com"
     SLACK_WEBHOOK_URL: str | None = None
+    # Where enquiries, client messages and sign-offs are sent. Falls back to the
+    # sending address when unset, which is what this did before it existed.
+    TEAM_INBOX: str | None = None
     # Cloudinary credential, supplied in the conventional URI form:
     # cloudinary://<api_key>:<api_secret>@<cloud_name>
     CLOUDINARY_URL: str | None = None

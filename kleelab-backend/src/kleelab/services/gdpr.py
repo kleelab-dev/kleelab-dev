@@ -8,6 +8,7 @@ from kleelab.models.asset import Asset
 from kleelab.models.order import Order
 from kleelab.models.page import Page
 from kleelab.models.product import Product
+from kleelab.models.project import Project, ProjectUpdate
 from kleelab.models.site import Site
 from kleelab.models.user import User
 from kleelab.services import storage
@@ -21,7 +22,10 @@ async def export_user_data(user_id: UUID, db: AsyncSession) -> dict:
     products = list((await db.execute(select(Product).where(Product.site_id.in_(site_ids)))).scalars().all()) if site_ids else []
     orders = list((await db.execute(select(Order).where(Order.site_id.in_(site_ids)))).scalars().all()) if site_ids else []
     assets = list((await db.execute(select(Asset).where(Asset.user_id == user_id))).scalars().all())
-    return {"user": {"id": str(user.id), "email": user.email, "full_name": user.full_name}, "sites": [{"id": str(site.id), "name": site.name} for site in sites], "pages": [{"id": str(page.id), "title": page.title, "content": page.content} for page in pages], "products": [{"id": str(product.id), "name": product.name} for product in products], "orders": [{"id": str(order.id), "total": str(order.total), "status": order.status} for order in orders], "assets": [{"id": str(asset.id), "url": asset.url} for asset in assets], "created_at": datetime.now(timezone.utc).isoformat()}
+    projects = list((await db.execute(select(Project).where(Project.client_id == user_id))).scalars().all())
+    project_ids = [project.id for project in projects]
+    messages = list((await db.execute(select(ProjectUpdate).where(ProjectUpdate.project_id.in_(project_ids), ProjectUpdate.author_id == user_id))).scalars().all()) if project_ids else []
+    return {"projects": [{"id": str(project.id), "reference": project.reference, "title": project.title, "status": project.status} for project in projects], "messages": [{"project_id": str(m.project_id), "kind": m.kind, "body": m.body, "approval_status": m.approval_status, "approval_note": m.approval_note, "created_at": m.created_at.isoformat()} for m in messages], "user": {"id": str(user.id), "email": user.email, "full_name": user.full_name}, "sites": [{"id": str(site.id), "name": site.name} for site in sites], "pages": [{"id": str(page.id), "title": page.title, "content": page.content} for page in pages], "products": [{"id": str(product.id), "name": product.name} for product in products], "orders": [{"id": str(order.id), "total": str(order.total), "status": order.status} for order in orders], "assets": [{"id": str(asset.id), "url": asset.url} for asset in assets], "created_at": datetime.now(timezone.utc).isoformat()}
 
 
 async def delete_user_data(user_id: UUID, db: AsyncSession) -> bool:

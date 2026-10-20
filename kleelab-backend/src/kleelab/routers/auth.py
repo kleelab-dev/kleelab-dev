@@ -19,6 +19,7 @@ from kleelab.models.user import User
 from kleelab.schemas.auth import (
     AccountOut,
     LogoutRequest,
+    PasswordResetRequest,
     PlanLimitsOut,
     PlanUsageOut,
     RefreshRequest,
@@ -221,10 +222,14 @@ async def request_password_reset(email: str, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/reset-password")
-async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
-    """Reset a user's password with a valid signed token."""
+async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+    """Set a new password from an emailed link.
 
-    payload = decode_signed_token(token)
+    Serves both "forgot password" and the invite a new client gets when the team
+    opens a project for them. Every existing session is signed out afterwards.
+    """
+
+    payload = decode_signed_token(body.token)
     if payload.get("purpose") != "password_reset":
         raise HTTPException(status_code=400, detail="Invalid reset token")
     user_id = payload.get("user_id")
@@ -234,8 +239,11 @@ async def reset_password(token: str, new_password: str, db: AsyncSession = Depen
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    user.password_hash = get_password_hash(new_password)
+    user.password_hash = get_password_hash(body.new_password)
+    # Following the link proves the address, which matters for invited clients.
+    user.is_verified = True
     await db.commit()
+    await sessions.revoke_all_for_user(user.id, db)
     return {"status": "password_reset"}
 
 
@@ -254,6 +262,7 @@ async def get_me(
         avatar_url=current_user.avatar_url,
         is_verified=current_user.is_verified,
         plan=state["plan"],
+        role=current_user.role,
         created_at=current_user.created_at,
         plan_label=state["label"],
         plan_blurb=state["blurb"],

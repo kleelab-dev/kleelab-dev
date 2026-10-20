@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { LegalPage } from '@/components/marketing/LegalPage';
+import { LegalPage } from '@/components/site/LegalPage';
 import { terms } from '@/content/legal';
 
 export const metadata: Metadata = {

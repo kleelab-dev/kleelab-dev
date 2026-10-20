@@ -17,22 +17,12 @@ from kleelab.core.logging import RequestLoggingMiddleware, configure_logging
 from kleelab.core.middleware import RateLimitMiddleware
 from kleelab.core.security_headers import SecurityHeadersMiddleware
 from kleelab.core.config import settings
-from kleelab.routers.auth import router as auth_router
+from kleelab.routers.admin import router as admin_router
 from kleelab.routers.agency import router as agency_router
-from kleelab.routers.ai import router as ai_router
-from kleelab.routers.analytics import router as analytics_router
-from kleelab.routers.assets import router as assets_router
-from kleelab.routers.dashboard import router as dashboard_router
+from kleelab.routers.auth import router as auth_router
+from kleelab.routers.chat import router as chat_router
 from kleelab.routers.gdpr import router as gdpr_router
-from kleelab.routers.pages import router as pages_router
-from kleelab.routers.products import router as products_router
-from kleelab.routers.orders import router as orders_router
-from kleelab.routers.public import router as public_router
-from kleelab.routers.seo import router as seo_router
-from kleelab.routers.sites import router as sites_router
-from kleelab.routers.storefront import router as storefront_router
-from kleelab.routers.templates import router as templates_router
-from kleelab.routers.versions import router as versions_router
+from kleelab.routers.projects import router as projects_router
 from kleelab.services import llm
 
 
@@ -41,16 +31,14 @@ logger = logging.getLogger(__name__)
 if sentry_sdk is not None and settings.SENTRY_DSN:
     sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
 
-# Say so out loud. The AI builder fails closed, which is right, but "switched off"
-# and "broken" look identical from the interface: the start page simply offers a
-# blank page and a customer has no way to tell what happened. A line in the log at
-# boot is the difference between a two-minute fix and an afternoon spent reading
-# code — and `.env` overrides the code defaults, so this is the only place that
-# reports what the running process actually believes.
+# Say which mode the visitor chat is in. Without a model it still answers from a
+# set of written replies, which looks like a working chat, so a missing or
+# rotated key would otherwise go unnoticed. `.env` overrides the code defaults,
+# so this is the only place that reports what the running process believes.
 if not llm.available():
     logger.warning(
-        "AI site builder is OFF: AI_ENABLED=%s, provider keys configured=%s. "
-        "/api/ai/* will refuse with 503 ai_not_configured. Set AI_ENABLED=true and "
+        "AI enquiry chat is on written answers only: AI_ENABLED=%s, provider keys "
+        "configured=%s. Set AI_ENABLED=true and "
         "DEEPSEEK_API_KEY (and optionally GEMINI_API_KEY) in kleelab-backend/.env "
         "(and in the host's environment for a deployed instance) to switch it on.",
         settings.AI_ENABLED,
@@ -60,12 +48,9 @@ else:
     # Names every live provider rather than one, so "running on one instead of
     # two" is visible at boot instead of being inferred from a slow first build.
     logger.info(
-        "AI site builder is on. Providers: %s. First choice per pass: brief=%s, "
-        "content=%s, edit=%s.",
+        "AI enquiry chat is on. Providers: %s. First choice: %s.",
         ", ".join(llm.configured_providers()),
-        llm.preferred_model("brief"),
-        llm.preferred_model("content"),
-        llm.preferred_model("edit"),
+        llm.preferred_model("chat"),
     )
 
 # The other switch that changes what the product will do to someone, and the more
@@ -98,22 +83,15 @@ app.add_middleware(
 # Added last so it is the outermost layer, meaning headers are present even on
 # responses produced by the rate limiter or CORS preflight.
 app.add_middleware(SecurityHeadersMiddleware)
+# The self-serve site builder (sites, pages, products, orders, storefront, AI
+# builder) is retired for now: KleeLab builds for clients instead. Its routers are
+# no longer mounted, and its tables and data are left untouched.
 app.include_router(auth_router)
 app.include_router(agency_router)
-app.include_router(ai_router)
-app.include_router(assets_router)
-app.include_router(analytics_router)
-app.include_router(dashboard_router)
+app.include_router(chat_router)
+app.include_router(projects_router)
+app.include_router(admin_router)
 app.include_router(gdpr_router)
-app.include_router(sites_router)
-app.include_router(pages_router)
-app.include_router(products_router)
-app.include_router(public_router)
-app.include_router(orders_router)
-app.include_router(seo_router)
-app.include_router(storefront_router)
-app.include_router(templates_router)
-app.include_router(versions_router)
 
 
 @app.get("/")

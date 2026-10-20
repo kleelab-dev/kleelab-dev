@@ -30,28 +30,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Section kit
-        # Every recipe must build a valid section and survive malformed input.
-        # The AI builder composes sites from these, so a broken recipe would ship
-        # as a blank gap or an invalid document on a customer's page.
-        run: npm run check:sections
-
       - name: Sign-in redirect safety
         # `?next=` is attacker-controlled; a sign-in page that forwards anywhere
         # is a phishing tool wearing our domain.
         run: npm run check:auth
-
-      - name: Assistant change application
-        # The one place a model's output becomes changes to a real page. Every
-        # invalid operation must be refused and must leave the document exactly
-        # as it was — a half-applied change is worse than a rejected one.
-        run: npm run check:operations
-
-      - name: Design system
-        # No recipe may reference a token that does not exist — a dangling one
-        # renders as nothing, with no error. Also pins the assumption that the
-        # defaults reproduce the fixed classes they replaced.
-        run: npm run check:design
 
       - name: Build
         run: npm run build
@@ -85,11 +67,14 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
           SECRET_KEY: ci-placeholder-secret-key-not-for-production
 
-      - name: AI endpoint checks
-        # What we do when the model answers wrongly: an invented section id, a page
-        # with no home, a hostile slug, an answer of the wrong shape. Each must
-        # degrade to a plainer site or a clear message, never a traceback.
-        run: python scripts/check_ai.py
+      - name: Enquiry chat
+        # The visitor chat on every public page. A model that answers well, badly,
+        # or not at all must each end in a usable reply, never a traceback.
+        run: python scripts/check_chat.py
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production
 
       - name: Design library data
         # The vendored dataset is committed verbatim, and the library the app loads

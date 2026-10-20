@@ -96,6 +96,8 @@ _TASK_PREFERENCES: dict[str, tuple[str, ...]] = {
     # Volume prose and small surgical edits, where DeepSeek is proven.
     "content": ("deepseek", "gemini"),
     "edit": ("deepseek", "gemini"),
+    # The visitor chat: short answers where latency matters more than depth.
+    "chat": ("deepseek", "gemini"),
 }
 
 
