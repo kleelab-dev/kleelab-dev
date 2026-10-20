@@ -1,15 +1,20 @@
 """Agency contact form and lead capture schemas."""
 
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # What the enquirer is actually after. A free-text "project type" cannot be
 # routed or reported on, which is why the in-app flow asks this instead.
 LeadInterest = Literal["pro", "enterprise", "migration", "general"]
-LeadBudget = Literal["under_5k", "5k_15k", "15k_50k", "over_50k", "unsure"]
+# Budget bands in naira, from 2026 Nigerian price guides: a business site is
+# usually under N500k, a shop N500k-N1.5m, a web app N1.5m-N5m and up.
+BUDGET_BANDS = {"under_500k", "500k_1_5m", "1_5m_5m", "over_5m", "unsure"}
+# Or the enquirer types their own figure, stored as "ngn_<whole naira>".
+CUSTOM_BUDGET = re.compile(r"^ngn_[1-9]\d{0,12}$")
 LeadSource = Literal["marketing", "app", "chat"]
 
 
@@ -23,11 +28,18 @@ class LeadCreate(BaseModel):
     # Qualification. All optional so the marketing form keeps working unchanged.
     company: str | None = Field(default=None, max_length=150)
     interest: LeadInterest | None = None
-    budget: LeadBudget | None = None
+    budget: str | None = Field(default=None, max_length=20)
     source: LeadSource = "marketing"
     # Honeypot. The form hides this field, so a human never fills it in and any
     # value at all is a reliable bot signal.
     website: str | None = Field(default=None, max_length=200)
+
+    @field_validator("budget")
+    @classmethod
+    def known_budget(cls, value: str | None) -> str | None:
+        if value is None or value in BUDGET_BANDS or CUSTOM_BUDGET.match(value):
+            return value
+        raise ValueError("Pick a budget range or type an amount in naira")
 
 
 class LeadReceived(BaseModel):

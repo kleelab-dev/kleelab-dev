@@ -106,6 +106,11 @@ export function leadSource(source: string): string {
 }
 
 const BUDGETS: Record<string, string> = {
+  under_500k: 'Under ₦500k',
+  '500k_1_5m': '₦500k to ₦1.5m',
+  '1_5m_5m': '₦1.5m to ₦5m',
+  over_5m: 'Over ₦5m',
+  // Older enquiries, from before budgets were in naira.
   under_5k: 'Under $5,000',
   '5k_15k': '$5,000 to $15,000',
   '15k_50k': '$15,000 to $50,000',
@@ -115,6 +120,8 @@ const BUDGETS: Record<string, string> = {
 
 export function budgetLabel(budget: string | null): string | null {
   if (!budget) return null;
+  const own = /^ngn_(\d+)$/.exec(budget);
+  if (own) return `₦${Number(own[1]).toLocaleString('en-NG')} (their figure)`;
   return BUDGETS[budget] ?? budget.replace(/_/g, ' ');
 }
 

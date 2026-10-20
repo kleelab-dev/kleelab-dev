@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     AUTO_VERIFY_EMAILS: bool = False
     SQL_ECHO: bool = False
     SENTRY_DSN: str | None = None
+    # Mailtrap Email Sending API token. Used first when set; Resend is the fallback.
+    MAILTRAP_API_TOKEN: str | None = None
     RESEND_API_KEY: str | None = None
     SENDGRID_FROM_EMAIL: str = "noreply@kleelab.com"
     SLACK_WEBHOOK_URL: str | None = None

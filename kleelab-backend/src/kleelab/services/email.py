@@ -2,11 +2,14 @@ import logging
 from html import escape
 from urllib.parse import quote
 
+import httpx
 import resend
 
 from kleelab.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+MAILTRAP_SEND_URL = "https://send.api.mailtrap.io/api/send"
 
 
 def _send(to: str, subject: str, html: str) -> bool:
@@ -17,17 +20,41 @@ def _send(to: str, subject: str, html: str) -> bool:
     message and stranding the account unverified forever.
     """
 
+    if settings.MAILTRAP_API_TOKEN:
+        return _send_mailtrap(to, subject, html)
+
     if not settings.RESEND_API_KEY:
         # Locally there is no provider, so print the message rather than lose it.
         # Only in development: the body contains single-use tokens.
         if settings.ENVIRONMENT == "development":
-            logger.warning("Email to %s was NOT delivered (no RESEND_API_KEY). Body:\n%s", to, html)
+            logger.warning("Email to %s was NOT delivered (no email provider set). Body:\n%s", to, html)
         else:
-            logger.error("RESEND_API_KEY is not configured; email to %s was dropped", to)
+            logger.error("No email provider is configured; email to %s was dropped", to)
         return False
 
     resend.api_key = settings.RESEND_API_KEY
     resend.Emails.send({"from": settings.SENDGRID_FROM_EMAIL, "to": [to], "subject": subject, "html": html})
+    return True
+
+
+def _send_mailtrap(to: str, subject: str, html: str) -> bool:
+    try:
+        response = httpx.post(
+            MAILTRAP_SEND_URL,
+            headers={"Authorization": f"Bearer {settings.MAILTRAP_API_TOKEN}"},
+            json={
+                "from": {"email": settings.SENDGRID_FROM_EMAIL, "name": "KleeLab"},
+                "to": [{"email": to}],
+                "subject": subject,
+                "html": html,
+            },
+            timeout=15.0,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        # Never log the body: it can hold single-use tokens.
+        logger.error("Mailtrap did not accept email to %s: %s", to, exc)
+        return False
     return True
 
 

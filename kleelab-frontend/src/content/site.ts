@@ -62,11 +62,17 @@ export const projectTypes = [
   'Something else',
 ] as const;
 
+/**
+ * Budget bands in naira. Taken from 2026 Nigerian price guides: a business
+ * website usually lands under ₦500k, an online shop ₦500k to ₦1.5m, and a web
+ * app or internal system ₦1.5m to ₦5m and up. Mirrors BUDGET_BANDS in
+ * kleelab-backend/src/kleelab/schemas/agency.py.
+ */
 export const budgets = [
-  { value: 'under_5k', label: 'Under 5k' },
-  { value: '5k_15k', label: '5k to 15k' },
-  { value: '15k_50k', label: '15k to 50k' },
-  { value: 'over_50k', label: 'Over 50k' },
+  { value: 'under_500k', label: 'Under ₦500k' },
+  { value: '500k_1_5m', label: '₦500k to ₦1.5m' },
+  { value: '1_5m_5m', label: '₦1.5m to ₦5m' },
+  { value: 'over_5m', label: 'Over ₦5m' },
   { value: 'unsure', label: 'Not sure yet' },
 ] as const;
 

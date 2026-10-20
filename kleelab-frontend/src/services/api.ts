@@ -264,7 +264,8 @@ export const apiService = {
     email: string;
     name?: string | null;
     company?: string | null;
-    budget?: 'under_5k' | '5k_15k' | '15k_50k' | 'over_50k' | 'unsure';
+    /** A band from `budgets` in content/site, or `ngn_<amount>` for a typed figure. */
+    budget?: string;
     message: string;
     project_type?: string | null;
     source?: 'marketing' | 'chat';

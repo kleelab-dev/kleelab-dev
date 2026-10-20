@@ -6,14 +6,22 @@ import { budgets, projectTypes } from '@/content/site';
 import { apiService } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 
-type Budget = (typeof budgets)[number]['value'];
+type Budget = (typeof budgets)[number]['value'] | 'own';
+
+/** Keep digits only and show them with commas: 2500000 -> 2,500,000. */
+function formatNaira(raw: string): string {
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '').slice(0, 13);
+  return digits ? Number(digits).toLocaleString('en-NG') : '';
+}
 
 export function ContactForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [projectType, setProjectType] = useState<string>(projectTypes[0]);
+  const [otherType, setOtherType] = useState('');
   const [budget, setBudget] = useState<Budget>('unsure');
+  const [ownBudget, setOwnBudget] = useState('');
   const [message, setMessage] = useState('');
   // Honeypot: people never see it, form-filling bots usually fill it in.
   const [website, setWebsite] = useState('');
@@ -24,6 +32,10 @@ export function ContactForm() {
     event.preventDefault();
     if (!email.trim()) return setError('Add an email address so we can reply.');
     if (message.trim().length < 10) return setError('Tell us a little more about the project (a sentence or two is plenty).');
+    const isOther = projectType === 'Something else';
+    if (isOther && !otherType.trim()) return setError('Tell us in a few words what you need.');
+    const ownDigits = ownBudget.replace(/\D/g, '');
+    if (budget === 'own' && !ownDigits) return setError('Type your budget in naira, or pick one of the ranges.');
     setState('sending');
     setError(null);
     try {
@@ -31,8 +43,8 @@ export function ContactForm() {
         email: email.trim(),
         name: name.trim() || null,
         company: company.trim() || null,
-        project_type: projectType,
-        budget,
+        project_type: isOther ? `Something else: ${otherType.trim()}`.slice(0, 255) : projectType,
+        budget: budget === 'own' ? `ngn_${ownDigits}` : budget,
         message: message.trim(),
         website,
       });
@@ -95,9 +107,26 @@ export function ContactForm() {
             </button>
           ))}
         </div>
+        {projectType === 'Something else' && (
+          <div className="mt-3">
+            <label htmlFor="c-other" className="sr-only">What do you need?</label>
+            <input
+              id="c-other"
+              className="field"
+              autoFocus
+              maxLength={200}
+              placeholder="e.g. a mobile app, a booking system, fixing our current site"
+              value={otherType}
+              onChange={(e) => setOtherType(e.target.value)}
+            />
+          </div>
+        )}
       </fieldset>
       <fieldset>
-        <legend className="label">Rough budget</legend>
+        <legend className="label">Rough budget (naira)</legend>
+        <p className="-mt-1 mb-3 text-sm text-muted">
+          Only a guide, so we can suggest what fits. You get an exact price in writing after the first call.
+        </p>
         <div className="flex flex-wrap gap-2">
           {budgets.map((option) => (
             <button
@@ -114,7 +143,36 @@ export function ContactForm() {
               {option.label}
             </button>
           ))}
+          <button
+            type="button"
+            aria-pressed={budget === 'own'}
+            onClick={() => setBudget('own')}
+            className={
+              budget === 'own'
+                ? 'rounded-full border-[1.5px] border-ink bg-sun px-3.5 py-1.5 text-sm'
+                : 'rounded-full border-[1.5px] border-dashed border-cobalt bg-cobalt-soft px-3.5 py-1.5 text-sm text-cobalt hover:border-solid'
+            }
+          >
+            + Type my own budget
+          </button>
         </div>
+        {budget === 'own' && (
+          <div className="mt-3 max-w-xs">
+            <label htmlFor="c-budget" className="sr-only">Your budget in naira</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-ink">₦</span>
+              <input
+                id="c-budget"
+                className="field pl-9"
+                inputMode="numeric"
+                autoFocus
+                placeholder="e.g. 750,000"
+                value={ownBudget}
+                onChange={(e) => setOwnBudget(formatNaira(e.target.value))}
+              />
+            </div>
+          </div>
+        )}
       </fieldset>
       <div>
         <label htmlFor="c-message" className="label">Tell us about it *</label>

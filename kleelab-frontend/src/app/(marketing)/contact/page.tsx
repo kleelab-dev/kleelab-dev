@@ -58,7 +58,7 @@ export default function ContactPage() {
             </div>
             <div>
               <p className="tag">Email</p>
-              <a href={`mailto:${studio.email}`} className="mt-3 inline-block font-display text-2xl font-bold text-cobalt">
+              <a href={`mailto:${studio.email}`} className="mt-3 block w-fit break-all font-display text-lg font-bold text-cobalt underline-offset-4 hover:underline sm:text-xl">
                 {studio.email}
               </a>
             </div>
