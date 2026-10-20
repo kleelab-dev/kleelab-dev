@@ -8,7 +8,7 @@
 
 export const studio = {
   name: 'KleeLab',
-  tagline: 'Websites and systems, built in the open.',
+  tagline: 'Websites and systems, built where you can see them.',
   /** TODO: confirm the real inbox before launch. */
   email: 'hello@kleelab.com',
   founded: 2024,
@@ -77,45 +77,45 @@ export const budgets = [
  */
 export const processStages = [
   {
-    name: 'Discovery & scope',
-    short: 'We listen, ask awkward questions and write down exactly what we will build.',
+    name: 'Planning',
+    short: 'We listen, ask questions and write down exactly what we will build.',
     detail:
-      'A call or two with the people who will use the thing. We map what you have now, what has to change and what success looks like, then send a written scope with a timeline and a fixed quote for you to sign off.',
-    youDo: 'Tell us how things work today. Sign off the scope.',
+      'A call or two with the people who will use the thing. We map what you have now, what has to change and what success looks like, then send you a written plan with dates and a fixed price for you to approve.',
+    youDo: 'Tell us how things work today. Approve the plan.',
   },
   {
     name: 'Design',
-    short: 'Layouts and flows you can click through before a line of code is written.',
+    short: 'Screens you can click through and try before we build anything.',
     detail:
-      'We design the key screens for desktop and mobile and share a clickable prototype. Changes are cheap here, so this is where we argue about the details.',
+      'We design the main screens for computers and phones and share a version you can click through. Changes are easy at this point, so this is where we get the details right.',
     youDo: 'Click around, leave comments, approve the design.',
   },
   {
     name: 'Build',
-    short: 'We build in small pieces and show you working software every week.',
+    short: 'We build it bit by bit and show you something working every week.',
     detail:
-      'Real code on a private preview link that updates as we go. Weekly updates land in your dashboard with what moved, what is next and anything we need from you.',
+      'You can try it on a private preview link that updates as we go. Weekly updates land in your dashboard with what moved, what is next and anything we need from you.',
     youDo: 'Answer questions, send content, try the preview.',
   },
   {
     name: 'Testing',
     short: 'Your team tries to break it. We fix what they find.',
     detail:
-      'We test on real devices, check accessibility and performance, then hand the preview to your team for a round of real-world use. Every issue is tracked to done.',
+      'We test it on real phones and computers, check that it is fast and easy for everyone to use, then your team tries it out. We fix every problem they find.',
     youDo: 'Use it like you will on a busy day. Report anything odd.',
   },
   {
-    name: 'Launch & deploy',
-    short: 'Domain, hosting, email and analytics set up properly, then we go live.',
+    name: 'Going live',
+    short: 'We set up your web address, hosting and email properly, then put it online.',
     detail:
-      'We deploy to your hosting or ours, connect the domain, set up backups and monitoring, and launch at a quiet time with someone watching.',
+      'We put it on your hosting or ours, connect your web address, set up backups and checks, and go live at a quiet time with someone watching.',
     youDo: 'Give the final go-ahead.',
   },
   {
-    name: 'Handover',
-    short: 'The keys, the code, the docs and a walkthrough. It is yours.',
+    name: 'Hand-over',
+    short: 'All the logins, the code, a written guide and a walkthrough. Then it is yours.',
     detail:
-      'Every account, repository and password is transferred to you, with written documentation and a recorded walkthrough for your team. Keep us on a care plan, or run it yourselves.',
-    youDo: 'Collect the keys. Decide on a care plan, or not.',
+      'Every account, the code and all the logins are passed to you, with a written guide and a recorded walkthrough for your team. Pay us monthly to look after it, or run it yourselves.',
+    youDo: 'Take over the logins. Decide if you want monthly care.',
   },
 ] as const;

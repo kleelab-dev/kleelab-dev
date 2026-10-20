@@ -4,7 +4,7 @@ import { AskButton } from '@/components/site/AskButton';
 /** The closing band on most pages. */
 export function CallToAction({
   title = 'Got something to build?',
-  body = 'Tell us what you need. We will reply within a working day to set up a short discovery call, free and with no obligation.',
+  body = 'Tell us what you need. We will reply within a working day to set up a short first call. It is free, and you are not committing to anything.',
 }: {
   title?: string;
   body?: string;

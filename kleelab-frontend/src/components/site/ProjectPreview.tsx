@@ -1,12 +1,12 @@
 import { clsx } from 'clsx';
 
 const STEPS = [
-  { name: 'Discovery & scope', note: 'signed off', state: 'done' },
-  { name: 'Design', note: 'signed off', state: 'done' },
-  { name: 'Build', note: 'in progress', state: 'now' },
+  { name: 'Planning', note: 'approved', state: 'done' },
+  { name: 'Design', note: 'approved', state: 'done' },
+  { name: 'Build', note: 'working on it', state: 'now' },
   { name: 'Testing', note: 'next', state: 'todo' },
-  { name: 'Launch & deploy', note: 'planned', state: 'todo' },
-  { name: 'Handover', note: 'planned', state: 'todo' },
+  { name: 'Going live', note: 'planned', state: 'todo' },
+  { name: 'Hand-over', note: 'planned', state: 'todo' },
 ] as const;
 
 /**
@@ -20,7 +20,7 @@ export function ProjectPreview({ className }: { className?: string }) {
     <figure className={clsx('relative', className)} aria-label="Example of a client dashboard">
       <div className="card relative p-5 shadow-block sm:p-6">
         <div className="dim">your dashboard</div>
-        <span className="stamp absolute -right-3 -top-4">Rev 03 · approved</span>
+        <span className="stamp absolute -right-3 -top-4">Version 3 · approved</span>
         <p className="font-mono text-[11px] uppercase tracking-label text-muted">PRJ-0142 · example project</p>
         <p className="mt-1 font-display text-xl font-extrabold tracking-tight">Clinic booking system</p>
         <div className="mt-4 h-2 overflow-hidden rounded-full border border-ink bg-paper">
@@ -48,10 +48,10 @@ export function ProjectPreview({ className }: { className?: string }) {
         </ol>
         <div className="mt-5 rounded-xl border-[1.5px] border-dashed border-cobalt bg-cobalt-soft p-3">
           <p className="font-mono text-[10px] uppercase tracking-label text-cobalt">Please approve</p>
-          <p className="mt-1 text-sm font-medium">Booking flow, round 2</p>
+          <p className="mt-1 text-sm font-medium">Booking pages, round 2</p>
           <div className="mt-2.5 flex gap-2">
             <span className="rounded-full bg-cobalt px-3 py-1 text-xs font-semibold text-white">Approve</span>
-            <span className="rounded-full border-[1.5px] border-ink px-3 py-1 text-xs font-semibold">Request changes</span>
+            <span className="rounded-full border-[1.5px] border-ink px-3 py-1 text-xs font-semibold">Ask for changes</span>
           </div>
         </div>
       </div>

@@ -27,7 +27,7 @@ const mono = JetBrains_Mono({
   weight: ['400', '500', '600'],
 });
 
-const TITLE = 'KleeLab: websites and systems, built in the open';
+const TITLE = 'KleeLab: websites and systems, built where you can see them';
 const DESCRIPTION =
   'KleeLab designs and builds websites, web apps and internal systems for organisations and businesses. You follow every step on your own dashboard, then we deploy, host and look after it if you want us to.';
 

@@ -52,7 +52,7 @@ export function ContactForm() {
         </span>
         <h2 className="mt-5 font-display text-3xl font-extrabold tracking-tight">Thanks, we have it.</h2>
         <p className="mt-3 max-w-md leading-relaxed text-muted">
-          Someone from the team will reply within one working day to set up a short discovery call. No sales script,
+          Someone from the team will reply within one working day to set up a short first call. No sales script,
           just questions about what you need.
         </p>
       </div>

@@ -62,7 +62,7 @@ export default function HowWeBuildPage() {
         </div>
       </Section>
 
-      <CallToAction title="Want to see it from the inside?" body="Start a project and your dashboard is ready the same day. The discovery call is free, so it costs nothing to find out." />
+      <CallToAction title="Want to see it from the inside?" body="Start a project and your dashboard is ready the same day. The first call is free, so it costs nothing to find out." />
     </>
   );
 }

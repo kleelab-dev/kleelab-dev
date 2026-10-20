@@ -6,12 +6,12 @@ import { PageHero } from '@/components/site/Section';
 
 export const metadata: Metadata = {
   title: 'Start a project',
-  description: 'Tell us what you need. We reply within one working day to set up a free discovery call.',
+  description: 'Tell us what you need. We reply within one working day to set up a free first call.',
 };
 
 const NEXT_STEPS = [
   'We reply within one working day.',
-  'A free 30-minute discovery call to understand what you need.',
+  'A free 30-minute call to understand what you need.',
   'A written scope, timeline and fixed quote.',
   'You sign off, and your project dashboard opens the same day.',
 ];
