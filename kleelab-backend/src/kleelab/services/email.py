@@ -101,9 +101,10 @@ def send_project_invite_email(email: str, name: str | None, project_title: str, 
         f"Your KleeLab project: {project_title}",
         f"<p>Hi {escape(name or 'there')},</p>"
         f"<p>We have set up <strong>{escape(project_title)}</strong> on your KleeLab dashboard. "
-        "You can follow every step there, from discovery to handover.</p>"
+        "You can follow every step there, from planning to hand-over.</p>"
         f'<p>Choose a password to sign in:</p><p><a href="{url}">{url}</a></p>'
-        "<p>This link expires in 7 days.</p>",
+        "<p>This link works for 7 days. After that, sign in with your email and the password you chose. "
+        "If the link has run out, reply to this email and we will send a new one.</p>",
     )
 
 

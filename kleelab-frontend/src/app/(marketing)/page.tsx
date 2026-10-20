@@ -27,6 +27,14 @@ const DASHBOARD_FEATURES = [
 
 const FAQS = [
   {
+    q: 'How do I start a project?',
+    a: 'Click Start a project and tell us in a few lines what you need. We reply within one working day to set up a free 30-minute call. After the call we send you a written plan with dates and a fixed price. Once you approve it, the work starts and your dashboard opens the same day.',
+  },
+  {
+    q: 'How do I sign up for the dashboard?',
+    a: 'You do not need to sign up. When your project starts, we create your account and email you a link to choose a password. After that, sign in any time with Client login at the top of this page. If the link has run out or you forget your password, use Forgot it? on the sign-in page, or just ask us.',
+  },
+  {
     q: 'How much does a project cost?',
     a: 'It depends on what you need, so we give you a price after a short, free first call. You get a fixed price in writing before any work starts.',
   },

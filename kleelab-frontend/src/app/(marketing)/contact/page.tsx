@@ -12,8 +12,9 @@ export const metadata: Metadata = {
 const NEXT_STEPS = [
   'We reply within one working day.',
   'A free 30-minute call to understand what you need.',
-  'A written scope, timeline and fixed quote.',
-  'You sign off, and your project dashboard opens the same day.',
+  'A written plan with dates and a fixed price.',
+  'You approve it and the work starts.',
+  'We email you a link to choose a password, and your project dashboard is ready the same day. There is nothing to sign up for.',
 ];
 
 export default function ContactPage() {
@@ -23,7 +24,7 @@ export default function ContactPage() {
         tag="Start a project"
         title={
           <>
-            Let’s draw it <span className="mark">up.</span>
+            Let’s get <span className="mark">started.</span>
           </>
         }
         intro="A few lines is plenty. Tell us what you are hoping to build and we will take it from there."
