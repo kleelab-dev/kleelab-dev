@@ -210,8 +210,9 @@ export const apiService = {
     return post<User>('/api/auth/register', data);
   },
 
+  /** Staff-only sign-in: the backend refuses client accounts here, and staff on the public site's /login. */
   async login(email: string, password: string): Promise<void> {
-    const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/login', { email, password });
+    const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/staff-login', { email, password });
     setSession(result.access_token, result.refresh_token ?? null);
   },
 

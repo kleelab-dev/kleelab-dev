@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
+    # The team dashboard (kleelab-admin). Password reset links for staff accounts
+    # point here so a staff reset never goes through the public site. Unset falls
+    # back to FRONTEND_URL.
+    ADMIN_URL: str | None = None
     # The domain customer sites live under, so a published site is reachable at
     # `{subdomain}.{SITES_DOMAIN}`. Empty means sites are served from paths on
     # FRONTEND_URL instead, which is what local development needs — the frontend's

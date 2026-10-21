@@ -75,12 +75,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) ->
     return user
 
 
-@router.post("/login", response_model=Token)
-async def login(
-    user_data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)
-) -> Token:
-    """Authenticate a user and issue an access + refresh token pair."""
-
+async def _authenticate(user_data: UserLogin, db: AsyncSession) -> User:
     ensure_password_supported(user_data.password)
     result = await db.execute(select(User).where(User.email == user_data.email))
     user = result.scalar_one_or_none()
@@ -92,7 +87,42 @@ async def login(
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
+    return user
 
+
+# Staff and clients sign in at different doors: the public site uses /login,
+# the team dashboard (kleelab-admin) uses /staff-login. Each refuses the other
+# kind of account, so a staff password typed into the public site gets nowhere.
+
+
+@router.post("/login", response_model=Token)
+async def login(
+    user_data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)
+) -> Token:
+    """Client sign-in for the public site. Staff accounts are refused."""
+
+    user = await _authenticate(user_data, db)
+    if user.role == "staff":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Team accounts sign in on the team dashboard, not here.",
+        )
+    tokens = await sessions.issue_tokens(user, db, request.headers.get("user-agent"))
+    return Token(**tokens)
+
+
+@router.post("/staff-login", response_model=Token)
+async def staff_login(
+    user_data: UserLogin, request: Request, db: AsyncSession = Depends(get_db)
+) -> Token:
+    """Team sign-in for the admin app. Only staff accounts get a session."""
+
+    user = await _authenticate(user_data, db)
+    if user.role != "staff":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This sign-in is for the KleeLab team only.",
+        )
     tokens = await sessions.issue_tokens(user, db, request.headers.get("user-agent"))
     return Token(**tokens)
 
@@ -217,7 +247,7 @@ async def request_password_reset(email: str, db: AsyncSession = Depends(get_db))
     if user is None:
         return {"status": "if_account_exists_reset_email_sent"}
     token = create_signed_token({"user_id": str(user.id), "purpose": "password_reset"}, timedelta(minutes=15))
-    send_password_reset_email(user.email, token)
+    send_password_reset_email(user.email, token, staff=user.role == "staff")
     return {"status": "reset_email_sent"}
 
 

@@ -1,14 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { AuthShell, FormError } from '@/components/auth/AuthShell';
 import { apiService } from '@/services/api';
-
-// Password resets are emailed with a link to the public site, so "Forgot it?"
-// sends people there rather than duplicating the reset pages here.
-const CLIENT_SITE = (process.env.NEXT_PUBLIC_CLIENT_SITE_URL || 'https://kleelab.com').replace(/\/$/, '');
 
 /** Team sign-in. Same accounts as the public site; only staff get past AppShell. */
 export function TeamLogin({ next }: { next: string }) {
@@ -46,9 +43,9 @@ export function TeamLogin({ next }: { next: string }) {
         <div>
           <div className="flex items-baseline justify-between">
             <label htmlFor="password" className="label">Password</label>
-            <a href={`${CLIENT_SITE}/forgot-password`} className="text-xs text-cobalt">
+            <Link href="/forgot-password" className="text-xs text-cobalt">
               Forgot it?
-            </a>
+            </Link>
           </div>
           <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="field" />
         </div>

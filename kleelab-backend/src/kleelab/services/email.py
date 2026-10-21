@@ -58,8 +58,8 @@ def _send_mailtrap(to: str, subject: str, html: str) -> bool:
     return True
 
 
-def _link(path: str, token: str) -> str:
-    return f"{settings.FRONTEND_URL.rstrip('/')}/{path.lstrip('/')}?token={quote(token)}"
+def _link(path: str, token: str, base: str | None = None) -> str:
+    return f"{(base or settings.FRONTEND_URL).rstrip('/')}/{path.lstrip('/')}?token={quote(token)}"
 
 
 def send_welcome_email(email: str, name: str | None = None) -> bool:
@@ -82,8 +82,9 @@ def send_verification_email(email: str, token: str) -> bool:
     )
 
 
-def send_password_reset_email(email: str, token: str) -> bool:
-    url = _link("reset-password", token)
+def send_password_reset_email(email: str, token: str, staff: bool = False) -> bool:
+    # Staff reset on the team dashboard, never on the public site.
+    url = _link("reset-password", token, settings.ADMIN_URL if staff else None)
     return _send(
         email,
         "Reset your KleeLab password",
