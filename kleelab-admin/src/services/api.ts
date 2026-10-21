@@ -1,11 +1,13 @@
 import type {
+  AdminStats,
   AttentionItem,
   ChatReply,
   ChatTurn,
   InvoiceCreateInput,
   InvoicePatchInput,
   Lead,
-  LeadStatus,
+  LeadDetail,
+  LeadPatchInput,
   ProjectCreateInput,
   ProjectDetail,
   ProjectPatchInput,
@@ -406,7 +408,25 @@ export const apiService = {
     return request<Lead[]>('/api/admin/leads');
   },
 
-  async adminUpdateLead(leadId: string, status: LeadStatus): Promise<Lead> {
-    return patch<Lead>(`/api/admin/leads/${leadId}`, { status });
+  async adminLead(leadId: string): Promise<LeadDetail> {
+    return request<LeadDetail>(`/api/admin/leads/${leadId}`);
+  },
+
+  async adminUpdateLead(leadId: string, input: LeadPatchInput): Promise<Lead> {
+    return patch<Lead>(`/api/admin/leads/${leadId}`, input);
+  },
+
+  /** A private team note on an enquiry. */
+  async adminAddLeadNote(leadId: string, body: string): Promise<LeadDetail> {
+    return post<LeadDetail>(`/api/admin/leads/${leadId}/notes`, { body });
+  },
+
+  /** Email the enquirer; the backend keeps a copy in the enquiry's history. */
+  async adminReplyToLead(leadId: string, subject: string, body: string): Promise<LeadDetail> {
+    return post<LeadDetail>(`/api/admin/leads/${leadId}/reply`, { subject, body });
+  },
+
+  async adminStats(): Promise<AdminStats> {
+    return request<AdminStats>('/api/admin/stats');
   },
 };

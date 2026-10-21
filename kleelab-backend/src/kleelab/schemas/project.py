@@ -234,7 +234,7 @@ class StaffMember(BaseModel):
 class AttentionItem(BaseModel):
     """One thing across all projects that a person should look at."""
 
-    # new_enquiry | client_message | open_request | waiting_approval | overdue_step | unpaid_invoice
+    # new_enquiry | follow_up | client_message | open_request | waiting_approval | overdue_step | unpaid_invoice
     kind: str
     project_id: UUID | None
     reference: str | None

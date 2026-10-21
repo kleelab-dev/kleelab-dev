@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # Where enquiries, client messages and sign-offs are sent. Falls back to the
     # sending address when unset, which is what this did before it existed.
     TEAM_INBOX: str | None = None
+    # Where a reply to an email sent from the team dashboard goes, e.g.
+    # info@kleelab.com. Falls back to TEAM_INBOX.
+    REPLY_TO_EMAIL: str | None = None
     # Cloudinary credential, supplied in the conventional URI form:
     # cloudinary://<api_key>:<api_secret>@<cloud_name>
     CLOUDINARY_URL: str | None = None

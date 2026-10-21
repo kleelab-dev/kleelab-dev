@@ -87,7 +87,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const staff = user.role === 'staff';
   // Clients have no pages here, so the nav is the team's only.
   const nav = [
-    { href: '/', label: 'Projects' },
+    { href: '/', label: 'Today' },
+    { href: '/projects', label: 'Projects' },
     { href: '/leads', label: 'Enquiries' },
   ];
 
@@ -105,9 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="stamp hidden -rotate-2 sm:inline-block">Team</span>
             <nav className="flex flex-1 items-center gap-1" aria-label="Dashboard">
               {nav.map((item) => {
-                const current = item.href === '/'
-                  ? pathname === '/' || pathname.startsWith('/projects')
-                  : pathname.startsWith(item.href);
+                const current = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}

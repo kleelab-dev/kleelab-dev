@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 MAILTRAP_SEND_URL = "https://send.api.mailtrap.io/api/send"
 
 
-def _send(to: str, subject: str, html: str) -> bool:
+def _send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
     """Deliver an email, returning whether a provider actually accepted it.
 
     Callers need the real answer: the previous version returned None either way,
@@ -21,7 +21,7 @@ def _send(to: str, subject: str, html: str) -> bool:
     """
 
     if settings.MAILTRAP_API_TOKEN:
-        return _send_mailtrap(to, subject, html)
+        return _send_mailtrap(to, subject, html, reply_to)
 
     if not settings.RESEND_API_KEY:
         # Locally there is no provider, so print the message rather than lose it.
@@ -33,21 +33,27 @@ def _send(to: str, subject: str, html: str) -> bool:
         return False
 
     resend.api_key = settings.RESEND_API_KEY
-    resend.Emails.send({"from": settings.SENDGRID_FROM_EMAIL, "to": [to], "subject": subject, "html": html})
+    message = {"from": settings.SENDGRID_FROM_EMAIL, "to": [to], "subject": subject, "html": html}
+    if reply_to:
+        message["reply_to"] = reply_to
+    resend.Emails.send(message)
     return True
 
 
-def _send_mailtrap(to: str, subject: str, html: str) -> bool:
+def _send_mailtrap(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
+    message: dict = {
+        "from": {"email": settings.SENDGRID_FROM_EMAIL, "name": "KleeLab"},
+        "to": [{"email": to}],
+        "subject": subject,
+        "html": html,
+    }
+    if reply_to:
+        message["headers"] = {"Reply-To": reply_to}
     try:
         response = httpx.post(
             MAILTRAP_SEND_URL,
             headers={"Authorization": f"Bearer {settings.MAILTRAP_API_TOKEN}"},
-            json={
-                "from": {"email": settings.SENDGRID_FROM_EMAIL, "name": "KleeLab"},
-                "to": [{"email": to}],
-                "subject": subject,
-                "html": html,
-            },
+            json=message,
             timeout=15.0,
         )
         response.raise_for_status()
@@ -153,3 +159,21 @@ def send_team_notice(subject: str, lines: list[str]) -> bool:
 
     body = "".join(f"<p>{escape(line)}</p>" for line in lines)
     return _send(settings.TEAM_INBOX or settings.SENDGRID_FROM_EMAIL, subject, body)
+
+
+def send_lead_reply(email: str, subject: str, body: str, sender_name: str | None) -> bool:
+    """A personal reply to an enquiry, written in the team dashboard.
+
+    Plain text from the team, so it is escaped and its line breaks kept. Replies
+    to it go to the shared inbox, not the no-reply sending address.
+    """
+
+    paragraphs = [p.strip() for p in body.replace("\r\n", "\n").split("\n\n") if p.strip()]
+    html = "".join(f"<p>{escape(p).replace(chr(10), '<br>')}</p>" for p in paragraphs)
+    signature = f"{escape(sender_name)}<br>KleeLab" if sender_name else "The KleeLab team"
+    return _send(
+        email,
+        subject,
+        f'<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#111">{html}<p>{signature}</p></div>',
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )

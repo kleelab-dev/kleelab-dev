@@ -7,15 +7,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
 from kleelab.core.security import create_signed_token, get_current_user, get_password_hash
-from kleelab.models.agency_lead import AgencyLead
+from kleelab.models.agency_lead import AgencyLead, LeadNote
 from kleelab.models.project import Project, ProjectInvoice, ProjectStage, ProjectUpdate
 from kleelab.models.user import User
-from kleelab.schemas.agency import LeadOut
+from kleelab.schemas.agency import LeadDetail, LeadNoteCreate, LeadNoteOut, LeadOut, LeadReplyCreate
 from kleelab.schemas.project import (
     AttentionItem,
     InvoiceCreate,
@@ -33,7 +34,7 @@ from kleelab.schemas.project import (
     StagePatch,
 )
 from kleelab.services import projects as svc
-from kleelab.services.email import send_client_project_notice, send_project_invite_email
+from kleelab.services.email import send_client_project_notice, send_lead_reply, send_project_invite_email
 
 logger = logging.getLogger(__name__)
 
@@ -565,6 +566,28 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
         )
 
     today = date.today()
+    due = await db.scalars(
+        select(AgencyLead)
+        .where(
+            AgencyLead.follow_up_on.is_not(None),
+            AgencyLead.follow_up_on <= today,
+            AgencyLead.status.in_(("new", "contacted")),
+        )
+        .order_by(AgencyLead.follow_up_on)
+    )
+    for lead in due:
+        items.append(
+            AttentionItem(
+                kind="follow_up",
+                project_id=None,
+                reference=None,
+                project_title=None,
+                text=f"Follow up with {lead.name or lead.email}",
+                since=lead.follow_up_on,
+                lead_id=lead.id,
+            )
+        )
+
     projects = await db.scalars(
         select(Project).where(Project.status.in_(("active", "on_hold"))).options(*svc.with_everything())
     )
@@ -629,7 +652,9 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
 
 
 class LeadPatch(BaseModel):
-    status: Literal["new", "contacted", "won", "lost"]
+    status: Literal["new", "contacted", "won", "lost"] | None = None
+    # Sent as null to clear the date; left out to keep it.
+    follow_up_on: date | None = None
 
 
 @router.get("/leads", response_model=list[LeadOut])
@@ -651,9 +676,161 @@ async def patch_lead(lead_id: UUID, payload: LeadPatch, db: AsyncSession = Depen
     lead = await db.get(AgencyLead, lead_id)
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
-    lead.status = payload.status
+    if payload.status is not None:
+        lead.status = payload.status
+    if "follow_up_on" in payload.model_fields_set:
+        lead.follow_up_on = payload.follow_up_on
     await db.commit()
     await db.refresh(lead)
     item = LeadOut.model_validate(lead)
     item.project_id = await db.scalar(select(Project.id).where(Project.lead_id == lead.id).limit(1))
     return item
+
+
+async def _lead_detail(db: AsyncSession, lead_id: UUID) -> LeadDetail:
+    lead = await db.scalar(
+        select(AgencyLead)
+        .where(AgencyLead.id == lead_id)
+        .options(selectinload(AgencyLead.notes).selectinload(LeadNote.author))
+        # A note may have just been added in this session; reload the list.
+        .execution_options(populate_existing=True)
+    )
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
+    item = LeadOut.model_validate(lead)
+    item.project_id = await db.scalar(select(Project.id).where(Project.lead_id == lead.id).limit(1))
+    notes = [
+        LeadNoteOut(
+            id=note.id,
+            kind=note.kind,
+            subject=note.subject,
+            body=note.body,
+            author_name=svc.display_name(note.author),
+            created_at=note.created_at,
+        )
+        for note in lead.notes
+    ]
+    return LeadDetail(**item.model_dump(), notes=notes)
+
+
+@router.get("/leads/{lead_id}", response_model=LeadDetail)
+async def get_lead(lead_id: UUID, db: AsyncSession = Depends(get_db)) -> LeadDetail:
+    return await _lead_detail(db, lead_id)
+
+
+@router.post("/leads/{lead_id}/notes", response_model=LeadDetail, status_code=status.HTTP_201_CREATED)
+async def add_lead_note(
+    lead_id: UUID,
+    payload: LeadNoteCreate,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> LeadDetail:
+    """A private note for the team. The enquirer never sees it."""
+
+    if await db.get(AgencyLead, lead_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
+    db.add(LeadNote(lead_id=lead_id, author_id=staff.id, kind="note", body=payload.body.strip()))
+    await db.commit()
+    return await _lead_detail(db, lead_id)
+
+
+@router.post("/leads/{lead_id}/reply", response_model=LeadDetail, status_code=status.HTTP_201_CREATED)
+async def reply_to_lead(
+    lead_id: UUID,
+    payload: LeadReplyCreate,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> LeadDetail:
+    """Email the enquirer from the dashboard and keep a copy in the enquiry's history."""
+
+    lead = await db.get(AgencyLead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
+    subject, body = payload.subject.strip(), payload.body.strip()
+    if not send_lead_reply(lead.email, subject, body, svc.display_name(staff)):
+        # Nothing is recorded, so the history never claims an email that was not sent.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent. Please try again."
+        )
+    db.add(LeadNote(lead_id=lead.id, author_id=staff.id, kind="email", subject=subject, body=body))
+    if lead.status == "new":
+        lead.status = "contacted"
+    await db.commit()
+    return await _lead_detail(db, lead_id)
+
+
+# --- Numbers for the home page ------------------------------------------------
+
+
+class MoneyTotal(BaseModel):
+    currency: str
+    cents: int
+    count: int
+
+
+class AdminStats(BaseModel):
+    new_enquiries: int
+    enquiries_this_month: int
+    follow_ups_due: int
+    active_projects: int
+    paused_projects: int
+    # Active projects with a step waiting on the client or work waiting for sign-off.
+    waiting_on_client: int
+    unpaid: list[MoneyTotal]
+    overdue: list[MoneyTotal]
+    paid_this_month: list[MoneyTotal]
+
+
+async def _money_by_currency(db: AsyncSession, *conditions) -> list[MoneyTotal]:
+    rows = await db.execute(
+        select(ProjectInvoice.currency, func.sum(ProjectInvoice.amount_cents), func.count())
+        .where(*conditions)
+        .group_by(ProjectInvoice.currency)
+        .order_by(ProjectInvoice.currency)
+    )
+    return [MoneyTotal(currency=currency, cents=int(cents or 0), count=count) for currency, cents, count in rows]
+
+
+@router.get("/stats", response_model=AdminStats)
+async def stats(db: AsyncSession = Depends(get_db)) -> AdminStats:
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    async def count(*conditions) -> int:
+        return int(await db.scalar(select(func.count()).select_from(AgencyLead).where(*conditions)) or 0)
+
+    project_counts = dict(
+        (row_status, total)
+        for row_status, total in await db.execute(select(Project.status, func.count()).group_by(Project.status))
+    )
+    waiting = await db.scalar(
+        select(func.count(Project.id)).where(
+            Project.status == "active",
+            or_(
+                Project.stages.any(ProjectStage.status == "waiting_on_client"),
+                Project.updates.any(
+                    and_(ProjectUpdate.kind == "approval", ProjectUpdate.approval_status == "pending")
+                ),
+            ),
+        )
+    )
+
+    return AdminStats(
+        new_enquiries=await count(AgencyLead.status == "new"),
+        enquiries_this_month=await count(AgencyLead.created_at >= month_start),
+        follow_ups_due=await count(
+            AgencyLead.follow_up_on.is_not(None),
+            AgencyLead.follow_up_on <= today,
+            AgencyLead.status.in_(("new", "contacted")),
+        ),
+        active_projects=int(project_counts.get("active", 0)),
+        paused_projects=int(project_counts.get("on_hold", 0)),
+        waiting_on_client=int(waiting or 0),
+        unpaid=await _money_by_currency(db, ProjectInvoice.status == "unpaid"),
+        overdue=await _money_by_currency(
+            db, ProjectInvoice.status == "unpaid", ProjectInvoice.due_date.is_not(None), ProjectInvoice.due_date < today
+        ),
+        paid_this_month=await _money_by_currency(
+            db, ProjectInvoice.status == "paid", ProjectInvoice.paid_at >= month_start
+        ),
+    )

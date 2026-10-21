@@ -1,7 +1,7 @@
 """Agency contact form and lead capture schemas."""
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -62,5 +62,31 @@ class LeadOut(BaseModel):
     message: str | None
     status: str
     created_at: datetime
+    follow_up_on: date | None = None
     # Set when a project was started from this enquiry.
     project_id: UUID | None = None
+
+
+class LeadNoteOut(BaseModel):
+    id: UUID
+    # note | email
+    kind: str
+    subject: str | None
+    body: str
+    author_name: str | None
+    created_at: datetime
+
+
+class LeadDetail(LeadOut):
+    """One enquiry with the team's notes and the emails sent about it, oldest first."""
+
+    notes: list[LeadNoteOut] = []
+
+
+class LeadNoteCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+
+
+class LeadReplyCreate(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=10000)

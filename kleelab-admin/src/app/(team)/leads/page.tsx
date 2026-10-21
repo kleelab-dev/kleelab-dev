@@ -3,24 +3,34 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, ChatBubbleLeftRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { buttonClass } from '@/components/ui/Button';
 import { Pill } from '@/components/project/Pill';
-import { budgetLabel, errorText, formatDateTime, LEAD_STATUS, leadSource } from '@/components/project/format';
+import { budgetLabel, errorText, followUpDue, formatDate, formatDateTime, LEAD_STATUS, leadSource } from '@/components/project/format';
 import { apiService } from '@/services/api';
 import type { Lead, LeadStatus } from '@/types/api';
 
-const ACTIONS: Record<LeadStatus, string> = {
-  new: 'Mark as new',
-  contacted: 'We replied',
-  won: 'Became a client',
-  lost: 'Not going ahead',
-};
+type Filter = LeadStatus | 'follow_up' | 'all';
+
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'new', label: LEAD_STATUS.new.label },
+  { value: 'follow_up', label: 'Follow-up due' },
+  { value: 'contacted', label: LEAD_STATUS.contacted.label },
+  { value: 'won', label: LEAD_STATUS.won.label },
+  { value: 'lost', label: LEAD_STATUS.lost.label },
+  { value: 'all', label: 'All' },
+];
+
+function matches(lead: Lead, filter: Filter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'follow_up') return followUpDue(lead);
+  return lead.status === filter;
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<LeadStatus | 'all'>('new');
+  const [filter, setFilter] = useState<Filter>('new');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -34,19 +44,10 @@ export default function LeadsPage() {
     };
   }, []);
 
-  async function change(lead: Lead, status: LeadStatus) {
-    try {
-      const saved = await apiService.adminUpdateLead(lead.id, status);
-      setLeads((list) => list?.map((l) => (l.id === saved.id ? { ...saved, project_id: saved.project_id ?? l.project_id } : l)) ?? null);
-    } catch (reason) {
-      setError(errorText(reason));
-    }
-  }
-
   const needle = query.trim().toLowerCase();
   const shown =
     leads?.filter((l) => {
-      if (filter !== 'all' && l.status !== filter) return false;
+      if (!matches(l, filter)) return false;
       if (!needle) return true;
       return [l.name, l.email, l.company, l.message, l.interest].some((v) => v?.toLowerCase().includes(needle));
     }) ?? [];
@@ -55,22 +56,25 @@ export default function LeadsPage() {
     <div>
       <p className="tag">team</p>
       <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest sm:text-5xl">Enquiries</h1>
-      <p className="mt-3 text-muted">People who wrote to us through the contact form or the chat on the site.</p>
+      <p className="mt-3 text-muted">People who wrote to us through the contact form or the chat on the site. Open one to reply, add notes or set a follow-up.</p>
 
       <div className="mt-8 flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Show enquiries that are">
-          {(['new', 'contacted', 'won', 'lost', 'all'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value)}
-              className={clsx('rounded-full px-3.5 py-1.5 text-sm', filter === value ? 'bg-ink text-paper' : 'border-[1.5px] border-line bg-white hover:border-ink')}
-            >
-              {value === 'all' ? 'All' : LEAD_STATUS[value].label}
-              {leads && value !== 'all' && <span className="ml-1.5 opacity-60">{leads.filter((l) => l.status === value).length}</span>}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Show enquiries">
+          {FILTERS.map(({ value, label }) => {
+            const count = leads?.filter((l) => matches(l, value)).length;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+                className={clsx('rounded-full px-3.5 py-1.5 text-sm', filter === value ? 'bg-ink text-paper' : 'border-[1.5px] border-line bg-white hover:border-ink')}
+              >
+                {label}
+                {leads && value !== 'all' && <span className="ml-1.5 opacity-60">{count}</span>}
+              </button>
+            );
+          })}
         </div>
         <label className="relative ml-auto w-full sm:w-72">
           <span className="sr-only">Search enquiries</span>
@@ -91,18 +95,27 @@ export default function LeadsPage() {
         {leads && shown.length === 0 && <p className="text-sm text-muted">{needle ? 'No enquiries match.' : 'Nothing here.'}</p>}
         {shown.map((lead) => {
           const budget = budgetLabel(lead.budget);
+          const due = followUpDue(lead);
           return (
             <article key={lead.id} className="card p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone={LEAD_STATUS[lead.status].tone}>{LEAD_STATUS[lead.status].label}</Pill>
+                {lead.follow_up_on && (lead.status === 'new' || lead.status === 'contacted') && (
+                  <span className={clsx('inline-flex items-center gap-1 text-xs', due ? 'font-semibold text-danger' : 'text-muted')}>
+                    <CalendarDaysIcon className="h-3.5 w-3.5" aria-hidden />
+                    {due ? 'Follow up now' : `Follow up ${formatDate(lead.follow_up_on)}`}
+                  </span>
+                )}
                 <span className="text-xs text-muted">{leadSource(lead.source)}</span>
                 <span className="ml-auto text-xs text-muted">{formatDateTime(lead.created_at)}</span>
               </div>
               <h2 className="mt-2 font-semibold">
-                {lead.name || 'No name given'}
-                {lead.company && <span className="font-normal text-muted"> · {lead.company}</span>}
+                <Link href={`/leads/${lead.id}`} className="text-ink no-underline hover:text-cobalt">
+                  {lead.name || 'No name given'}
+                  {lead.company && <span className="font-normal text-muted"> · {lead.company}</span>}
+                </Link>
               </h2>
-              <a href={`mailto:${lead.email}`} className="text-sm text-cobalt">{lead.email}</a>
+              <p className="text-sm text-muted">{lead.email}</p>
               {(lead.interest || budget) && (
                 <p className="mt-2 text-sm text-muted">
                   {lead.interest && <>Wants: <span className="text-ink">{lead.interest}</span></>}
@@ -110,26 +123,23 @@ export default function LeadsPage() {
                   {budget && <>Budget: <span className="text-ink">{budget}</span></>}
                 </p>
               )}
-              {lead.message && <p className="mt-3 max-h-60 overflow-auto whitespace-pre-line rounded-xl bg-paper p-3 text-sm leading-6 text-ink-soft">{lead.message}</p>}
+              {lead.message && <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-6 text-ink-soft">{lead.message}</p>}
               <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Link href={`/leads/${lead.id}`} className={buttonClass('primary', 'sm')}>
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" aria-hidden />
+                  Open and reply
+                </Link>
                 {lead.project_id ? (
                   <Link href={`/projects/${lead.project_id}`} className={buttonClass('secondary', 'sm')}>
                     Open their project
                   </Link>
                 ) : (
                   lead.status !== 'lost' && (
-                    <Link href={`/?lead=${lead.id}`} className={buttonClass('primary', 'sm')}>
+                    <Link href={`/projects?lead=${lead.id}`} className={buttonClass('secondary', 'sm')}>
                       Start a project
                     </Link>
                   )
                 )}
-                {(Object.keys(ACTIONS) as LeadStatus[])
-                  .filter((s) => s !== lead.status && !(s === 'won' && !lead.project_id))
-                  .map((s) => (
-                    <button key={s} type="button" onClick={() => change(lead, s)} className="rounded-full border-[1.5px] border-line px-3 py-1 text-xs hover:border-ink">
-                      {ACTIONS[s]}
-                    </button>
-                  ))}
               </div>
             </article>
           );

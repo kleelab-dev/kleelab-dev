@@ -1,4 +1,4 @@
-import type { ApprovalStatus, Currency, InvoiceStatus, LeadStatus, ProjectStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
+import type { ApprovalStatus, AttentionItem, AttentionKind, Currency, InvoiceStatus, Lead, LeadStatus, MoneyTotal, ProjectStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_TIME = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -98,6 +98,38 @@ export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: string }> = 
   won: { label: 'Became a client', tone: 'bg-mint text-ink' },
   lost: { label: 'Not going ahead', tone: 'bg-line text-muted' },
 };
+
+/** Today as `YYYY-MM-DD` in the viewer's time zone, for comparing with date-only fields. */
+export function todayISO(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** An open enquiry whose follow-up day has come. */
+export function followUpDue(lead: Pick<Lead, 'follow_up_on' | 'status'>): boolean {
+  return Boolean(lead.follow_up_on) && lead.follow_up_on! <= todayISO() && (lead.status === 'new' || lead.status === 'contacted');
+}
+
+/** Totals in several currencies, written as one line: "₦1,200,000.00 + $500.00". */
+export function formatTotals(totals: MoneyTotal[]): string {
+  return totals.length ? totals.map((t) => formatMoney(t.cents, t.currency)).join(' + ') : formatMoney(0, 'NGN');
+}
+
+export const ATTENTION: Record<AttentionKind, { label: string; tone: string }> = {
+  new_enquiry: { label: 'New enquiry', tone: 'bg-sun text-ink' },
+  follow_up: { label: 'Follow up', tone: 'bg-sun-soft text-ink' },
+  client_message: { label: 'Reply needed', tone: 'bg-danger-soft text-danger' },
+  open_request: { label: 'Asked for extra', tone: 'bg-cobalt-soft text-cobalt-dark' },
+  waiting_approval: { label: 'Waiting on client', tone: 'bg-line text-ink' },
+  overdue_step: { label: 'Late', tone: 'bg-danger-soft text-danger' },
+  unpaid_invoice: { label: 'Not paid', tone: 'bg-sun-soft text-ink' },
+};
+
+export function attentionHref(item: AttentionItem): string {
+  if (item.project_id) return `/projects/${item.project_id}`;
+  return item.lead_id ? `/leads/${item.lead_id}` : '/leads';
+}
 
 export function leadSource(source: string): string {
   if (source === 'chat') return 'From the chat';

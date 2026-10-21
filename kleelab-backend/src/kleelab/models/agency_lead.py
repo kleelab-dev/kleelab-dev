@@ -1,12 +1,12 @@
 """Agency upsell leads."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kleelab.core.database import Base
 
@@ -32,3 +32,32 @@ class AgencyLead(Base):
     )
     status: Mapped[str] = mapped_column(String(50), default="new", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # The day someone on the team means to chase this enquiry next.
+    follow_up_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    notes = relationship(
+        "LeadNote", back_populates="lead", cascade="all, delete-orphan", order_by="LeadNote.created_at"
+    )
+
+
+class LeadNote(Base):
+    """The team's history with an enquiry: private notes, and emails sent to the enquirer."""
+
+    __tablename__ = "lead_notes"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lead_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("agency_leads.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    author_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # note | email
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="note", server_default="note")
+    # Only for emails.
+    subject: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    lead = relationship("AgencyLead", back_populates="notes")
+    author = relationship("User")

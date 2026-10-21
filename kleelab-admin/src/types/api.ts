@@ -186,6 +186,7 @@ export interface StaffMember {
 
 export type AttentionKind =
   | 'new_enquiry'
+  | 'follow_up'
   | 'client_message'
   | 'open_request'
   | 'waiting_approval'
@@ -217,7 +218,47 @@ export interface Lead {
   message: string | null;
   status: LeadStatus;
   created_at: string;
+  /** `YYYY-MM-DD`: the day to chase this enquiry next. */
+  follow_up_on: string | null;
   project_id: string | null;
+}
+
+export interface LeadNote {
+  id: string;
+  /** `note` stays with the team; `email` was sent to the enquirer. */
+  kind: 'note' | 'email';
+  subject: string | null;
+  body: string;
+  author_name: string | null;
+  created_at: string;
+}
+
+export interface LeadDetail extends Lead {
+  notes: LeadNote[];
+}
+
+export interface LeadPatchInput {
+  status?: LeadStatus;
+  /** `null` clears the date. */
+  follow_up_on?: string | null;
+}
+
+export interface MoneyTotal {
+  currency: string;
+  cents: number;
+  count: number;
+}
+
+export interface AdminStats {
+  new_enquiries: number;
+  enquiries_this_month: number;
+  follow_ups_due: number;
+  active_projects: number;
+  paused_projects: number;
+  waiting_on_client: number;
+  unpaid: MoneyTotal[];
+  overdue: MoneyTotal[];
+  paid_this_month: MoneyTotal[];
 }
 
 export type ChatRole = 'visitor' | 'assistant';
