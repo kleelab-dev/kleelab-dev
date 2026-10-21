@@ -113,12 +113,12 @@ export default function LeadsPage() {
               {lead.message && <p className="mt-3 max-h-60 overflow-auto whitespace-pre-line rounded-xl bg-paper p-3 text-sm leading-6 text-ink-soft">{lead.message}</p>}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {lead.project_id ? (
-                  <Link href={`/admin/projects/${lead.project_id}`} className={buttonClass('secondary', 'sm')}>
+                  <Link href={`/projects/${lead.project_id}`} className={buttonClass('secondary', 'sm')}>
                     Open their project
                   </Link>
                 ) : (
                   lead.status !== 'lost' && (
-                    <Link href={`/admin?lead=${lead.id}`} className={buttonClass('primary', 'sm')}>
+                    <Link href={`/?lead=${lead.id}`} className={buttonClass('primary', 'sm')}>
                       Start a project
                     </Link>
                   )

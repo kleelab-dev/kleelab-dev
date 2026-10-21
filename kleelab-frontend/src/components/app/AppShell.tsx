@@ -8,6 +8,8 @@ import { Logo } from '@/components/ui/Logo';
 import { ApiError, apiService, hasSession } from '@/services/api';
 import type { User } from '@/types/api';
 
+const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.kleelab.com';
+
 const UserContext = createContext<User | null>(null);
 
 /** The signed-in user. Only valid below an AppShell, which renders nothing until it is known. */
@@ -21,9 +23,9 @@ type State = { kind: 'loading' } | { kind: 'ready'; user: User } | { kind: 'fail
 
 /**
  * Frame for every signed-in page: checks the session, sends strangers to the
- * login page with a way back, and keeps staff pages away from clients.
+ * login page with a way back. Team pages live in the separate admin app.
  */
-export function AppShell({ staffOnly = false, children }: { staffOnly?: boolean; children: React.ReactNode }) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [state, setState] = useState<State>({ kind: 'loading' });
@@ -84,12 +86,7 @@ export function AppShell({ staffOnly = false, children }: { staffOnly?: boolean;
 
   const { user } = state;
   const staff = user.role === 'staff';
-  const nav = staff
-    ? [
-        { href: '/admin', label: 'Projects' },
-        { href: '/admin/leads', label: 'Enquiries' },
-      ]
-    : [{ href: '/dashboard', label: 'Your projects' }];
+  const nav = [{ href: '/dashboard', label: 'Your projects' }];
 
   return (
     <UserContext.Provider value={user}>
@@ -99,13 +96,17 @@ export function AppShell({ staffOnly = false, children }: { staffOnly?: boolean;
         </a>
         <header className="sticky top-0 z-30 border-b-[1.5px] border-ink bg-paper/95 backdrop-blur">
           <div className="mx-auto flex max-w-content items-center gap-6 px-5 py-3.5">
-            <Link href={staff ? '/admin' : '/dashboard'} className="no-underline" aria-label="Dashboard home">
+            <Link href="/dashboard" className="no-underline" aria-label="Dashboard home">
               <Logo />
             </Link>
-            {staff && <span className="stamp hidden -rotate-2 sm:inline-block">Team</span>}
+            {staff && (
+              <a href={ADMIN_URL} className="stamp hidden -rotate-2 no-underline sm:inline-block">
+                Team dashboard ↗
+              </a>
+            )}
             <nav className="flex flex-1 items-center gap-1" aria-label="Dashboard">
               {nav.map((item) => {
-                const current = item.href === '/admin' || item.href === '/dashboard'
+                const current = item.href === '/dashboard'
                   ? pathname === item.href || (pathname.startsWith(`${item.href}/projects`))
                   : pathname.startsWith(item.href);
                 return (
@@ -130,17 +131,7 @@ export function AppShell({ staffOnly = false, children }: { staffOnly?: boolean;
           </div>
         </header>
         <main id="main" className="mx-auto max-w-content px-5 py-10 sm:py-12">
-          {staffOnly && !staff ? (
-            <div className="card mx-auto max-w-md p-7 text-center">
-              <p className="font-display text-2xl font-extrabold">Nothing here</p>
-              <p className="mt-2 text-sm text-muted">This page is for the KleeLab team.</p>
-              <Link href="/dashboard" className="mt-5 inline-block text-sm font-semibold text-cobalt">
-                Go to your projects →
-              </Link>
-            </div>
-          ) : (
-            children
-          )}
+          {children}
         </main>
       </div>
     </UserContext.Provider>

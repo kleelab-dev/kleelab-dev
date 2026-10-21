@@ -123,7 +123,7 @@ function AdminHome() {
           <>
             <ul className="divide-y divide-line">
               {visibleItems.map((item, index) => {
-                const href = item.project_id ? `/admin/projects/${item.project_id}` : '/admin/leads';
+                const href = item.project_id ? `/projects/${item.project_id}` : '/leads';
                 const kind = ATTENTION[item.kind] ?? { label: item.kind, tone: 'bg-line text-ink' };
                 return (
                   <li key={`${item.kind}-${item.project_id ?? item.lead_id}-${index}`}>
@@ -194,7 +194,7 @@ function AdminHome() {
         )}
         <div className="grid gap-5 md:grid-cols-2">
           {shown.map((project) => (
-            <ProjectCard key={project.id} project={project} href={`/admin/projects/${project.id}`} showClient />
+            <ProjectCard key={project.id} project={project} href={`/projects/${project.id}`} showClient />
           ))}
         </div>
       </div>
@@ -238,7 +238,7 @@ function CreateProject({ lead, staff, defaultOwner }: { lead: Lead | null; staff
         stages: steps.length ? steps : null,
         lead_id: lead?.id ?? null,
       });
-      router.push(`/admin/projects/${project.id}`);
+      router.push(`/projects/${project.id}`);
     } catch (reason) {
       setError(errorText(reason));
       setBusy(false);

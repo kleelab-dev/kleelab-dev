@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: 243 246 252;
+  --grid: 223 230 246;
+  --ink: 14 21 48;
+  --cobalt: 35 64 232;
+  --sun: 255 210 63;
+
+  /* Flips to paper on ink surfaces, where an ink ring would vanish. */
+  --focus-ring: var(--cobalt);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.on-ink {
+  --focus-ring: var(--sun);
+}
+
+body {
+  color: rgb(var(--ink));
+  background-color: rgb(var(--paper));
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Graph paper. Used on the public site and the dashboard canvas. */
+  .bg-graph {
+    background-color: rgb(var(--paper));
+    background-image:
+      linear-gradient(rgb(var(--grid)) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--grid)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* A mono label with a short leading rule, like an annotation on a drawing. */
+  .tag {
+    @apply inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-label text-cobalt;
+  }
+  .tag::before {
+    content: '';
+    width: 18px;
+    height: 1px;
+    background: currentColor;
+  }
+
+  /* The yellow highlighter on a headline word. */
+  .mark {
+    display: inline-block;
+    background: rgb(var(--sun));
+    padding: 0 0.12em;
+    border-radius: 6px;
+    transform: rotate(-1.5deg);
+  }
+
+  /* A dimension line above a card: ---- label ---- */
+  .dim {
+    @apply pointer-events-none absolute -top-6 left-0 right-0 flex items-center gap-2 font-mono text-[10px] uppercase tracking-label text-cobalt;
+  }
+  .dim::before,
+  .dim::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+  }
+
+  /* The rotated approval stamp. */
+  .stamp {
+    @apply inline-block rounded-md border-[1.5px] border-cobalt bg-paper px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-label text-cobalt;
+    transform: rotate(4deg);
+  }
+
+  .card {
+    @apply rounded-2xl border-[1.5px] border-ink bg-white;
+  }
+
+  .field {
+    @apply w-full rounded-xl border-[1.5px] border-line bg-white px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-cobalt;
+  }
+
+  .label {
+    @apply mb-1.5 block font-mono text-[11px] uppercase tracking-label text-ink;
+  }
+}
+
+button,
+[role='button'],
+a {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled,
+button[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+button:not(:disabled):active,
+[role='button']:not([aria-disabled='true']):active {
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--focus-ring));
+  outline-offset: 2px;
+}
+
+main[tabindex='-1']:focus,
+main[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 60;
+  transform: translateY(-200%);
+  border-radius: 9999px;
+  background: rgb(var(--ink));
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(var(--paper));
+  transition: transform 160ms var(--ease-out);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@keyframes kl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kl-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.kl-rise {
+  animation: kl-rise 320ms var(--ease-out) both;
+}
+
+.kl-dot {
+  animation: kl-blink 1.2s infinite both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

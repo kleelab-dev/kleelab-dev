@@ -5,6 +5,9 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.NODE_ENV === 'development';
 
 /** @type {import('next').NextConfig} */
+// The team dashboard is its own app (kleelab-admin), deployed separately.
+const adminUrl = (process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.kleelab.com').replace(/\/$/, '');
+
 const nextConfig = {
   reactStrictMode: true,
   // Pin the Turbopack workspace root. Without this Next walks up the tree and
@@ -42,6 +45,13 @@ const nextConfig = {
           },
         ],
       },
+    ];
+  },
+  // Old /admin links and bookmarks land on the same page of the team dashboard.
+  async redirects() {
+    return [
+      { source: '/admin', destination: `${adminUrl}/`, permanent: false },
+      { source: '/admin/:path*', destination: `${adminUrl}/:path*`, permanent: false },
     ];
   },
   async rewrites() {

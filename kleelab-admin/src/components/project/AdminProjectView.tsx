@@ -44,7 +44,7 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
       <div className="card max-w-md p-7">
         <p className="font-display text-2xl font-extrabold">Project not found</p>
         <p className="mt-2 text-sm text-muted">{error}</p>
-        <Link href="/admin" className="mt-5 inline-block text-sm font-semibold text-cobalt">← All projects</Link>
+        <Link href="/" className="mt-5 inline-block text-sm font-semibold text-cobalt">← All projects</Link>
       </div>
     );
   }
@@ -64,7 +64,7 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <ProjectHeader project={project} backHref="/admin" backLabel="All projects" />
+      <ProjectHeader project={project} backHref="/" backLabel="All projects" />
       <ClientBar project={project} staff={staff} save={quiet} />
       {saveError && <p role="alert" className="mt-6 rounded-xl bg-danger-soft p-4 text-sm text-danger">{saveError}</p>}
 
