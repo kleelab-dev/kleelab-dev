@@ -53,11 +53,13 @@ export function MessageComposer({
   }
 
   function pick(list: FileList | null) {
+    // Copy the files out first: clearing the input empties this same list.
+    const chosen = Array.from(list ?? []);
+    // Clear it so picking the same file again still counts as a change.
     if (input.current) input.current.value = '';
-    if (!list?.length) return;
+    if (!chosen.length) return;
     setError(null);
     const room = MAX_FILES - pending.length;
-    const chosen = Array.from(list);
     if (chosen.length > room) setError(`You can attach up to ${MAX_FILES} files to one message.`);
     for (const file of chosen.slice(0, Math.max(room, 0))) {
       const key = `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`;
