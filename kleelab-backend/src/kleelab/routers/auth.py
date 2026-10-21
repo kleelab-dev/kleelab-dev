@@ -1,7 +1,7 @@
 """Authentication API routes."""
 
 from datetime import timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
@@ -12,6 +12,7 @@ from kleelab.core.config import settings
 from kleelab.core.database import get_db
 from kleelab.core.security import (
     create_signed_token,
+    current_session_id,
     decode_signed_token,
     get_current_user,
     get_password_hash,
@@ -23,11 +24,14 @@ from kleelab.models.user import User
 from kleelab.schemas.auth import (
     AccountOut,
     LogoutRequest,
+    OtherSessionsSignedOut,
+    PasswordChange,
     PasswordConfirm,
     PasswordResetRequest,
     PasswordResetStart,
     PlanLimitsOut,
     PlanUsageOut,
+    ProfileUpdate,
     RecoveryCodesOut,
     RefreshRequest,
     Token,
@@ -455,6 +459,10 @@ async def get_me(
 ) -> AccountOut:
     """Return the authenticated user with its plan and usage."""
 
+    return await _account_out(current_user, db)
+
+
+async def _account_out(current_user: User, db: AsyncSession) -> AccountOut:
     state = await plan_state(db, current_user)
     return AccountOut(
         id=current_user.id,
@@ -471,6 +479,126 @@ async def get_me(
         limits=PlanLimitsOut(**state["limits"]),
         usage=PlanUsageOut(**state["usage"]),
     )
+
+
+# --- Your own account: name, password, other devices ------------------------------------
+# Always the signed-in person's own account: nothing here takes a user id, so
+# there is no way to point it at someone else.
+
+
+def _account_kind(user: User) -> str:
+    return "staff" if user.role == "staff" else "client"
+
+
+@router.patch("/me", response_model=AccountOut)
+async def update_me(
+    body: ProfileUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AccountOut:
+    """Change your own name."""
+
+    before = current_user.full_name
+    if body.full_name != before:
+        current_user.full_name = body.full_name
+        activity.record(
+            db, current_user, "account.renamed",
+            f"Changed their name from {activity.quoted(before)} to {activity.quoted(body.full_name)}"
+            if before else f"Set their name to {activity.quoted(body.full_name)}",
+            subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
+        )
+        await db.commit()
+        await db.refresh(current_user)
+    return await _account_out(current_user, db)
+
+
+async def _sign_out_others(
+    user: User, session_id: UUID | None, db: AsyncSession, request: Request
+) -> OtherSessionsSignedOut:
+    """Sign out every session but the caller's own.
+
+    A token from before sessions were tracked cannot say which session it is,
+    so then every session goes and a fresh one is returned to carry on with.
+    """
+
+    live = await sessions.live_session(db, user.id, session_id)
+    if live is not None:
+        return OtherSessionsSignedOut(signed_out=await sessions.revoke_others(user.id, live.id, db))
+    signed_out = await sessions.revoke_others(user.id, uuid4(), db)
+    tokens = await sessions.issue_tokens(user, db, request.headers.get("user-agent"))
+    return OtherSessionsSignedOut(signed_out=signed_out, tokens=Token(**tokens))
+
+
+@router.post("/change-password", response_model=OtherSessionsSignedOut)
+async def change_password(
+    body: PasswordChange,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session_id: UUID | None = Depends(current_session_id),
+    db: AsyncSession = Depends(get_db),
+) -> OtherSessionsSignedOut:
+    """Change your password. Needs the current one.
+
+    This device stays signed in; every other one is signed out, and any reset
+    link already sent stops working (it carries the old password's fingerprint).
+    """
+
+    if not verify_password(body.current_password, current_user.password_hash):
+        activity.record(
+            db, current_user, "auth.password_change_failed",
+            "Failed to change their password: wrong current password",
+            subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
+        )
+        await db.commit()
+        # 400, not 401: the session is fine, and a 401 would sign the page out.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your current password is not right.")
+    if verify_password(body.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That is the password you have now. Choose a new one.",
+        )
+
+    current_user.password_hash = get_password_hash(body.new_password)
+    activity.record(
+        db, current_user, "auth.password_changed", "Changed their password",
+        subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
+    )
+    await db.commit()
+    result = await _sign_out_others(current_user, session_id, db, request)
+    try:
+        send_security_notice(
+            current_user.email,
+            "Your KleeLab password was changed",
+            [
+                "The password for your KleeLab account was just changed, and every other "
+                "device was signed out.",
+                "If this was not you, use “Forgot your password?” on the sign-in page "
+                "straight away and tell us.",
+            ],
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return result
+
+
+@router.post("/sign-out-others", response_model=OtherSessionsSignedOut)
+async def sign_out_others(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session_id: UUID | None = Depends(current_session_id),
+    db: AsyncSession = Depends(get_db),
+) -> OtherSessionsSignedOut:
+    """Sign out every other device and browser. This one stays signed in."""
+
+    result = await _sign_out_others(current_user, session_id, db, request)
+    activity.record(
+        db, current_user, "auth.signed_out_others",
+        f"Signed out their other devices ({result.signed_out})",
+        subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
+    )
+    await db.commit()
+    return result
 
 
 # --- Two-step sign-in, set up from the team dashboard's Account page --------------------

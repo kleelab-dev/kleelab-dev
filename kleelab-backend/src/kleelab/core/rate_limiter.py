@@ -30,6 +30,7 @@ AUTH_PATHS = {
     "/api/auth/forgot-password",
     "/api/auth/request-password-reset",
     "/api/auth/reset-password",
+    "/api/auth/change-password",
     "/api/auth/two-step/setup",
     "/api/auth/two-step/enable",
     "/api/auth/two-step/disable",

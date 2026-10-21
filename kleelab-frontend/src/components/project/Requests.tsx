@@ -29,7 +29,7 @@ export function RequestList({
             <Pill tone={REQUEST_STATUS[request.status].tone}>{team ? REQUEST_STATUS[request.status].teamLabel : REQUEST_STATUS[request.status].label}</Pill>
             <span className="ml-auto font-mono text-[10px] uppercase tracking-label text-muted">{formatDate(request.created_at)}</span>
           </div>
-          {request.message && <p className="mt-1.5 whitespace-pre-line text-sm text-muted">{request.message}</p>}
+          {request.message && <p className="mt-1.5 whitespace-pre-line break-words text-sm text-muted">{request.message}</p>}
           {renderControls && <div className="mt-2.5">{renderControls(request)}</div>}
         </li>
       ))}
@@ -94,7 +94,7 @@ export function RequestForm({ onRequest }: { onRequest: (kind: RequestKind, mess
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {sent && <p role="status" className="text-sm text-ink">Sent. We will reply here with a price or any questions.</p>}
       <div>
-        <Button type="submit" variant="secondary" size="sm" disabled={busy}>
+        <Button type="submit" variant="secondary" size="sm" className="min-h-11 sm:min-h-0" disabled={busy}>
           {busy ? 'Sending…' : 'Send'}
         </Button>
       </div>

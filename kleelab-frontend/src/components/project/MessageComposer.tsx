@@ -38,7 +38,7 @@ export function MessageComposer({ onSend, placeholder }: { onSend: (body: string
       />
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={busy || !body.trim()}>
+        <Button type="submit" size="sm" className="min-h-11 sm:min-h-0" disabled={busy || !body.trim()}>
           {busy ? 'Sending…' : 'Send message'}
         </Button>
       </div>

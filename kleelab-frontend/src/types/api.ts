@@ -16,6 +16,14 @@ export interface User {
   created_at: string;
 }
 
+/** After a password change or "sign out other devices". */
+export interface OtherSessionsSignedOut {
+  /** How many other devices were signed out. */
+  signed_out: number;
+  /** Set only when this device was signed out too and must carry on with a new session. */
+  tokens: { access_token: string; refresh_token?: string | null } | null;
+}
+
 export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';
 export type StageStatus = 'upcoming' | 'in_progress' | 'waiting_on_client' | 'done';
 /** `note` is team-only: the client never receives it. */

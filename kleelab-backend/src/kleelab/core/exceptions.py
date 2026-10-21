@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -135,9 +136,13 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         del request
+        # A validator that raises ValueError leaves the exception itself in the
+        # error's context, which json cannot encode: say it as text instead of
+        # turning a 422 into a 500.
+        details = jsonable_encoder(exc.errors(), custom_encoder={Exception: str})
         return JSONResponse(
             status_code=422,
-            content={"error": {"code": "validation_error", "message": "Invalid request", "details": exc.errors()}},
+            content={"error": {"code": "validation_error", "message": "Invalid request", "details": details}},
         )
 
     @app.exception_handler(SQLAlchemyError)

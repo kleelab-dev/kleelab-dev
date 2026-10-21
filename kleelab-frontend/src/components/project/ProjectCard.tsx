@@ -20,7 +20,7 @@ export function ProjectCard({ project, href, showClient = false }: { project: Pr
         {project.unpaid_invoices > 0 && <Pill tone="bg-sun-soft text-ink">{project.unpaid_invoices} to pay</Pill>}
         {showClient && project.awaiting_reply && <Pill tone="bg-danger-soft text-danger">Reply needed</Pill>}
       </div>
-      <h2 className="mt-3 font-display text-2xl font-extrabold tracking-tight group-hover:text-cobalt">{project.title}</h2>
+      <h2 className="mt-3 break-words font-display text-2xl font-extrabold tracking-tight group-hover:text-cobalt">{project.title}</h2>
       {showClient && (project.client_name || project.client_email) && (
         <p className="mt-1 text-sm text-muted">
           {project.client_name ? `${project.client_name} · ` : ''}
