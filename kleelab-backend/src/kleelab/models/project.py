@@ -63,8 +63,14 @@ class Project(Base):
     files = relationship(
         "ProjectFile", back_populates="project", cascade="all, delete-orphan", order_by="ProjectFile.created_at"
     )
+    # No delete cascade: invoices are tax records and outlive the project (see
+    # ProjectInvoice.project_id). The database sets their project_id to null.
     invoices = relationship(
-        "ProjectInvoice", back_populates="project", cascade="all, delete-orphan", order_by="ProjectInvoice.created_at"
+        "ProjectInvoice",
+        back_populates="project",
+        cascade="save-update, merge",
+        passive_deletes=True,
+        order_by="ProjectInvoice.created_at",
     )
 
 
@@ -177,14 +183,27 @@ class ProjectInvoice(Base):
 
     Paid by card through Paystack (see `InvoicePayment`), through a link, or by
     bank transfer that the team marks paid by hand.
+
+    An invoice is a financial record the law says we must keep, so deleting the
+    client's account (and with it the project) does not delete it. It is left
+    detached, with `project_id` null, and the copied client and project details
+    below say who it was for. services/retention.py deletes it once the
+    retention period is up.
     """
 
     __tablename__ = "project_invoices"
 
     id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[UUID] = mapped_column(
-        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    # Null once the project has been deleted.
+    project_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Copied in when the invoice is raised, so it still says who was billed for
+    # what after the project and account are gone.
+    client_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    client_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_reference: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    project_title: Mapped[str | None] = mapped_column(String(150), nullable=True)
     # e.g. "INV-0007"
     number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(150), nullable=False)

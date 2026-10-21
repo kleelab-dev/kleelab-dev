@@ -618,6 +618,10 @@ async def create_invoice(
         due_date=payload.due_date,
         pay_url=str(payload.pay_url) if payload.pay_url else None,
         status="unpaid",
+        client_name=project.client.full_name if project.client else None,
+        client_email=project.client.email if project.client else None,
+        project_reference=project.reference,
+        project_title=project.title,
     )
     db.add(invoice)
     await db.flush()
@@ -926,7 +930,8 @@ class AdminStats(BaseModel):
 async def _money_by_currency(db: AsyncSession, *conditions) -> list[MoneyTotal]:
     rows = await db.execute(
         select(ProjectInvoice.currency, func.sum(ProjectInvoice.amount_cents), func.count())
-        .where(*conditions)
+        # Invoices kept after their project was deleted are records, not work.
+        .where(ProjectInvoice.project_id.is_not(None), *conditions)
         .group_by(ProjectInvoice.currency)
         .order_by(ProjectInvoice.currency)
     )
@@ -1000,6 +1005,7 @@ async def list_invoices(db: AsyncSession = Depends(get_db)) -> list[AdminInvoice
 
     result = await db.scalars(
         select(ProjectInvoice)
+        .where(ProjectInvoice.project_id.is_not(None))
         .options(selectinload(ProjectInvoice.project).selectinload(Project.client))
         .order_by(ProjectInvoice.created_at.desc())
     )

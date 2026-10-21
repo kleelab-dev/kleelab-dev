@@ -1,6 +1,8 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +27,7 @@ from kleelab.routers.chat import router as chat_router
 from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.payments import router as payments_router
 from kleelab.routers.projects import router as projects_router
-from kleelab.services import llm
+from kleelab.services import llm, retention
 
 
 configure_logging()
@@ -67,7 +69,15 @@ if settings.AUTO_VERIFY_EMAILS:
         "development; set AUTO_VERIFY_EMAILS=false outside it.",
     )
 
-app = FastAPI(title="KleeLab API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Deletes old enquiries and invoices, as the privacy page promises.
+    task = asyncio.create_task(retention.run_daily())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="KleeLab API", version="1.0.0", lifespan=lifespan)
 register_exception_handlers(app)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)

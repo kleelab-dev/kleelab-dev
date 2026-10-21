@@ -470,7 +470,7 @@ async def search(q: str = Query(min_length=2, max_length=100), db: AsyncSession 
     )
     invoices = await db.scalars(
         select(ProjectInvoice)
-        .where(or_(has(ProjectInvoice.number), has(ProjectInvoice.title)))
+        .where(ProjectInvoice.project_id.is_not(None), or_(has(ProjectInvoice.number), has(ProjectInvoice.title)))
         .options(selectinload(ProjectInvoice.project))
         .order_by(ProjectInvoice.created_at.desc())
         .limit(per_kind)

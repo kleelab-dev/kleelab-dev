@@ -37,4 +37,5 @@ No email or Slack messages are sent.
 | `check_money_clients.py` | Invoices, PDF, money summary, client accounts |
 | `check_alerts_search.py` | Team alerts bell, Ctrl+K search of teammates and messages |
 | `check_paystack.py` | Paying invoices online: webhook signature, verification, replays, mismatches. Paystack is faked; no network calls |
+| `check_retention.py` | Invoices kept when an account is deleted; old enquiries and invoices deleted on schedule |
 | `check_client_account.py` | A client's Account page: name, password change, signing out other devices |

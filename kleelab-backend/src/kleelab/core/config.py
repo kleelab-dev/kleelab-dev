@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Short-lived access tokens, refreshed via rotating refresh tokens.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    # Retention promised on the privacy page; services/retention.py enforces both.
+    # Enquiries that never became a project are deleted after this many days.
+    ENQUIRY_RETENTION_DAYS: int = 730
+    # Invoices outlive a deleted account for tax records, then go after this long.
+    INVOICE_RETENTION_YEARS: int = 6
     # Honour X-Forwarded-For / X-Real-IP. Required behind a load balancer, where
     # request.client.host is the proxy and every caller would share one bucket.
     TRUST_PROXY: bool = True
