@@ -166,7 +166,11 @@ class ProjectFile(Base):
 
 
 class ProjectInvoice(Base):
-    """Money the client owes for a project. Paid through a link, never through us."""
+    """Money the client owes for a project.
+
+    Paid by card through Paystack (see `InvoicePayment`), through a link, or by
+    bank transfer that the team marks paid by hand.
+    """
 
     __tablename__ = "project_invoices"
 
@@ -185,7 +189,45 @@ class ProjectInvoice(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="unpaid", server_default="unpaid")
     pay_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # How it was paid when we know: "paystack" for an online card payment. Null
+    # when the team marked it paid by hand.
+    paid_via: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # The provider's reference for that payment, for finding it in their dashboard.
+    payment_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="invoices")
+
+
+class InvoicePayment(Base):
+    """One attempt to pay an invoice online.
+
+    A row per attempt rather than a column on the invoice, because a client can
+    press "Pay now" twice and each press gets its own provider reference. Either
+    of them may be the one that is paid, so both must stay findable.
+    """
+
+    __tablename__ = "invoice_payments"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("project_invoices.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    initiated_by: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    provider: Mapped[str] = mapped_column(String(20), nullable=False, default="paystack", server_default="paystack")
+    reference: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    # What we asked the provider to charge, so a verified charge can be compared.
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # pending | success | failed | mismatch (charged, but not what we asked for)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", server_default="pending")
+    provider_transaction_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    channel: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    invoice = relationship("ProjectInvoice")

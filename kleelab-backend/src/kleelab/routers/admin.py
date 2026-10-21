@@ -44,7 +44,7 @@ from kleelab.services import activity
 from kleelab.services import projects as svc
 from kleelab.services import sessions
 from kleelab.services.activity import quoted
-from kleelab.services.email import send_client_project_notice, send_lead_reply, send_project_invite_email
+from kleelab.services.email import send_lead_reply, send_project_invite_email
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +86,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(re
 
 
 def _notify_client(project: Project, headline: str) -> None:
-    if project.client is None:
-        return
-    try:
-        send_client_project_notice(project.client.email, str(project.id), project.title, headline)
-    except Exception:  # noqa: BLE001 - the update is saved; the email is a courtesy
-        logger.exception("Could not email %s about %s", project.client.email, project.reference)
+    svc.notify_client(project, headline)
 
 
 def _send_invite(client: User, project: Project) -> bool:
@@ -587,8 +582,7 @@ async def patch_request(
 # --- Invoices -----------------------------------------------------------------
 
 
-def _money(cents: int, currency: str) -> str:
-    return f"{currency} {cents / 100:,.2f}"
+_money = svc.money
 
 
 @router.post(
@@ -660,12 +654,12 @@ async def patch_invoice(
     elif edited:
         activity.record(db, staff, "invoice.update", f"Edited {invoice.number}", project_id=project.id,
                         subject_type="invoice", subject_id=invoice.id)
-    if "status" in changes:
-        invoice.paid_at = svc.now() if invoice.status == "paid" else None
+    if invoice.status != old_status:
+        svc.set_invoice_status(invoice, invoice.status)
     await svc.touch(db, project)
     await db.commit()
     if newly_paid:
-        _notify_client(project, f"Thank you. We have received your payment for {invoice.number}")
+        _notify_client(project, svc.paid_notice(invoice))
     return await _reload(db, project_id, staff)
 
 

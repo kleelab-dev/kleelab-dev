@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     # The address under "From", and how to pay by bank transfer. Both optional.
     INVOICE_FROM_ADDRESS: str | None = None
     INVOICE_PAYMENT_DETAILS: str | None = None
+    # Paystack card payments for invoices. Off until a secret key is set: the
+    # "Pay now" button disappears and the payment routes answer 503. Use a test
+    # key (sk_test_...) until the live account is approved. The same key signs
+    # webhooks, so there is no separate webhook secret.
+    PAYSTACK_SECRET_KEY: str | None = None
+    PAYSTACK_BASE_URL: str = "https://api.paystack.co"
+    # Where Paystack sends the client after paying. Unset means
+    # {FRONTEND_URL}/dashboard/payment, the client site's return page.
+    PAYSTACK_CALLBACK_URL: str | None = None
+    PAYSTACK_TIMEOUT_SECONDS: float = 20.0
     # Cloudinary credential, supplied in the conventional URI form:
     # cloudinary://<api_key>:<api_secret>@<cloud_name>
     CLOUDINARY_URL: str | None = None
@@ -114,6 +124,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @property
+    def paystack_enabled(self) -> bool:
+        return bool((self.PAYSTACK_SECRET_KEY or "").strip())
+
+    @property
+    def paystack_callback_url(self) -> str:
+        return self.PAYSTACK_CALLBACK_URL or f"{self.FRONTEND_URL.rstrip('/')}/dashboard/payment"
 
     @property
     def cors_origins(self) -> list[str]:

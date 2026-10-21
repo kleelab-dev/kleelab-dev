@@ -36,3 +36,4 @@ No email or Slack messages are sent.
 | `check_lead_pipeline.py` | Enquiries pipeline, notes, Today stats |
 | `check_money_clients.py` | Invoices, PDF, money summary, client accounts |
 | `check_alerts_search.py` | Team alerts bell, Ctrl+K search of teammates and messages |
+| `check_paystack.py` | Paying invoices online: webhook signature, verification, replays, mismatches. Paystack is faked; no network calls |

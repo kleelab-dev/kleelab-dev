@@ -59,8 +59,30 @@ class AIUnavailableError(Exception):
         self.retryable = retryable
 
 
+class PaymentError(Exception):
+    """An online payment refused for a reason the client should be told plainly.
+
+    Carries its own code ("payments_disabled", "not_payable", ...) so the page
+    can tell "online payment is switched off" from "this is already paid".
+    """
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register consistent handlers for expected API failures."""
+
+    @app.exception_handler(PaymentError)
+    async def payment_error_handler(request: Request, exc: PaymentError) -> JSONResponse:
+        del request
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message}},
+        )
 
     @app.exception_handler(AIUnavailableError)
     async def ai_unavailable_handler(request: Request, exc: AIUnavailableError) -> JSONResponse:

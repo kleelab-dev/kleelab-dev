@@ -1,6 +1,8 @@
 import type {
   ChatReply,
   ChatTurn,
+  PaymentResult,
+  PaymentsConfig,
   ProjectDetail,
   ProjectSummary,
   RequestKind,
@@ -338,5 +340,22 @@ export const apiService = {
       `KleeLab-${invoice.number}.pdf`,
       'The invoice could not be downloaded.',
     );
+  },
+
+  // --- Paying invoices online -----------------------------------------------
+
+  /** Whether card payment is switched on, and in which currencies. */
+  async getPaymentsConfig(): Promise<PaymentsConfig> {
+    return request<PaymentsConfig>('/api/payments/config');
+  },
+
+  /** Start paying an invoice. Answers the Paystack page to send the browser to. */
+  async startInvoicePayment(invoiceId: string): Promise<{ authorization_url: string; reference: string }> {
+    return post<{ authorization_url: string; reference: string }>(`/api/payments/invoices/${invoiceId}/paystack`);
+  },
+
+  /** After paying: ask the server, which asks Paystack, how it went. */
+  async verifyPayment(reference: string): Promise<PaymentResult> {
+    return request<PaymentResult>(`/api/payments/paystack/verify?reference=${encodeURIComponent(reference)}`);
   },
 };

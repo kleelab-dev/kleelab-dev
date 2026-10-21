@@ -23,6 +23,7 @@ from kleelab.routers.agency import router as agency_router
 from kleelab.routers.auth import router as auth_router
 from kleelab.routers.chat import router as chat_router
 from kleelab.routers.gdpr import router as gdpr_router
+from kleelab.routers.payments import router as payments_router
 from kleelab.routers.projects import router as projects_router
 from kleelab.services import llm
 
@@ -94,6 +95,7 @@ app.include_router(projects_router)
 app.include_router(admin_router)
 app.include_router(team_router)
 app.include_router(gdpr_router)
+app.include_router(payments_router)
 
 
 @app.get("/")

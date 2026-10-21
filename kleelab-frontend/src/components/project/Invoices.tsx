@@ -1,12 +1,40 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { useEffect, useState } from 'react';
+import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import { buttonClass } from '@/components/ui/Button';
 import { apiService } from '@/services/api';
-import type { Invoice } from '@/types/api';
-import { formatDate, formatMoney, INVOICE_STATUS } from './format';
+import type { Invoice, PaymentsConfig } from '@/types/api';
+import { errorText, formatDate, formatMoney, INVOICE_STATUS } from './format';
 import { Pill } from './Pill';
+
+// Asked once per page load: whether card payment is on does not change while
+// someone is looking at their invoices.
+let configRequest: Promise<PaymentsConfig | null> | null = null;
+
+function loadPaymentsConfig(): Promise<PaymentsConfig | null> {
+  if (!configRequest) {
+    configRequest = apiService.getPaymentsConfig().catch(() => {
+      configRequest = null;
+      return null;
+    });
+  }
+  return configRequest;
+}
+
+function usePaymentsConfig(): PaymentsConfig | null {
+  const [config, setConfig] = useState<PaymentsConfig | null>(null);
+  useEffect(() => {
+    let active = true;
+    loadPaymentsConfig().then((loaded) => {
+      if (active) setConfig(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return config;
+}
 
 function isLate(invoice: Invoice): boolean {
   return invoice.status === 'unpaid' && !!invoice.due_date && invoice.due_date < new Date().toISOString().slice(0, 10);
@@ -24,6 +52,9 @@ export function InvoiceList({
   renderControls?: (invoice: Invoice) => React.ReactNode;
 }) {
   const ordered = [...invoices].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const payments = usePaymentsConfig();
+  const canPayOnline = (invoice: Invoice) =>
+    !!payments?.enabled && invoice.status === 'unpaid' && payments.currencies.includes(invoice.currency);
   return (
     <ul className="grid gap-2">
       {ordered.map((invoice) => {
@@ -40,13 +71,15 @@ export function InvoiceList({
             <p className="text-xs text-muted">
               {invoice.number}
               {invoice.status === 'paid' && invoice.paid_at
-                ? ` · Paid ${formatDate(invoice.paid_at)}`
+                ? ` · Paid ${invoice.paid_via === 'paystack' ? 'online ' : ''}${formatDate(invoice.paid_at)}`
                 : invoice.due_date
                   ? ` · Due ${formatDate(invoice.due_date)}`
                   : ''}
             </p>
             {renderControls ? (
               <div className="mt-3">{renderControls(invoice)}</div>
+            ) : canPayOnline(invoice) ? (
+              <PayButton invoice={invoice} testMode={!!payments?.test_mode} />
             ) : (
               invoice.status === 'unpaid' &&
               invoice.pay_url && (
@@ -59,6 +92,41 @@ export function InvoiceList({
         );
       })}
     </ul>
+  );
+}
+
+/** Card payment through Paystack. The browser leaves for Paystack's page and comes back to /dashboard/payment. */
+function PayButton({ invoice, testMode }: { invoice: Invoice; testMode: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          apiService
+            .startInvoicePayment(invoice.id)
+            .then(({ authorization_url }) => window.location.assign(authorization_url))
+            .catch((reason) => {
+              setBusy(false);
+              setError(errorText(reason, 'We could not start the payment. Please try again.'));
+            });
+        }}
+        className={buttonClass('primary', 'sm')}
+      >
+        <CreditCardIcon className="h-4 w-4" aria-hidden />
+        {busy ? 'Opening payment…' : 'Pay now'}
+      </button>
+      {testMode && <p className="mt-1.5 text-xs text-muted">Test mode: no real money is taken.</p>}
+      {error && (
+        <p role="alert" className="mt-1.5 text-xs text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

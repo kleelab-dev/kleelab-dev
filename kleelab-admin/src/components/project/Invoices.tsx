@@ -40,11 +40,14 @@ export function InvoiceList({
             <p className="text-xs text-muted">
               {invoice.number}
               {invoice.status === 'paid' && invoice.paid_at
-                ? ` · Paid ${formatDate(invoice.paid_at)}`
+                ? ` · Paid ${invoice.paid_via === 'paystack' ? 'online ' : ''}${formatDate(invoice.paid_at)}`
                 : invoice.due_date
                   ? ` · Due ${formatDate(invoice.due_date)}`
                   : ''}
             </p>
+            {invoice.status === 'paid' && invoice.payment_reference && (
+              <p className="font-mono text-[10px] text-muted">Paystack {invoice.payment_reference}</p>
+            )}
             {renderControls ? (
               <div className="mt-3">{renderControls(invoice)}</div>
             ) : (
