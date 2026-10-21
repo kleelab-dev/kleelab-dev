@@ -35,3 +35,4 @@ No email or Slack messages are sent.
 | `check_team_security.py` | Session tokens, two-step sign-in, team invites, activity log, search |
 | `check_lead_pipeline.py` | Enquiries pipeline, notes, Today stats |
 | `check_money_clients.py` | Invoices, PDF, money summary, client accounts |
+| `check_alerts_search.py` | Team alerts bell, Ctrl+K search of teammates and messages |

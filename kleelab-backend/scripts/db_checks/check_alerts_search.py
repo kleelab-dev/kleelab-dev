@@ -10,21 +10,8 @@ enquiry, and removes them again at the end.
 from __future__ import annotations
 
 import asyncio
-import os
-import sys
 import uuid
-from urllib.parse import urlparse
-
-DEFAULT_URL = "postgresql://postgres@127.0.0.1:6543/kleelab_test"
-os.environ.setdefault("DATABASE_URL", DEFAULT_URL)
-# Never against a real database: this script writes and deletes rows.
-if urlparse(os.environ["DATABASE_URL"]).hostname not in ("127.0.0.1", "localhost"):
-    sys.exit("Refusing to run: DATABASE_URL must point at a local test database (127.0.0.1 or localhost).")
-os.environ.setdefault("SECRET_KEY", "local-test-key")
-os.environ["MAILTRAP_API_TOKEN"] = ""
-os.environ["RESEND_API_KEY"] = ""
-os.environ["SLACK_WEBHOOK_URL"] = ""
-os.environ["AUTH_RATE_LIMIT_PER_MINUTE"] = "1000"
+from _harness import check, finish  # noqa: I001  (sets up the local test database first)
 
 import httpx  # noqa: E402
 from sqlalchemy import delete, or_, select  # noqa: E402
@@ -46,14 +33,6 @@ admin_router.send_client_project_notice = lambda *args, **kwargs: True
 projects_router.send_team_notice = lambda *args, **kwargs: True
 projects_router.send_client_project_notice = lambda *args, **kwargs: True
 agency_router.send_agency_lead_notification = lambda *args, **kwargs: True
-
-results: list[bool] = []
-
-
-def check(label: str, cond: object) -> None:
-    results.append(bool(cond))
-    print(("PASS  " if cond else "FAIL  ") + label)
-
 
 def bearer(user_id: uuid.UUID) -> dict[str, str]:
     return {"Authorization": "Bearer " + create_access_token({"user_id": str(user_id)})}
@@ -239,10 +218,8 @@ async def main() -> None:
             await db.execute(delete(ActivityEvent).where(ActivityEvent.actor_id.in_(users)))
             await db.execute(delete(User).where(User.email.in_(emails)))
             await db.commit()
-    print(f"{sum(results)}/{len(results)} passed")
-    if not all(results):
-        sys.exit(1)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    finish()
