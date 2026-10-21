@@ -114,7 +114,7 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
           {invoices.length > 0 && (
             <div id="invoices">
               <Panel tag="payments" title="Invoices">
-                <InvoiceList invoices={invoices} />
+                <InvoiceList invoices={invoices} projectId={project.id} />
                 <p className="mt-3 text-xs text-muted">Pay now opens a secure payment page. Questions about an invoice? Send us a message.</p>
               </Panel>
             </div>

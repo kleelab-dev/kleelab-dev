@@ -22,6 +22,7 @@ from kleelab.schemas.project import (
 )
 from kleelab.services import projects as svc
 from kleelab.services.email import send_client_project_notice, send_team_notice
+from kleelab.services.invoice_pdf import pdf_filename, render_invoice_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,30 @@ async def download_file(
         media_type=media_type,
         headers={
             "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(item.filename)}",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/{project_id}/invoices/{invoice_id}/pdf")
+async def download_invoice(
+    project_id: UUID,
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """The invoice as a PDF. A client only gets invoices on their own projects."""
+
+    project = await svc.load_project(db, project_id, user)
+    invoice = next((i for i in project.invoices if i.id == invoice_id), None)
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    return Response(
+        content=render_invoice_pdf(invoice, project),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{pdf_filename(invoice)}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, no-store",
         },

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # Where a reply to an email sent from the team dashboard goes, e.g.
     # info@kleelab.com. Falls back to TEAM_INBOX.
     REPLY_TO_EMAIL: str | None = None
+    # Printed on invoice PDFs. Lines are separated by "\n" (or real line breaks).
+    # The address under "From", and how to pay by bank transfer. Both optional.
+    INVOICE_FROM_ADDRESS: str | None = None
+    INVOICE_PAYMENT_DETAILS: str | None = None
     # Cloudinary credential, supplied in the conventional URI form:
     # cloudinary://<api_key>:<api_secret>@<cloud_name>
     CLOUDINARY_URL: str | None = None

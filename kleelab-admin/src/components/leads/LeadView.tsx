@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
-import { CheckIcon, ClipboardDocumentIcon, EnvelopeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, EnvelopeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { CopyEmail } from '@/components/ui/CopyEmail';
 import { Button, buttonClass } from '@/components/ui/Button';
 import { useCurrentUser } from '@/components/app/AppShell';
 import { Panel, Pill } from '@/components/project/Pill';
@@ -184,31 +185,6 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
       <dt className="font-mono text-[10px] uppercase tracking-label text-muted">{label}</dt>
       <dd className="mt-0.5 break-words text-ink">{children}</dd>
     </div>
-  );
-}
-
-function CopyEmail({ email }: { email: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <span className="flex items-center gap-2">
-      <span className="min-w-0 break-all">{email}</span>
-      <button
-        type="button"
-        onClick={() =>
-          navigator.clipboard
-            ?.writeText(email)
-            .then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            })
-            .catch(() => undefined)
-        }
-        className="shrink-0 text-muted hover:text-ink"
-        aria-label={copied ? 'Email copied' : 'Copy email'}
-      >
-        {copied ? <CheckIcon className="h-4 w-4 text-cobalt" aria-hidden /> : <ClipboardDocumentIcon className="h-4 w-4" aria-hidden />}
-      </button>
-    </span>
   );
 }
 

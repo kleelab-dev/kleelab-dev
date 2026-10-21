@@ -102,6 +102,7 @@ class ProjectSummary(BaseModel):
     client_email: str | None = None
     client_name: str | None = None
     # Team view only.
+    client_id: UUID | None = None
     owner_id: UUID | None = None
     owner_name: str | None = None
     # The newest message is from the client, so someone should reply.
@@ -127,6 +128,7 @@ class ProjectDetail(BaseModel):
     client_email: str | None = None
     client_name: str | None = None
     # Team view only.
+    client_id: UUID | None = None
     owner_id: UUID | None = None
     owner_name: str | None = None
     lead_id: UUID | None = None
@@ -243,3 +245,51 @@ class AttentionItem(BaseModel):
     since: datetime | date | None
     owner_name: str | None = None
     lead_id: UUID | None = None
+
+
+# --- Money and clients (team view) ------------------------------------------------
+
+
+class MoneyTotal(BaseModel):
+    currency: str
+    cents: int
+    count: int
+
+
+class AdminInvoiceOut(InvoiceOut):
+    """An invoice with the project and client it belongs to, for the money page."""
+
+    project_id: UUID
+    project_title: str
+    project_reference: str
+    client_id: UUID | None = None
+    client_name: str | None = None
+    client_email: str | None = None
+
+
+class ClientSummary(BaseModel):
+    id: UUID
+    name: str | None
+    email: str
+    is_active: bool
+    created_at: datetime
+    # Null until they first sign in, which means the invite was never used.
+    last_sign_in: datetime | None
+    # The most recent change on any of their projects.
+    last_activity: datetime | None
+    project_count: int
+    active_projects: int
+    # Totals per currency. Cancelled invoices count towards none of them.
+    billed: list[MoneyTotal]
+    paid: list[MoneyTotal]
+    outstanding: list[MoneyTotal]
+
+
+class ClientDetail(ClientSummary):
+    projects: list[ProjectSummary]
+    invoices: list[AdminInvoiceOut]
+
+
+class ClientPatch(BaseModel):
+    full_name: str | None = Field(default=None, max_length=100)
+    is_active: bool | None = None

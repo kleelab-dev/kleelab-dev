@@ -15,12 +15,19 @@ from kleelab.core.database import get_db
 from kleelab.core.security import create_signed_token, get_current_user, get_password_hash
 from kleelab.models.agency_lead import AgencyLead, LeadNote
 from kleelab.models.project import Project, ProjectInvoice, ProjectStage, ProjectUpdate
+from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
 from kleelab.schemas.agency import LeadDetail, LeadNoteCreate, LeadNoteOut, LeadOut, LeadReplyCreate
 from kleelab.schemas.project import (
+    AdminInvoiceOut,
     AttentionItem,
+    ClientDetail,
+    ClientPatch,
+    ClientSummary,
     InvoiceCreate,
+    InvoiceOut,
     InvoicePatch,
+    MoneyTotal,
     ProjectCreate,
     ProjectCreated,
     ProjectDetail,
@@ -34,6 +41,7 @@ from kleelab.schemas.project import (
     StagePatch,
 )
 from kleelab.services import projects as svc
+from kleelab.services import sessions
 from kleelab.services.email import send_client_project_notice, send_lead_reply, send_project_invite_email
 
 logger = logging.getLogger(__name__)
@@ -762,12 +770,6 @@ async def reply_to_lead(
 # --- Numbers for the home page ------------------------------------------------
 
 
-class MoneyTotal(BaseModel):
-    currency: str
-    cents: int
-    count: int
-
-
 class AdminStats(BaseModel):
     new_enquiries: int
     enquiries_this_month: int
@@ -834,3 +836,174 @@ async def stats(db: AsyncSession = Depends(get_db)) -> AdminStats:
             db, ProjectInvoice.status == "paid", ProjectInvoice.paid_at >= month_start
         ),
     )
+
+
+# --- Money ------------------------------------------------------------------------
+
+
+def _admin_invoice(invoice: ProjectInvoice, project: Project) -> AdminInvoiceOut:
+    client = project.client
+    return AdminInvoiceOut(
+        **InvoiceOut.model_validate(invoice).model_dump(),
+        project_id=project.id,
+        project_title=project.title,
+        project_reference=project.reference,
+        client_id=client.id if client else None,
+        client_name=client.full_name if client else None,
+        client_email=client.email if client else None,
+    )
+
+
+@router.get("/invoices", response_model=list[AdminInvoiceOut])
+async def list_invoices(db: AsyncSession = Depends(get_db)) -> list[AdminInvoiceOut]:
+    """Every invoice on every project, newest first."""
+
+    result = await db.scalars(
+        select(ProjectInvoice)
+        .options(selectinload(ProjectInvoice.project).selectinload(Project.client))
+        .order_by(ProjectInvoice.created_at.desc())
+    )
+    return [_admin_invoice(invoice, invoice.project) for invoice in result]
+
+
+# --- Clients ------------------------------------------------------------------------
+
+
+def _totals(invoices: list[ProjectInvoice], *statuses: str) -> list[MoneyTotal]:
+    sums: dict[str, list[int]] = {}
+    for invoice in invoices:
+        if invoice.status in statuses:
+            entry = sums.setdefault(invoice.currency, [0, 0])
+            entry[0] += invoice.amount_cents
+            entry[1] += 1
+    return [MoneyTotal(currency=c, cents=v[0], count=v[1]) for c, v in sorted(sums.items())]
+
+
+def _client_summary(client: User, projects: list[Project], last_sign_in) -> ClientSummary:
+    invoices = [i for p in projects for i in p.invoices]
+    return ClientSummary(
+        id=client.id,
+        name=client.full_name,
+        email=client.email,
+        is_active=client.is_active,
+        created_at=client.created_at,
+        last_sign_in=last_sign_in,
+        last_activity=max((p.updated_at for p in projects), default=None),
+        project_count=len(projects),
+        active_projects=sum(1 for p in projects if p.status == "active"),
+        billed=_totals(invoices, "unpaid", "paid"),
+        paid=_totals(invoices, "paid"),
+        outstanding=_totals(invoices, "unpaid"),
+    )
+
+
+async def _last_sign_ins(db: AsyncSession, user_ids: list[UUID]) -> dict[UUID, object]:
+    if not user_ids:
+        return {}
+    rows = await db.execute(
+        select(RefreshToken.user_id, func.max(RefreshToken.created_at))
+        .where(RefreshToken.user_id.in_(user_ids))
+        .group_by(RefreshToken.user_id)
+    )
+    return dict(rows.all())
+
+
+async def _load_client(db: AsyncSession, client_id: UUID) -> User:
+    client = await db.get(User, client_id, populate_existing=True)
+    # Staff are not clients; 404 so this cannot be used to switch a teammate off.
+    if client is None or svc.is_staff(client):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    return client
+
+
+async def _client_projects(db: AsyncSession, client_id: UUID) -> list[Project]:
+    result = await db.scalars(
+        select(Project)
+        .where(Project.client_id == client_id)
+        .options(*svc.with_everything())
+        .order_by(Project.updated_at.desc())
+        .execution_options(populate_existing=True)
+    )
+    return list(result.unique())
+
+
+async def _client_detail(db: AsyncSession, client: User) -> ClientDetail:
+    projects = await _client_projects(db, client.id)
+    last = (await _last_sign_ins(db, [client.id])).get(client.id)
+    summary = _client_summary(client, projects, last)
+    invoices = sorted(
+        (_admin_invoice(i, p) for p in projects for i in p.invoices), key=lambda i: i.created_at, reverse=True
+    )
+    return ClientDetail(
+        **summary.model_dump(),
+        projects=[svc.summarise(p, team=True) for p in projects],
+        invoices=invoices,
+    )
+
+
+@router.get("/clients", response_model=list[ClientSummary])
+async def list_clients(db: AsyncSession = Depends(get_db)) -> list[ClientSummary]:
+    """Everyone we have built (or are building) a project for, most recently active first."""
+
+    result = await db.scalars(
+        select(Project).options(selectinload(Project.client), selectinload(Project.invoices))
+    )
+    by_client: dict[UUID, tuple[User, list[Project]]] = {}
+    for project in result:
+        if project.client is None or svc.is_staff(project.client):
+            continue
+        by_client.setdefault(project.client.id, (project.client, []))[1].append(project)
+    last = await _last_sign_ins(db, list(by_client))
+    clients = [_client_summary(user, projects, last.get(user.id)) for user, projects in by_client.values()]
+    clients.sort(key=lambda c: c.last_activity or c.created_at, reverse=True)
+    return clients
+
+
+@router.get("/clients/{client_id}", response_model=ClientDetail)
+async def get_client(client_id: UUID, db: AsyncSession = Depends(get_db)) -> ClientDetail:
+    return await _client_detail(db, await _load_client(db, client_id))
+
+
+@router.patch("/clients/{client_id}", response_model=ClientDetail)
+async def patch_client(
+    client_id: UUID, payload: ClientPatch, db: AsyncSession = Depends(get_db)
+) -> ClientDetail:
+    """Rename a client, or switch their access off and on.
+
+    Switching off signs them out everywhere at once: their refresh tokens are
+    revoked and every request with an old access token is refused.
+    """
+
+    client = await _load_client(db, client_id)
+    changes = payload.model_dump(exclude_unset=True)
+    if "full_name" in changes:
+        client.full_name = (changes["full_name"] or "").strip() or None
+    deactivated = changes.get("is_active") is False and client.is_active
+    if changes.get("is_active") is not None:
+        client.is_active = changes["is_active"]
+    await db.commit()
+    if deactivated:
+        await sessions.revoke_all_for_user(client.id, db)
+    return await _client_detail(db, client)
+
+
+@router.post("/clients/{client_id}/invite")
+async def invite_client(client_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Email a fresh 7-day link to set a password, naming their latest project."""
+
+    client = await _load_client(db, client_id)
+    if not client.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This client is switched off. Switch them back on first."
+        )
+    project = await db.scalar(
+        select(Project).where(Project.client_id == client.id).order_by(Project.updated_at.desc()).limit(1)
+    )
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This client has no project yet")
+    if not _send_invite(client, project):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The email could not be sent. Check the email settings and try again.",
+        )
+    return {"status": "sent", "email": client.email}

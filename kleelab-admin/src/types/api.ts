@@ -98,6 +98,7 @@ export interface ProjectSummary {
   updated_at: string;
   client_email: string | null;
   client_name: string | null;
+  client_id: string | null;
   owner_id: string | null;
   owner_name: string | null;
   awaiting_reply: boolean;
@@ -121,6 +122,7 @@ export interface ProjectDetail {
   invoices: Invoice[];
   client_email: string | null;
   client_name: string | null;
+  client_id: string | null;
   owner_id: string | null;
   owner_name: string | null;
   lead_id: string | null;
@@ -273,4 +275,41 @@ export interface ChatReply {
   suggestions: string[];
   offer_contact: boolean;
   source: 'ai' | 'fallback';
+}
+
+/** An invoice with the project and client it belongs to (the money page). */
+export interface AdminInvoice extends Invoice {
+  project_id: string;
+  project_title: string;
+  project_reference: string;
+  client_id: string | null;
+  client_name: string | null;
+  client_email: string | null;
+}
+
+export interface ClientSummary {
+  id: string;
+  name: string | null;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+  /** Null until they first sign in: the invite was never used. */
+  last_sign_in: string | null;
+  last_activity: string | null;
+  project_count: number;
+  active_projects: number;
+  /** Per currency; cancelled invoices are left out. */
+  billed: MoneyTotal[];
+  paid: MoneyTotal[];
+  outstanding: MoneyTotal[];
+}
+
+export interface ClientDetail extends ClientSummary {
+  projects: ProjectSummary[];
+  invoices: AdminInvoice[];
+}
+
+export interface ClientPatchInput {
+  full_name?: string | null;
+  is_active?: boolean;
 }

@@ -86,12 +86,14 @@ export function TodayView() {
           note={stats && (stats.waiting_on_client ? `${stats.waiting_on_client} waiting on the client` : stats.paused_projects ? `${stats.paused_projects} paused` : 'None waiting on clients')}
         />
         <Stat
+          href="/money"
           label="Not paid yet"
           value={stats && formatTotals(stats.unpaid)}
           note={stats && (stats.overdue.length ? `${formatTotals(stats.overdue)} overdue` : `${invoiceCount(stats.unpaid)} open`)}
           warning={Boolean(stats?.overdue.length)}
         />
         <Stat
+          href="/money?show=paid"
           label="Paid this month"
           value={stats && formatTotals(stats.paid_this_month)}
           note={stats && invoiceCount(stats.paid_this_month)}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { Button, buttonClass } from '@/components/ui/Button';
 import { apiService } from '@/services/api';
 import type { Currency, Invoice, InvoiceStatus, ProjectDetail } from '@/types/api';
@@ -15,9 +15,12 @@ function isLate(invoice: Invoice): boolean {
 /** Invoices on a project, newest first. Payment happens on the provider's own page. */
 export function InvoiceList({
   invoices,
+  projectId,
   renderControls,
 }: {
   invoices: Invoice[];
+  /** Set to offer each invoice as a PDF. */
+  projectId?: string;
   renderControls?: (invoice: Invoice) => React.ReactNode;
 }) {
   const ordered = [...invoices].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -31,6 +34,7 @@ export function InvoiceList({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold">{invoice.title}</span>
               <Pill tone={late ? 'bg-danger-soft text-danger' : status.tone}>{late ? 'Overdue' : status.label}</Pill>
+              {projectId && <PdfButton projectId={projectId} invoice={invoice} />}
             </div>
             <p className="mt-1 font-display text-2xl font-extrabold">{formatMoney(invoice.amount_cents, invoice.currency)}</p>
             <p className="text-xs text-muted">
@@ -55,6 +59,27 @@ export function InvoiceList({
         );
       })}
     </ul>
+  );
+}
+
+function PdfButton({ projectId, invoice }: { projectId: string; invoice: Invoice }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle');
+  return (
+    <button
+      type="button"
+      disabled={state === 'busy'}
+      onClick={() => {
+        setState('busy');
+        apiService
+          .downloadInvoicePdf(projectId, invoice)
+          .then(() => setState('idle'))
+          .catch(() => setState('failed'));
+      }}
+      className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-cobalt hover:text-cobalt-dark disabled:opacity-50"
+    >
+      <ArrowDownTrayIcon className="h-3.5 w-3.5" aria-hidden />
+      {state === 'busy' ? 'Preparing…' : state === 'failed' ? 'Try again' : 'PDF'}
+    </button>
   );
 }
 
@@ -110,6 +135,7 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
       {project.invoices.length > 0 && (
         <InvoiceList
           invoices={project.invoices}
+          projectId={project.id}
           renderControls={(invoice) =>
             invoice.status === 'unpaid' ? (
               <div className="flex flex-wrap gap-2">

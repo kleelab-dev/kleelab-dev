@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
@@ -28,6 +28,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const navRef = useRef<HTMLElement>(null);
+
+  // On a phone the nav can scroll sideways; keep the current page in view.
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [pathname, state.kind]);
 
   useEffect(() => {
     let active = true;
@@ -90,6 +96,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/', label: 'Today' },
     { href: '/projects', label: 'Projects' },
     { href: '/leads', label: 'Enquiries' },
+    { href: '/clients', label: 'Clients' },
+    { href: '/money', label: 'Money' },
   ];
 
   return (
@@ -99,12 +107,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           Skip to content
         </a>
         <header className="sticky top-0 z-30 border-b-[1.5px] border-ink bg-paper/95 backdrop-blur">
-          <div className="mx-auto flex max-w-content items-center gap-6 px-5 py-3.5">
+          <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3.5">
             <Link href="/" className="no-underline" aria-label="Team dashboard home">
               <Logo />
             </Link>
             <span className="stamp hidden -rotate-2 sm:inline-block">Team</span>
-            <nav className="flex flex-1 items-center gap-1" aria-label="Dashboard">
+            <nav
+              ref={navRef}
+              className="-mx-1 order-last flex min-w-0 basis-full items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] sm:order-none sm:flex-1 sm:basis-auto [&::-webkit-scrollbar]:hidden"
+              aria-label="Dashboard"
+            >
               {nav.map((item) => {
                 const current = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
                 return (
@@ -113,7 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     href={item.href}
                     aria-current={current ? 'page' : undefined}
                     className={clsx(
-                      'rounded-full px-3 py-1.5 text-sm font-medium no-underline',
+                      'shrink-0 rounded-full px-2.5 py-1.5 text-sm font-medium no-underline sm:px-3',
                       current ? 'bg-ink text-paper' : 'text-ink-soft hover:bg-ink/5',
                     )}
                   >
@@ -122,8 +134,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
-            <span className="hidden truncate text-xs text-muted md:inline">{user.email}</span>
-            <button type="button" onClick={signOut} className="text-sm font-medium text-ink-soft hover:text-ink">
+            <span className="ml-auto hidden truncate text-xs text-muted md:inline">{user.email}</span>
+            <button type="button" onClick={signOut} className="ml-auto text-sm font-medium text-ink-soft hover:text-ink md:ml-0">
               Sign out
             </button>
           </div>

@@ -1,8 +1,12 @@
 import type {
+  AdminInvoice,
   AdminStats,
   AttentionItem,
   ChatReply,
   ChatTurn,
+  ClientDetail,
+  ClientPatchInput,
+  ClientSummary,
   InvoiceCreateInput,
   InvoicePatchInput,
   Lead,
@@ -205,6 +209,23 @@ function patch<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(body) });
 }
 
+/** Fetch a signed-in download and hand it to the browser to save. */
+async function saveDownload(path: string, filename: string, failure: string): Promise<void> {
+  let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+  if (response.status === 401 && (await refreshSession())) {
+    response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+  }
+  if (!response.ok) throw new ApiError(failure, response.status);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const apiService = {
   // --- Accounts ------------------------------------------------------------
 
@@ -329,20 +350,16 @@ export const apiService = {
    * file is fetched here and handed to the browser to save.
    */
   async downloadFile(projectId: string, fileId: string, filename: string): Promise<void> {
-    const path = `/api/projects/${projectId}/files/${fileId}`;
-    let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
-    if (response.status === 401 && (await refreshSession())) {
-      response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
-    }
-    if (!response.ok) throw new ApiError('That file could not be downloaded.', response.status);
-    const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return saveDownload(`/api/projects/${projectId}/files/${fileId}`, filename, 'That file could not be downloaded.');
+  },
+
+  /** The invoice as a KleeLab-branded PDF. */
+  async downloadInvoicePdf(projectId: string, invoice: { id: string; number: string }): Promise<void> {
+    return saveDownload(
+      `/api/projects/${projectId}/invoices/${invoice.id}/pdf`,
+      `KleeLab-${invoice.number}.pdf`,
+      'The invoice could not be downloaded.',
+    );
   },
 
   // --- Team admin ----------------------------------------------------------
@@ -428,5 +445,28 @@ export const apiService = {
 
   async adminStats(): Promise<AdminStats> {
     return request<AdminStats>('/api/admin/stats');
+  },
+
+  /** Every invoice on every project, newest first. */
+  async adminInvoices(): Promise<AdminInvoice[]> {
+    return request<AdminInvoice[]>('/api/admin/invoices');
+  },
+
+  async adminClients(): Promise<ClientSummary[]> {
+    return request<ClientSummary[]>('/api/admin/clients');
+  },
+
+  async adminClient(clientId: string): Promise<ClientDetail> {
+    return request<ClientDetail>(`/api/admin/clients/${clientId}`);
+  },
+
+  /** Rename, or switch access off (signs them out everywhere) and back on. */
+  async adminUpdateClient(clientId: string, input: ClientPatchInput): Promise<ClientDetail> {
+    return patch<ClientDetail>(`/api/admin/clients/${clientId}`, input);
+  },
+
+  /** Email a fresh 7-day link to set a password and sign in. */
+  async adminInviteClient(clientId: string): Promise<{ status: string; email: string }> {
+    return post<{ status: string; email: string }>(`/api/admin/clients/${clientId}/invite`);
   },
 };

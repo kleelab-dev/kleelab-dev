@@ -145,7 +145,13 @@ function ClientBar({ project, staff, save }: { project: ProjectDetail; staff: St
     <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-4 rounded-2xl border-[1.5px] border-line bg-white p-4">
       <div className="min-w-0">
         <p className="font-mono text-[10px] uppercase tracking-label text-muted">Client</p>
-        <p className="font-semibold">{project.client_name || 'No name yet'}</p>
+        {project.client_id ? (
+          <Link href={`/clients/${project.client_id}`} className="font-semibold text-ink no-underline hover:text-cobalt">
+            {project.client_name || 'No name yet'}
+          </Link>
+        ) : (
+          <p className="font-semibold">{project.client_name || 'No name yet'}</p>
+        )}
         <p className="truncate text-sm text-muted">{project.client_email}</p>
       </div>
       <div>

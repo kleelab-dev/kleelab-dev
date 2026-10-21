@@ -111,6 +111,23 @@ export function followUpDue(lead: Pick<Lead, 'follow_up_on' | 'status'>): boolea
   return Boolean(lead.follow_up_on) && lead.follow_up_on! <= todayISO() && (lead.status === 'new' || lead.status === 'contacted');
 }
 
+/** An unpaid invoice past its pay-by date. */
+export function isOverdue(invoice: { status: string; due_date: string | null }): boolean {
+  return invoice.status === 'unpaid' && Boolean(invoice.due_date) && invoice.due_date! < todayISO();
+}
+
+/** Add invoices up per currency. */
+export function sumInvoices(invoices: { amount_cents: number; currency: string }[]): MoneyTotal[] {
+  const totals = new Map<string, MoneyTotal>();
+  for (const invoice of invoices) {
+    const entry = totals.get(invoice.currency) ?? { currency: invoice.currency, cents: 0, count: 0 };
+    entry.cents += invoice.amount_cents;
+    entry.count += 1;
+    totals.set(invoice.currency, entry);
+  }
+  return [...totals.values()].sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
 /** Totals in several currencies, written as one line: "₦1,200,000.00 + $500.00". */
 export function formatTotals(totals: MoneyTotal[]): string {
   return totals.length ? totals.map((t) => formatMoney(t.cents, t.currency)).join(' + ') : formatMoney(0, 'NGN');

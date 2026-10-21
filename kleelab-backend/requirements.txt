@@ -10,6 +10,8 @@ bcrypt==5.0.0
 email-validator==2.2.0
 sentry-sdk==2.0.0
 jinja2==3.1.2
+# Invoice PDFs. Pure Python, so nothing extra to install on the server.
+fpdf2==2.8.3
 resend==0.1.0
 # Pinned explicitly, not relied on transitively. It was previously only present
 # as a dependency of `resend`, which meant it could vanish on a resend bump and
