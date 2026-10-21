@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import { ArrowDownTrayIcon, CheckIcon, ExclamationTriangleIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { errorText, formatMoney, isOverdue, sumInvoices, todayISO } from '@/components/project/format';
+import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { AdminInvoice, MoneyTotal } from '@/types/api';
 import { InvoiceRow } from './InvoiceRow';
@@ -80,6 +81,7 @@ export function MoneyView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>(FILTERS.some((f) => f.value === initial) ? (initial as Filter) : 'unpaid');
   const [query, setQuery] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -90,7 +92,7 @@ export function MoneyView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   const all = invoices ?? [];
   const month = todayISO().slice(0, 7);
@@ -165,7 +167,7 @@ export function MoneyView() {
         </label>
       </div>
 
-      {error && <p role="alert" className="mt-6 rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>}
+      {error && <ErrorState message={error} onRetry={invoices === null ? () => { setError(null); setInvoices(null); setAttempt((n) => n + 1); } : undefined} className="mt-6" />}
       {notice && !error && (
         <p role="status" className="mt-6 flex items-center gap-2 rounded-xl bg-mint p-3 text-sm text-ink">
           <CheckIcon className="h-4 w-4" aria-hidden />
@@ -181,10 +183,15 @@ export function MoneyView() {
           <span>Status</span>
           <span className="w-[8.5rem]" />
         </div>
-        {invoices === null && !error ? (
-          <p className="p-5 font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>
+        {invoices === null ? (
+          error ? <p className="p-5 text-sm text-muted">Invoices could not be loaded.</p> : <Skeleton rows={4} card={false} className="p-5" />
         ) : shown.length === 0 ? (
-          <p className="p-5 text-sm text-muted">{needle ? 'No invoices match.' : filter === 'overdue' ? 'Nothing is overdue.' : 'No invoices here yet.'}</p>
+          <EmptyState
+            title={needle ? 'No invoices match' : filter === 'overdue' ? 'Nothing is overdue' : all.length ? 'Nothing in this list' : 'No invoices yet'}
+            className="m-4 border-line"
+          >
+            {needle ? 'Try an invoice number, a client or a project.' : all.length ? 'Pick another filter above.' : 'Send an invoice from a project page; it shows here with the rest.'}
+          </EmptyState>
         ) : (
           <ul className="divide-y divide-line">
             {shown.map((invoice) => (

@@ -115,6 +115,7 @@ def send_agency_lead_notification(lead_email: str, feature: str) -> None:
         "New KleeLab enquiry",
         f"<p>{escape(lead_email)}: {escape(feature)}</p>",
     )
+    post_to_slack(f"New enquiry from {lead_email}: {feature}", _admin_link("leads"))
 
 # --- Client projects ------------------------------------------------------
 # Everything interpolated here can come from a client or a visitor, so it is
@@ -154,11 +155,68 @@ def send_client_project_notice(email: str, project_id: str, project_title: str, 
     )
 
 
-def send_team_notice(subject: str, lines: list[str]) -> bool:
-    """Tell the KleeLab team something happened that needs a person."""
+def _admin_link(path: str) -> str:
+    return f"{(settings.ADMIN_URL or settings.FRONTEND_URL).rstrip('/')}/{path.lstrip('/')}"
 
-    body = "".join(f"<p>{escape(line)}</p>" for line in lines)
-    return _send(settings.TEAM_INBOX or settings.SENDGRID_FROM_EMAIL, subject, body)
+
+def post_to_slack(text: str, link: str | None = None) -> bool:
+    """Post a line to the team's Slack channel, when SLACK_WEBHOOK_URL is set."""
+
+    if not settings.SLACK_WEBHOOK_URL:
+        return False
+    # Slack reads <...> as links and mentions, so a client's words are escaped.
+    message = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if link:
+        message += f"\n<{link}|Open it in the team dashboard>"
+    try:
+        httpx.post(settings.SLACK_WEBHOOK_URL, json={"text": message}, timeout=5).raise_for_status()
+    except httpx.HTTPError as exc:
+        logger.error("Slack did not accept a team notice: %s", exc)
+        return False
+    return True
+
+
+def send_team_notice(
+    subject: str, lines: list[str], project_id: str | None = None, also_to: list[str] | None = None
+) -> bool:
+    """Tell the KleeLab team something happened that needs a person.
+
+    Goes to the team inbox, to `also_to` (the person in charge of the project),
+    and to Slack when it is set up, with a link straight to the project.
+    """
+
+    link = _admin_link(f"projects/{project_id}") if project_id else None
+    body = "".join(f"<p>{escape(line)}</p>" for line in lines if line)
+    if link:
+        body += f'<p><a href="{link}">Open it in the team dashboard</a></p>'
+    inbox = settings.TEAM_INBOX or settings.SENDGRID_FROM_EMAIL
+    sent = _send(inbox, subject, body)
+    for email in sorted({e.lower() for e in also_to or []} - {inbox.lower()}):
+        _send(email, subject, body)
+    post_to_slack(subject, link)
+    return sent
+
+
+def send_staff_invite_email(email: str, name: str | None, inviter: str | None, token: str) -> bool:
+    """Welcome a new teammate: choose a password on the team dashboard."""
+
+    url = _link("reset-password", token, settings.ADMIN_URL)
+    who = escape(inviter) if inviter else "The KleeLab team"
+    return _send(
+        email,
+        "You have been added to the KleeLab team",
+        f"<p>Hi {escape(name or 'there')},</p>"
+        f"<p>{who} gave you an account on the KleeLab team dashboard, where we run client projects.</p>"
+        f'<p>Choose a password to sign in:</p><p><a href="{url}">{url}</a></p>'
+        "<p>This link works for 7 days, once. When you are in, turn on two-step sign-in "
+        "from your Account page: the dashboard holds client data and payments.</p>",
+    )
+
+
+def send_security_notice(email: str, subject: str, lines: list[str]) -> bool:
+    """A heads-up about a change to someone's own sign-in."""
+
+    return _send(email, subject, "".join(f"<p>{escape(line)}</p>" for line in lines))
 
 
 def send_lead_reply(email: str, subject: str, body: str, sender_name: str | None) -> bool:

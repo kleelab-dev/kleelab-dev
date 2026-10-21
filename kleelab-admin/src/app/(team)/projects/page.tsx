@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/components/app/AppShell';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { Panel } from '@/components/project/Pill';
 import { errorText, staffLabel } from '@/components/project/format';
+import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { Lead, ProjectStatus, ProjectSummary, StaffMember } from '@/types/api';
 
@@ -39,6 +40,7 @@ function Projects() {
   const [mine, setMine] = useState(false);
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(Boolean(leadId) || params.get('new') === '1');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -53,7 +55,7 @@ function Projects() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     if (!leadId) return;
@@ -133,10 +135,15 @@ function Projects() {
       </div>
 
       <div className="mt-6">
-        {error && <p role="alert" className="rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>}
-        {!error && projects === null && <p className="font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>}
+        {error && <ErrorState message={error} onRetry={() => { setError(null); setProjects(null); setAttempt((n) => n + 1); }} />}
+        {!error && projects === null && <Skeleton rows={3} />}
         {projects && shown.length === 0 && (
-          <p className="text-sm text-muted">{needle || mine ? 'No projects match.' : 'No projects here.'}</p>
+          <EmptyState
+            title={needle || mine ? 'No projects match' : projects.length ? 'Nothing in this list' : 'No projects yet'}
+            action={!projects.length && !creating ? <Button onClick={() => setCreating(true)}>Start the first one</Button> : undefined}
+          >
+            {needle || mine ? 'Try another search, or show everyone’s projects.' : projects.length ? 'Pick another filter above.' : 'A project gives a client a page to follow the work, approve it and pay.'}
+          </EmptyState>
         )}
         <div className="grid gap-5 md:grid-cols-2">
           {shown.map((project) => (

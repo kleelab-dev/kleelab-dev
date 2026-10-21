@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
-from kleelab.core.security import create_signed_token, get_current_user, get_password_hash
+from kleelab.core.security import create_signed_token, get_current_user, get_password_hash, password_fingerprint
 from kleelab.models.agency_lead import AgencyLead, LeadNote
 from kleelab.models.project import Project, ProjectInvoice, ProjectStage, ProjectUpdate
 from kleelab.models.refresh_token import RefreshToken
@@ -40,8 +40,10 @@ from kleelab.schemas.project import (
     StageMove,
     StagePatch,
 )
+from kleelab.services import activity
 from kleelab.services import projects as svc
 from kleelab.services import sessions
+from kleelab.services.activity import quoted
 from kleelab.services.email import send_client_project_notice, send_lead_reply, send_project_invite_email
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,25 @@ REQUEST_LABELS = {
     "hosting": "hosting",
     "maintenance": "monthly care",
     "change": "a change",
+}
+
+STEP_STATUS_WORDS = {
+    "upcoming": "not started",
+    "in_progress": "in progress",
+    "waiting_on_client": "waiting on the client",
+    "done": "done",
+}
+PROJECT_STATUS_WORDS = {
+    "active": "in progress",
+    "on_hold": "paused",
+    "completed": "finished",
+    "cancelled": "cancelled",
+}
+PROJECT_FIELD_WORDS = {
+    "title": "the name",
+    "summary": "the summary",
+    "start_date": "the start date",
+    "target_date": "the target date",
 }
 
 
@@ -74,7 +95,10 @@ def _notify_client(project: Project, headline: str) -> None:
 
 
 def _send_invite(client: User, project: Project) -> bool:
-    token = create_signed_token({"user_id": str(client.id), "purpose": "password_reset"}, timedelta(days=7))
+    token = create_signed_token(
+        {"user_id": str(client.id), "purpose": "password_reset", "pf": password_fingerprint(client)},
+        timedelta(days=7),
+    )
     try:
         return bool(send_project_invite_email(client.email, client.full_name, project.title, token))
     except Exception:  # noqa: BLE001
@@ -91,7 +115,7 @@ async def _check_owner(db: AsyncSession, owner_id: UUID | None) -> None:
     if owner_id is None:
         return
     owner = await db.get(User, owner_id)
-    if owner is None or not svc.is_staff(owner):
+    if owner is None or not svc.is_staff(owner) or not owner.is_active:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="That person is not on the KleeLab team"
         )
@@ -126,9 +150,11 @@ def _start_next_if_idle(project: Project, stages: list[ProjectStage]) -> None:
 
 @router.get("/staff", response_model=list[StaffMember])
 async def list_staff(db: AsyncSession = Depends(get_db)) -> list[StaffMember]:
-    """Everyone who can be put in charge of a project."""
+    """Everyone who can be put in charge of a project. Switched-off teammates are left out."""
 
-    result = await db.scalars(select(User).where(User.role == "staff").order_by(User.full_name, User.email))
+    result = await db.scalars(
+        select(User).where(User.role == "staff", User.is_active.is_(True)).order_by(User.full_name, User.email)
+    )
     return [StaffMember(id=u.id, name=svc.display_name(u) or u.email, email=u.email) for u in result]
 
 
@@ -211,6 +237,13 @@ async def create_project(
             "You can message us here, share files, and approve work when it is ready.",
         )
     )
+    who = svc.display_name(client) or client.email
+    activity.record(
+        db, staff, "project.create",
+        f"Started the project for {who}" + (" and invited them" if invited else "")
+        + (" from their enquiry" if lead is not None else ""),
+        project_id=project.id, subject_type="project", subject_id=project.id,
+    )
     await db.commit()
 
     if invited:
@@ -219,6 +252,27 @@ async def create_project(
         _notify_client(project, "Your new project is on your dashboard")
 
     return ProjectCreated(project=await _reload(db, project.id, staff), invited=invited)
+
+
+def _and_list(parts: list[str]) -> str:
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+async def _describe_project_changes(db: AsyncSession, project: Project, changes: dict) -> str | None:
+    parts = []
+    for field, value in changes.items():
+        if getattr(project, field) == value:
+            continue
+        if field == "status":
+            parts.append(f"the status to {PROJECT_STATUS_WORDS.get(value, value)}")
+        elif field == "owner_id":
+            owner = await db.get(User, value) if value else None
+            parts.append(f"who is in charge to {svc.display_name(owner) or 'nobody'}")
+        elif field == "live_url":
+            parts.append(f"the live address to {value}" if value else "the live address (removed)")
+        else:
+            parts.append(PROJECT_FIELD_WORDS.get(field, field.replace("_", " ")))
+    return f"Changed {_and_list(parts)}" if parts else None
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectDetail)
@@ -236,8 +290,12 @@ async def patch_project(
         changes["live_url"] = str(changes["live_url"])
     went_live = bool(changes.get("live_url")) and changes["live_url"] != project.live_url
     finished = changes.get("status") == "completed" and project.status != "completed"
+    described = await _describe_project_changes(db, project, changes)
     for field, value in changes.items():
         setattr(project, field, value)
+    if described:
+        activity.record(db, staff, "project.update", described, project_id=project.id,
+                        subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
     await db.commit()
     if finished:
@@ -261,6 +319,10 @@ async def resend_invite(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The email could not be sent. Check the email settings and try again.",
         )
+    activity.record(db, staff, "project.invite",
+                    f"Sent {svc.display_name(project.client)} a new link to set their password",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
+    await db.commit()
     return {"status": "sent", "email": project.client.email}
 
 
@@ -290,6 +352,8 @@ async def add_stage(
     )
     project.stages.append(stage)
     _start_next_if_idle(project, project.stages)
+    activity.record(db, staff, "step.add", f"Added the step {quoted(stage.name)}", project_id=project.id,
+                    subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
     await db.commit()
     return await _reload(db, project_id, staff)
@@ -311,6 +375,8 @@ async def move_stage(
     if 0 <= target < len(ordered):
         ordered[index], ordered[target] = ordered[target], ordered[index]
         _renumber(ordered)
+        activity.record(db, staff, "step.move", f"Moved the step {quoted(stage.name)} {payload.direction}",
+                        project_id=project.id, subject_type="project", subject_id=project.id)
         await svc.touch(db, project)
         await db.commit()
     return await _reload(db, project_id, staff)
@@ -338,6 +404,8 @@ async def delete_stage(
         if update.stage_id == stage.id:
             update.stage_id = None
     project.stages.remove(stage)
+    activity.record(db, staff, "step.delete", f"Removed the step {quoted(stage.name)}", project_id=project.id,
+                    subject_type="project", subject_id=project.id)
     remaining = sorted(project.stages, key=lambda s: s.position)
     _renumber(remaining)
     _start_next_if_idle(project, remaining)
@@ -363,8 +431,23 @@ async def patch_stage(
     if "name" in changes:
         changes["name"] = (changes["name"] or "").strip() or stage.name
     finished = changes.get("status") == "done" and stage.status != "done"
+    old_name, old_status = stage.name, stage.status
+    edited = any(getattr(stage, field) != value for field, value in changes.items() if field != "status")
     for field, value in changes.items():
         setattr(stage, field, value)
+    if finished:
+        described = f"Finished the step {quoted(stage.name)}"
+    elif changes.get("status") and changes["status"] != old_status:
+        described = f"Set the step {quoted(stage.name)} to {STEP_STATUS_WORDS.get(stage.status, stage.status)}"
+    elif stage.name != old_name:
+        described = f"Renamed the step {quoted(old_name)} to {quoted(stage.name)}"
+    elif edited:
+        described = f"Edited the step {quoted(stage.name)}"
+    else:
+        described = None
+    if described:
+        activity.record(db, staff, "step.done" if finished else "step.update", described,
+                        project_id=project.id, subject_type="project", subject_id=project.id)
 
     headline = None
     if finished:
@@ -442,6 +525,15 @@ async def post_update(
             approval_status="pending" if is_approval else None,
         )
     )
+    title = (payload.title or "").strip()
+    described = {
+        "progress": f"Posted an update {quoted(title or payload.body)}",
+        "message": f"Messaged the client: {quoted(payload.body)}",
+        "note": f"Added a team note: {quoted(payload.body)}",
+        "approval": f"Asked the client to approve {quoted(title)}",
+    }[payload.kind]
+    activity.record(db, staff, f"update.{payload.kind}", described, project_id=project.id,
+                    subject_type="project", subject_id=project.id)
     if is_approval and stage_id is not None:
         stage = next(s for s in project.stages if s.id == stage_id)
         if stage.status in ("upcoming", "in_progress"):
@@ -473,6 +565,12 @@ async def patch_request(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
     changed = item.status != payload.status
     item.status = payload.status
+    if changed:
+        activity.record(
+            db, staff, "request.update",
+            f"Marked the request for {REQUEST_LABELS.get(item.kind, item.kind)} as {payload.status}",
+            project_id=project.id, subject_type="project", subject_id=project.id,
+        )
     await svc.touch(db, project)
     await db.commit()
     if changed and payload.status != "open":
@@ -516,6 +614,12 @@ async def create_invoice(
         status="unpaid",
     )
     db.add(invoice)
+    await db.flush()
+    activity.record(
+        db, staff, "invoice.create",
+        f"Billed {invoice.number}: {invoice.title}, {_money(invoice.amount_cents, invoice.currency)}",
+        project_id=project.id, subject_type="invoice", subject_id=invoice.id,
+    )
     await svc.touch(db, project)
     await db.commit()
     _notify_client(
@@ -540,8 +644,22 @@ async def patch_invoice(
     if "pay_url" in changes:
         changes["pay_url"] = str(changes["pay_url"]) if changes["pay_url"] else None
     newly_paid = changes.get("status") == "paid" and invoice.status != "paid"
+    old_status = invoice.status
+    edited = any(getattr(invoice, field) != value for field, value in changes.items() if field != "status")
     for field, value in changes.items():
         setattr(invoice, field, value)
+    money = _money(invoice.amount_cents, invoice.currency)
+    if invoice.status != old_status:
+        action, described = {
+            "paid": ("invoice.paid", f"Marked {invoice.number} paid ({money})"),
+            "cancelled": ("invoice.cancelled", f"Cancelled {invoice.number} ({money})"),
+            "unpaid": ("invoice.unpaid", f"Marked {invoice.number} unpaid again"),
+        }[invoice.status]
+        activity.record(db, staff, action, described, project_id=project.id,
+                        subject_type="invoice", subject_id=invoice.id)
+    elif edited:
+        activity.record(db, staff, "invoice.update", f"Edited {invoice.number}", project_id=project.id,
+                        subject_type="invoice", subject_id=invoice.id)
     if "status" in changes:
         invoice.paid_at = svc.now() if invoice.status == "paid" else None
     await svc.touch(db, project)
@@ -680,14 +798,25 @@ async def list_leads(db: AsyncSession = Depends(get_db)) -> list[LeadOut]:
 
 
 @router.patch("/leads/{lead_id}", response_model=LeadOut)
-async def patch_lead(lead_id: UUID, payload: LeadPatch, db: AsyncSession = Depends(get_db)) -> LeadOut:
+async def patch_lead(
+    lead_id: UUID, payload: LeadPatch, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> LeadOut:
     lead = await db.get(AgencyLead, lead_id)
     if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
-    if payload.status is not None:
+    who = lead.name or lead.email
+    if payload.status is not None and payload.status != lead.status:
         lead.status = payload.status
-    if "follow_up_on" in payload.model_fields_set:
+        activity.record(db, staff, "lead.status", f"Marked the enquiry from {who} as {payload.status}",
+                        subject_type="lead", subject_id=lead.id)
+    if "follow_up_on" in payload.model_fields_set and payload.follow_up_on != lead.follow_up_on:
         lead.follow_up_on = payload.follow_up_on
+        activity.record(
+            db, staff, "lead.follow_up",
+            f"Set a follow-up with {who} for {payload.follow_up_on:%d %b %Y}" if payload.follow_up_on
+            else f"Cleared the follow-up with {who}",
+            subject_type="lead", subject_id=lead.id,
+        )
     await db.commit()
     await db.refresh(lead)
     item = LeadOut.model_validate(lead)
@@ -735,9 +864,12 @@ async def add_lead_note(
 ) -> LeadDetail:
     """A private note for the team. The enquirer never sees it."""
 
-    if await db.get(AgencyLead, lead_id) is None:
+    lead = await db.get(AgencyLead, lead_id)
+    if lead is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
     db.add(LeadNote(lead_id=lead_id, author_id=staff.id, kind="note", body=payload.body.strip()))
+    activity.record(db, staff, "lead.note", f"Added a note on the enquiry from {lead.name or lead.email}",
+                    subject_type="lead", subject_id=lead.id)
     await db.commit()
     return await _lead_detail(db, lead_id)
 
@@ -761,6 +893,8 @@ async def reply_to_lead(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="The email could not be sent. Please try again."
         )
     db.add(LeadNote(lead_id=lead.id, author_id=staff.id, kind="email", subject=subject, body=body))
+    activity.record(db, staff, "lead.reply", f"Emailed {lead.name or lead.email}: {quoted(subject)}",
+                    subject_type="lead", subject_id=lead.id)
     if lead.status == "new":
         lead.status = "contacted"
     await db.commit()
@@ -966,7 +1100,7 @@ async def get_client(client_id: UUID, db: AsyncSession = Depends(get_db)) -> Cli
 
 @router.patch("/clients/{client_id}", response_model=ClientDetail)
 async def patch_client(
-    client_id: UUID, payload: ClientPatch, db: AsyncSession = Depends(get_db)
+    client_id: UUID, payload: ClientPatch, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
 ) -> ClientDetail:
     """Rename a client, or switch their access off and on.
 
@@ -976,11 +1110,21 @@ async def patch_client(
 
     client = await _load_client(db, client_id)
     changes = payload.model_dump(exclude_unset=True)
+    label = svc.display_name(client)
     if "full_name" in changes:
-        client.full_name = (changes["full_name"] or "").strip() or None
+        new_name = (changes["full_name"] or "").strip() or None
+        if new_name != client.full_name:
+            client.full_name = new_name
+            activity.record(db, staff, "client.rename", f"Renamed the client {label} to {new_name or client.email}",
+                            subject_type="client", subject_id=client.id)
     deactivated = changes.get("is_active") is False and client.is_active
-    if changes.get("is_active") is not None:
+    if changes.get("is_active") is not None and changes["is_active"] != client.is_active:
         client.is_active = changes["is_active"]
+        activity.record(
+            db, staff, "client.on" if client.is_active else "client.off",
+            f"{'Switched on' if client.is_active else 'Switched off'} access for {svc.display_name(client)}",
+            subject_type="client", subject_id=client.id,
+        )
     await db.commit()
     if deactivated:
         await sessions.revoke_all_for_user(client.id, db)
@@ -988,7 +1132,9 @@ async def patch_client(
 
 
 @router.post("/clients/{client_id}/invite")
-async def invite_client(client_id: UUID, db: AsyncSession = Depends(get_db)) -> dict:
+async def invite_client(
+    client_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> dict:
     """Email a fresh 7-day link to set a password, naming their latest project."""
 
     client = await _load_client(db, client_id)
@@ -1006,4 +1152,7 @@ async def invite_client(client_id: UUID, db: AsyncSession = Depends(get_db)) -> 
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="The email could not be sent. Check the email settings and try again.",
         )
+    activity.record(db, staff, "client.invite", f"Sent {svc.display_name(client)} a new link to set their password",
+                    subject_type="client", subject_id=client.id)
+    await db.commit()
     return {"status": "sent", "email": client.email}

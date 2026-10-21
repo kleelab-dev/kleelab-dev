@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
-import { ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArrowRightIcon, ExclamationTriangleIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline';
 import { buttonClass } from '@/components/ui/Button';
 import { useCurrentUser } from '@/components/app/AppShell';
 import { Panel, Pill } from '@/components/project/Pill';
 import { ATTENTION, attentionHref, errorText, formatTotals, timeAgo } from '@/components/project/format';
+import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { AdminStats, AttentionItem } from '@/types/api';
 
@@ -27,6 +28,7 @@ export function TodayView() {
   const [items, setItems] = useState<AttentionItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +43,7 @@ export function TodayView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   const firstName = user.full_name?.split(' ')[0] || user.email.split('@')[0];
   const list = items ?? [];
@@ -69,7 +71,18 @@ export function TodayView() {
         </div>
       </div>
 
-      {error && <p role="alert" className="mt-8 rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>}
+      {error && <ErrorState message={error} onRetry={() => { setError(null); setStats(null); setItems(null); setAttempt((n) => n + 1); }} className="mt-8" />}
+
+      {!user.two_step_enabled && (
+        <div className="mt-8 flex flex-wrap items-center gap-3 rounded-xl border-[1.5px] border-ink bg-sun-soft p-4 text-sm">
+          <ShieldExclamationIcon className="h-6 w-6 shrink-0" aria-hidden />
+          <p className="min-w-0 flex-1">
+            <strong>Turn on two-step sign-in.</strong> Your account opens every client project and invoice; a code from your phone means a
+            leaked password is not enough to get in.
+          </p>
+          <Link href="/account" className={buttonClass('secondary', 'sm')}>Set it up</Link>
+        </div>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
@@ -102,9 +115,9 @@ export function TodayView() {
 
       <Panel tag={items === null ? 'checking' : list.length ? `${list.length} waiting` : 'all clear'} title="Needs attention" className="mt-8">
         {items === null ? (
-          <p className="text-sm text-muted">Loading…</p>
+          error ? <p className="text-sm text-muted">Could not check right now.</p> : <Skeleton rows={3} card={false} />
         ) : list.length === 0 ? (
-          <p className="text-sm text-muted">Nothing is waiting on the team right now.</p>
+          <EmptyState title="All clear">Nothing is waiting on the team right now.</EmptyState>
         ) : (
           <>
             <ul className="divide-y divide-line">

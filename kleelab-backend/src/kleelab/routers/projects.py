@@ -20,7 +20,9 @@ from kleelab.schemas.project import (
     ProjectSummary,
     RequestCreate,
 )
+from kleelab.services import activity
 from kleelab.services import projects as svc
+from kleelab.services.activity import quoted
 from kleelab.services.email import send_client_project_notice, send_team_notice
 from kleelab.services.invoice_pdf import pdf_filename, render_invoice_pdf
 
@@ -41,9 +43,13 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 RISKY_TYPES = {"text/html", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/xml", "text/javascript", "application/javascript"}
 
 
-def _notify_team(subject: str, lines: list[str]) -> None:
+def _notify_team(project: Project, subject: str, lines: list[str]) -> None:
+    """Email the team inbox and whoever is in charge, with a link to the project."""
+
+    owner = project.owner
+    also = [owner.email] if owner is not None and owner.is_active else []
     try:
-        send_team_notice(subject, lines)
+        send_team_notice(subject, lines, project_id=str(project.id), also_to=also)
     except Exception:  # noqa: BLE001 - the action itself is already saved
         logger.exception("Could not send team notice %r", subject)
 
@@ -89,10 +95,16 @@ async def post_message(
             body=payload.body.strip(),
         )
     )
+    activity.record(
+        db, user, "update.message",
+        f"{'Messaged the client' if svc.is_staff(user) else 'Sent a message'}: {quoted(payload.body)}",
+        project_id=project.id, subject_type="project", subject_id=project.id,
+    )
     await svc.touch(db, project)
     await db.commit()
     if not svc.is_staff(user):
         _notify_team(
+            project,
             f"[{project.reference}] New message from {user.email}",
             [project.title, payload.body.strip()],
         )
@@ -142,11 +154,18 @@ async def decide_approval(
         )
         if stage is not None and stage.status == "waiting_on_client" and not still_pending:
             stage.status = "in_progress"
+    activity.record(
+        db, user, f"approval.{payload.decision}",
+        (f"Approved {quoted(update.title or 'the work')}" if payload.decision == "approved"
+         else f"Asked for changes to {quoted(update.title or 'the work')}: {quoted(update.approval_note)}"),
+        project_id=project.id, subject_type="project", subject_id=project.id,
+    )
     await svc.touch(db, project)
     await db.commit()
 
     verdict = "approved" if payload.decision == "approved" else "asked for changes on"
     _notify_team(
+        project,
         f"[{project.reference}] {user.email} {verdict} {update.title or 'a sign-off'}",
         [project.title, update.approval_note or ""],
     )
@@ -179,9 +198,12 @@ async def create_request(
             status="open",
         )
     )
+    activity.record(db, user, "request.create", f"Asked for {REQUEST_LABELS[payload.kind].lower()}",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
     await db.commit()
     _notify_team(
+        project,
         f"[{project.reference}] {REQUEST_LABELS[payload.kind]} requested by {user.email}",
         [project.title, payload.message or ""],
     )
@@ -235,6 +257,8 @@ async def upload_file(
             data=bytes(data),
         )
     )
+    activity.record(db, user, "file.add", f"Shared the file {quoted(filename)}", project_id=project.id,
+                    subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
     await db.commit()
 
@@ -247,7 +271,7 @@ async def upload_file(
             except Exception:  # noqa: BLE001
                 logger.exception("Could not email the client about a file on %s", project.reference)
     else:
-        _notify_team(f"[{project.reference}] {user.email} uploaded {filename}", [project.title])
+        _notify_team(project, f"[{project.reference}] {user.email} uploaded {filename}", [project.title])
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project, team=svc.is_staff(user))
 
@@ -320,6 +344,8 @@ async def delete_file(
     if not svc.is_staff(user) and item.uploaded_by != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the person who shared this file can remove it")
     await db.delete(item)
+    activity.record(db, user, "file.delete", f"Removed the file {quoted(item.filename)}", project_id=project.id,
+                    subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
     await db.commit()
     project = await svc.load_project(db, project_id, user)

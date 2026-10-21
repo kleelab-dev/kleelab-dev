@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Pill } from '@/components/project/Pill';
 import { errorText, formatTotals, timeAgo } from '@/components/project/format';
+import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { ClientSummary } from '@/types/api';
 
@@ -30,6 +31,7 @@ export default function ClientsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -40,7 +42,7 @@ export default function ClientsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   const needle = query.trim().toLowerCase();
   const shown =
@@ -75,9 +77,13 @@ export default function ClientsPage() {
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {error && <p role="alert" className="rounded-xl bg-danger-soft p-4 text-sm text-danger md:col-span-2">{error}</p>}
-        {!error && clients === null && <p className="font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>}
-        {clients && shown.length === 0 && <p className="text-sm text-muted">{needle ? 'No clients match.' : 'Nobody here.'}</p>}
+        {error && <ErrorState message={error} onRetry={() => { setError(null); setClients(null); setAttempt((n) => n + 1); }} className="md:col-span-2" />}
+        {!error && clients === null && <Skeleton rows={4} className="md:col-span-2 md:grid-cols-2" />}
+        {clients && shown.length === 0 && (
+          <EmptyState title={needle ? 'No clients match' : clients.length ? 'Nobody in this list' : 'No clients yet'} className="md:col-span-2">
+            {needle ? 'Try a name or an email.' : clients.length ? 'Pick another filter above.' : 'Clients appear here when you start a project for them.'}
+          </EmptyState>
+        )}
         {shown.map((client) => (
           <Link key={client.id} href={`/clients/${client.id}`} className="card group block p-5 no-underline transition-shadow hover:shadow-block">
             <div className="flex flex-wrap items-center gap-2">

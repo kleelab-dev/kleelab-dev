@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDownIcon, ArrowUpIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { ProjectDetail, ProjectStatus, RequestStatus, Stage, StaffMember, StageStatus, UpdateKind } from '@/types/api';
 import { FilesPanel } from './FilesPanel';
@@ -48,7 +49,7 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
       </div>
     );
   }
-  if (!project) return <p className="font-mono text-[11px] uppercase tracking-label text-muted">Loading project…</p>;
+  if (!project) return <Skeleton rows={3} />;
 
   const save: Save = async (work) => {
     setSaveError(null);

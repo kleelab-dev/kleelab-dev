@@ -43,6 +43,54 @@ class Token(BaseModel):
     expires_in: int | None = None
 
 
+class TwoStepChallenge(BaseModel):
+    """The password was right; now the code. No session yet."""
+
+    two_step_required: bool = True
+    challenge: str
+    expires_in: int
+
+
+class TwoStepLogin(BaseModel):
+    challenge: str
+    # A 6-digit code from the app, or a recovery code (xxxx-xxxx).
+    code: str = Field(min_length=1, max_length=20)
+
+
+class TwoStepStatus(BaseModel):
+    enabled: bool
+    enabled_at: datetime | None
+    recovery_codes_left: int
+
+
+class PasswordConfirm(BaseModel):
+    password: str
+
+    _validate_password = field_validator("password")(validate_password_size)
+
+
+class TwoStepSetup(BaseModel):
+    secret: str
+    otpauth_uri: str
+    # An SVG data URI of the QR code for otpauth_uri.
+    qr_svg: str
+
+
+class TwoStepCode(BaseModel):
+    code: str = Field(min_length=1, max_length=20)
+
+
+class TwoStepDisable(BaseModel):
+    password: str
+    code: str = Field(min_length=1, max_length=20)
+
+    _validate_password = field_validator("password")(validate_password_size)
+
+
+class RecoveryCodesOut(BaseModel):
+    codes: list[str]
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -96,5 +144,6 @@ class AccountOut(UserOut):
 
     plan_label: str
     plan_blurb: str
+    two_step_enabled: bool = False
     limits: PlanLimitsOut
     usage: PlanUsageOut

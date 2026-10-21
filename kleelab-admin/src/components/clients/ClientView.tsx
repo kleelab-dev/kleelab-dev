@@ -9,6 +9,7 @@ import { InvoiceRow } from '@/components/money/InvoiceRow';
 import { Panel, Pill } from '@/components/project/Pill';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { errorText, formatDate, formatDateTime, formatTotals } from '@/components/project/format';
+import { ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { ClientDetail } from '@/types/api';
 
@@ -17,6 +18,8 @@ export function ClientView({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -27,7 +30,7 @@ export function ClientView({ clientId }: { clientId: string }) {
     return () => {
       active = false;
     };
-  }, [clientId]);
+  }, [clientId, attempt]);
 
   function done(next: ClientDetail, message: string) {
     setClient(next);
@@ -40,9 +43,9 @@ export function ClientView({ clientId }: { clientId: string }) {
       <div>
         <Link href="/clients" className="font-mono text-[11px] uppercase tracking-label text-muted no-underline hover:text-ink">← All clients</Link>
         {error ? (
-          <p role="alert" className="mt-6 rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>
+          <ErrorState message={error} onRetry={() => { setError(null); setAttempt((n) => n + 1); }} className="mt-6" />
         ) : (
-          <p className="mt-6 font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>
+          <Skeleton rows={2} className="mt-6" />
         )}
       </div>
     );

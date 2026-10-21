@@ -14,6 +14,79 @@ export interface User {
   is_verified: boolean;
   role: Role;
   created_at: string;
+  /** Staff only: whether sign-in asks for a code from an authenticator app. */
+  two_step_enabled?: boolean;
+}
+
+/** The password was right and two-step is on: swap this for a session with a code. */
+export interface TwoStepChallenge {
+  two_step_required: true;
+  challenge: string;
+  expires_in: number;
+}
+
+export interface TwoStepStatus {
+  enabled: boolean;
+  enabled_at: string | null;
+  recovery_codes_left: number;
+}
+
+export interface TwoStepSetup {
+  secret: string;
+  otpauth_uri: string;
+  /** An SVG data URI of the QR code. */
+  qr_svg: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string | null;
+  email: string;
+  is_active: boolean;
+  two_step_enabled: boolean;
+  created_at: string;
+  /** Null until they first sign in, so an unanswered invite shows. */
+  last_sign_in: string | null;
+  projects_in_charge: number;
+  is_you: boolean;
+}
+
+export interface ActivityEvent {
+  id: string;
+  action: string;
+  summary: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  by_client: boolean;
+  project_id: string | null;
+  project_reference: string | null;
+  project_title: string | null;
+  subject_type: string | null;
+  subject_id: string | null;
+  created_at: string;
+}
+
+export interface ActivityPage {
+  events: ActivityEvent[];
+  /** Pass back as `before` for the next, older page. Null when there is no more. */
+  next_before: string | null;
+}
+
+export interface SearchResults {
+  projects: { id: string; reference: string; title: string; status: ProjectStatus; client_name: string | null }[];
+  clients: { id: string; name: string | null; email: string; is_active: boolean }[];
+  leads: { id: string; name: string | null; email: string; company: string | null; status: LeadStatus; created_at: string }[];
+  invoices: {
+    id: string;
+    number: string;
+    title: string;
+    status: InvoiceStatus;
+    amount_cents: number;
+    currency: string;
+    due_date: string | null;
+    project_id: string;
+    project_reference: string;
+  }[];
 }
 
 export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';

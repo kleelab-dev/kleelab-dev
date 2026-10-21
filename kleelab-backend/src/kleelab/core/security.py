@@ -63,7 +63,10 @@ def create_access_token(
         if expires_delta is not None
         else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode.update({"iat": now, "exp": expire})
+    # Marked as an access token. Every other signed token (password reset,
+    # invite, email verification, two-step challenge) carries the same
+    # user_id and signature, so without this any of them would open a session.
+    to_encode.update({"iat": now, "exp": expire, "type": "access"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -73,6 +76,16 @@ def create_signed_token(data: dict[str, Any], expires_delta: timedelta) -> str:
     to_encode = data.copy()
     to_encode.update({"exp": datetime.now(timezone.utc) + expires_delta})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def password_fingerprint(user: User) -> str:
+    """Changes whenever the password does.
+
+    Put in a reset or invite link, it makes the link single-use: once a new
+    password is set, the link no longer matches.
+    """
+
+    return hashlib.sha256(user.password_hash.encode("utf-8")).hexdigest()[:16]
 
 
 # --- Refresh tokens -------------------------------------------------------
@@ -115,7 +128,7 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("user_id")
-        if not user_id:
+        if not user_id or payload.get("type") != "access":
             raise credentials_exception
         user_uuid = UUID(str(user_id))
     except (JWTError, ValueError):
@@ -148,7 +161,7 @@ async def get_optional_user(
             credentials.credentials, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         user_id = payload.get("user_id")
-        if not user_id:
+        if not user_id or payload.get("type") != "access":
             return None
         user_uuid = UUID(str(user_id))
     except (JWTError, ValueError):
@@ -156,4 +169,5 @@ async def get_optional_user(
         # turn a public page into an error.
         return None
 
-    return await db.scalar(select(User).where(User.id == user_uuid))
+    user = await db.scalar(select(User).where(User.id == user_uuid))
+    return user if user is not None and user.is_active else None

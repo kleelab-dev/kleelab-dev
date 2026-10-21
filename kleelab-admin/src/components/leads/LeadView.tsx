@@ -18,6 +18,7 @@ import {
   leadSource,
   todayISO,
 } from '@/components/project/format';
+import { ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { LeadDetail, LeadPatchInput, LeadStatus } from '@/types/api';
 
@@ -34,6 +35,8 @@ export function LeadView({ leadId }: { leadId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let active = true;
     apiService
@@ -43,7 +46,7 @@ export function LeadView({ leadId }: { leadId: string }) {
     return () => {
       active = false;
     };
-  }, [leadId]);
+  }, [leadId, attempt]);
 
   async function update(input: LeadPatchInput, message: string) {
     if (!lead) return;
@@ -62,9 +65,9 @@ export function LeadView({ leadId }: { leadId: string }) {
       <div>
         <Link href="/leads" className="font-mono text-[11px] uppercase tracking-label text-muted no-underline hover:text-ink">← All enquiries</Link>
         {error ? (
-          <p role="alert" className="mt-6 rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>
+          <ErrorState message={error} onRetry={() => { setError(null); setAttempt((n) => n + 1); }} className="mt-6" />
         ) : (
-          <p className="mt-6 font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>
+          <Skeleton rows={2} className="mt-6" />
         )}
       </div>
     );

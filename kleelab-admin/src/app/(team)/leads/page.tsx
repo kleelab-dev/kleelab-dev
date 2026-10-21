@@ -7,6 +7,7 @@ import { CalendarDaysIcon, ChatBubbleLeftRightIcon, MagnifyingGlassIcon } from '
 import { buttonClass } from '@/components/ui/Button';
 import { Pill } from '@/components/project/Pill';
 import { budgetLabel, errorText, followUpDue, formatDate, formatDateTime, LEAD_STATUS, leadSource } from '@/components/project/format';
+import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { Lead, LeadStatus } from '@/types/api';
 
@@ -33,6 +34,8 @@ export default function LeadsPage() {
   const [filter, setFilter] = useState<Filter>('new');
   const [query, setQuery] = useState('');
 
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let active = true;
     apiService
@@ -42,7 +45,7 @@ export default function LeadsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [attempt]);
 
   const needle = query.trim().toLowerCase();
   const shown =
@@ -90,9 +93,13 @@ export default function LeadsPage() {
       </div>
 
       <div className="mt-6 grid gap-4">
-        {error && <p role="alert" className="rounded-xl bg-danger-soft p-4 text-sm text-danger">{error}</p>}
-        {!error && leads === null && <p className="font-mono text-[11px] uppercase tracking-label text-muted">Loading…</p>}
-        {leads && shown.length === 0 && <p className="text-sm text-muted">{needle ? 'No enquiries match.' : 'Nothing here.'}</p>}
+        {error && <ErrorState message={error} onRetry={() => { setError(null); setLeads(null); setAttempt((n) => n + 1); }} />}
+        {!error && leads === null && <Skeleton rows={3} />}
+        {leads && shown.length === 0 && (
+          <EmptyState title={needle ? 'No enquiries match' : leads.length ? 'Nothing in this list' : 'No enquiries yet'}>
+            {needle ? 'Try a name, an email or a word from their message.' : leads.length ? 'Pick another filter above.' : 'Messages from the contact form and the chat on the KleeLab site land here.'}
+          </EmptyState>
+        )}
         {shown.map((lead) => {
           const budget = budgetLabel(lead.budget);
           const due = followUpDue(lead);

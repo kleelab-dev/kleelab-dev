@@ -1,4 +1,5 @@
 import type {
+  ActivityPage,
   AdminInvoice,
   AdminStats,
   AttentionItem,
@@ -18,9 +19,14 @@ import type {
   ProjectSummary,
   RequestKind,
   RequestStatus,
+  SearchResults,
   StaffMember,
   StagePatchInput,
   StaffUpdateInput,
+  TeamMember,
+  TwoStepChallenge,
+  TwoStepSetup,
+  TwoStepStatus,
   User,
 } from '@/types/api';
 
@@ -70,6 +76,8 @@ const REFRESH_KEY = 'kleelab_refresh_token';
  */
 const NO_REFRESH_PATHS = new Set([
   '/api/auth/login',
+  '/api/auth/staff-login',
+  '/api/auth/staff-login/two-step',
   '/api/auth/register',
   '/api/auth/refresh',
   '/api/auth/logout',
@@ -233,10 +241,44 @@ export const apiService = {
     return post<User>('/api/auth/register', data);
   },
 
-  /** Staff-only sign-in: the backend refuses client accounts here, and staff on the public site's /login. */
-  async login(email: string, password: string): Promise<void> {
-    const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/staff-login', { email, password });
+  /**
+   * Staff-only sign-in: the backend refuses client accounts here, and staff on the public site's /login.
+   * With two-step on, the right password returns a challenge instead of a session; finish with `loginWithCode`.
+   */
+  async login(email: string, password: string): Promise<TwoStepChallenge | null> {
+    const result = await post<{ access_token: string; refresh_token?: string } | TwoStepChallenge>('/api/auth/staff-login', { email, password });
+    if ('two_step_required' in result) return result;
     setSession(result.access_token, result.refresh_token ?? null);
+    return null;
+  },
+
+  /** A 6-digit code from the authenticator app, or one of the recovery codes. */
+  async loginWithCode(challenge: string, code: string): Promise<void> {
+    const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/staff-login/two-step', { challenge, code });
+    setSession(result.access_token, result.refresh_token ?? null);
+  },
+
+  async twoStepStatus(): Promise<TwoStepStatus> {
+    return request<TwoStepStatus>('/api/auth/two-step');
+  },
+
+  /** A new secret to scan. Nothing changes until `twoStepEnable` gets a code from it. */
+  async twoStepSetup(password: string): Promise<TwoStepSetup> {
+    return post<TwoStepSetup>('/api/auth/two-step/setup', { password });
+  },
+
+  /** Turns two-step on and returns the recovery codes, which are shown only this once. */
+  async twoStepEnable(code: string): Promise<string[]> {
+    return (await post<{ codes: string[] }>('/api/auth/two-step/enable', { code })).codes;
+  },
+
+  async twoStepDisable(password: string, code: string): Promise<TwoStepStatus> {
+    return post<TwoStepStatus>('/api/auth/two-step/disable', { password, code });
+  },
+
+  /** Replaces every recovery code. Needs a code from the app, not a recovery code. */
+  async newRecoveryCodes(code: string): Promise<string[]> {
+    return (await post<{ codes: string[] }>('/api/auth/two-step/recovery-codes', { code })).codes;
   },
 
   /** Revoke the session server-side, then clear it locally. */
@@ -463,6 +505,42 @@ export const apiService = {
   /** Rename, or switch access off (signs them out everywhere) and back on. */
   async adminUpdateClient(clientId: string, input: ClientPatchInput): Promise<ClientDetail> {
     return patch<ClientDetail>(`/api/admin/clients/${clientId}`, input);
+  },
+
+  // --- Team, activity and search ---------------------------------------------
+
+  async adminTeam(): Promise<TeamMember[]> {
+    return request<TeamMember[]>('/api/admin/team');
+  },
+
+  /** Creates a staff account and emails a 7-day link to set a password. */
+  async adminAddTeammate(email: string, fullName: string): Promise<{ member: TeamMember; invite_sent: boolean }> {
+    return post<{ member: TeamMember; invite_sent: boolean }>('/api/admin/team', { email, full_name: fullName });
+  },
+
+  /** Rename, or switch someone off (signs them out everywhere) and back on. */
+  async adminUpdateTeammate(memberId: string, input: { full_name?: string; is_active?: boolean }): Promise<TeamMember> {
+    return patch<TeamMember>(`/api/admin/team/${memberId}`, input);
+  },
+
+  async adminInviteTeammate(memberId: string): Promise<{ status: string; email: string }> {
+    return post<{ status: string; email: string }>(`/api/admin/team/${memberId}/invite`);
+  },
+
+  /** For a teammate who lost their phone: they sign in with a password alone and set it up again. */
+  async adminResetTwoStep(memberId: string): Promise<TeamMember> {
+    return post<TeamMember>(`/api/admin/team/${memberId}/reset-two-step`);
+  },
+
+  async adminActivity(filters: { before?: string | null; actor_id?: string; project_id?: string; limit?: number } = {}): Promise<ActivityPage> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, String(value));
+    const query = params.toString();
+    return request<ActivityPage>(`/api/admin/activity${query ? `?${query}` : ''}`);
+  },
+
+  async adminSearch(q: string, signal?: AbortSignal): Promise<SearchResults> {
+    return request<SearchResults>(`/api/admin/search?q=${encodeURIComponent(q)}`, { signal });
   },
 
   /** Email a fresh 7-day link to set a password and sign in. */

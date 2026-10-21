@@ -21,7 +21,20 @@ from kleelab.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Endpoints that get the stricter per-minute budget.
-AUTH_PATHS = {"/api/auth/login", "/api/auth/register", "/api/auth/refresh"}
+AUTH_PATHS = {
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/refresh",
+    "/api/auth/staff-login",
+    "/api/auth/staff-login/two-step",
+    "/api/auth/forgot-password",
+    "/api/auth/request-password-reset",
+    "/api/auth/reset-password",
+    "/api/auth/two-step/setup",
+    "/api/auth/two-step/enable",
+    "/api/auth/two-step/disable",
+    "/api/auth/two-step/recovery-codes",
+}
 # The visitor chat calls a paid model on every message and needs no account, so
 # it gets its own, much smaller hourly budget.
 CHAT_PATHS = {"/api/chat"}

@@ -18,6 +18,7 @@ from kleelab.core.middleware import RateLimitMiddleware
 from kleelab.core.security_headers import SecurityHeadersMiddleware
 from kleelab.core.config import settings
 from kleelab.routers.admin import router as admin_router
+from kleelab.routers.team import router as team_router
 from kleelab.routers.agency import router as agency_router
 from kleelab.routers.auth import router as auth_router
 from kleelab.routers.chat import router as chat_router
@@ -91,6 +92,7 @@ app.include_router(agency_router)
 app.include_router(chat_router)
 app.include_router(projects_router)
 app.include_router(admin_router)
+app.include_router(team_router)
 app.include_router(gdpr_router)
 
 
