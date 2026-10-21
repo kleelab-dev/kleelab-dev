@@ -1,6 +1,7 @@
 import type {
   ChatReply,
   ChatTurn,
+  OtherSessionsSignedOut,
   ProjectDetail,
   ProjectSummary,
   RequestKind,
@@ -236,6 +237,30 @@ export const apiService = {
 
   async getCurrentUser(): Promise<User> {
     return request<User>('/api/auth/me');
+  },
+
+  async updateProfile(fullName: string): Promise<User> {
+    return request<User>('/api/auth/me', {
+      method: 'PATCH',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ full_name: fullName }),
+    });
+  },
+
+  /** Keeps this device signed in and signs out every other one. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<OtherSessionsSignedOut> {
+    const result = await post<OtherSessionsSignedOut>('/api/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    if (result.tokens) setSession(result.tokens.access_token, result.tokens.refresh_token ?? null);
+    return result;
+  },
+
+  async signOutOthers(): Promise<OtherSessionsSignedOut> {
+    const result = await post<OtherSessionsSignedOut>('/api/auth/sign-out-others');
+    if (result.tokens) setSession(result.tokens.access_token, result.tokens.refresh_token ?? null);
+    return result;
   },
 
   async verifyEmail(token: string): Promise<void> {

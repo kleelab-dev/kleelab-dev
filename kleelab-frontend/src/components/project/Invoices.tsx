@@ -75,7 +75,7 @@ function PdfButton({ projectId, invoice }: { projectId: string; invoice: Invoice
           .then(() => setState('idle'))
           .catch(() => setState('failed'));
       }}
-      className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-cobalt hover:text-cobalt-dark disabled:opacity-50"
+      className="-my-2 ml-auto inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-xs font-semibold text-cobalt hover:bg-cobalt/5 hover:text-cobalt-dark disabled:opacity-50"
     >
       <ArrowDownTrayIcon className="h-3.5 w-3.5" aria-hidden />
       {state === 'busy' ? 'Preparing…' : state === 'failed' ? 'Try again' : 'PDF'}

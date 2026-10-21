@@ -70,13 +70,13 @@ export function FilesPanel({
       {files.length ? (
         <ul className="grid gap-2">
           {files.map((file) => (
-            <li key={file.id} className="flex items-center gap-3 rounded-xl border-[1.5px] border-line bg-white p-3">
+            <li key={file.id} className="flex items-center gap-2 rounded-xl border-[1.5px] border-line bg-white p-2.5 sm:gap-3 sm:p-3">
               <PaperClipIcon className="h-5 w-5 shrink-0 text-muted" aria-hidden />
               <div className="min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={() => download(file)}
-                  className="block max-w-full truncate text-left text-sm font-semibold text-cobalt hover:underline"
+                  className="block min-h-6 max-w-full truncate text-left text-sm font-semibold text-cobalt hover:underline"
                   title={file.filename}
                 >
                   {file.filename}
@@ -85,11 +85,11 @@ export function FilesPanel({
                   {formatSize(file.size)} · {file.from_team ? (team ? file.uploaded_by_name || 'The team' : 'From KleeLab') : team ? `From ${file.uploaded_by_name || 'the client'}` : 'From you'} · {formatDate(file.created_at)}
                 </p>
               </div>
-              <button type="button" onClick={() => download(file)} className="grid h-8 w-8 place-items-center rounded-full hover:bg-ink/5" aria-label={`Download ${file.filename}`}>
+              <button type="button" onClick={() => download(file)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full hover:bg-ink/5" aria-label={`Download ${file.filename}`}>
                 <ArrowDownTrayIcon className="h-4 w-4" />
               </button>
               {(team || !file.from_team) && (
-                <button type="button" onClick={() => remove(file)} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-danger-soft hover:text-danger" aria-label={`Remove ${file.filename}`}>
+                <button type="button" onClick={() => remove(file)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted hover:bg-danger-soft hover:text-danger" aria-label={`Remove ${file.filename}`}>
                   <TrashIcon className="h-4 w-4" />
                 </button>
               )}
@@ -104,7 +104,7 @@ export function FilesPanel({
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <input ref={input} type="file" className="sr-only" id={`file-${project.id}`} onChange={(e) => upload(e.target.files)} />
-        <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => input.current?.click()}>
+        <Button type="button" variant="secondary" size="sm" className="min-h-11 sm:min-h-0" disabled={busy} onClick={() => input.current?.click()}>
           {busy ? 'Uploading…' : 'Add a file'}
         </Button>
         <span className="text-xs text-muted">Up to 10 MB each.{team ? ' The client gets an email.' : ' We get an email.'}</span>

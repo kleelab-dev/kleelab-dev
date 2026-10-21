@@ -19,7 +19,7 @@ export function ProjectHeader({ project, backHref, backLabel }: { project: Proje
             <span className="font-mono text-[11px] uppercase tracking-label text-cobalt">{project.reference}</span>
             <Pill tone={status.tone}>{status.label}</Pill>
           </div>
-          <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest sm:text-5xl">{project.title}</h1>
+          <h1 className="mt-2 break-words font-display text-3xl font-extrabold tracking-tightest sm:text-5xl">{project.title}</h1>
           {project.summary && <p className="mt-3 leading-7 text-muted">{project.summary}</p>}
         </div>
         {project.live_url && (

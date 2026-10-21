@@ -40,8 +40,8 @@ export function UpdateFeed({ updates, stages, empty, team = false }: { updates: 
             )}
             <span className="ml-auto normal-case tracking-normal">{formatDateTime(update.created_at)}</span>
           </div>
-          {update.title && <h3 className="mt-2 font-semibold">{update.title}</h3>}
-          <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-ink-soft">{update.body}</p>
+          {update.title && <h3 className="mt-2 break-words font-semibold">{update.title}</h3>}
+          <p className="mt-1.5 whitespace-pre-line break-words text-sm leading-6 text-ink-soft">{update.body}</p>
           {update.link_url && <UpdateLink update={update} />}
           {update.kind === 'approval' && update.approval_status && (
             <p className="mt-3 text-sm">
@@ -101,8 +101,8 @@ export function ApprovalCard({
       <p className="font-mono text-[10px] uppercase tracking-label text-cobalt">
         Please approve{stageName ? ` · ${stageName}` : ''}
       </p>
-      <h3 className="mt-1.5 font-display text-lg font-extrabold">{update.title || 'Ready for you to look at'}</h3>
-      <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-ink-soft">{update.body}</p>
+      <h3 className="mt-1.5 break-words font-display text-lg font-extrabold">{update.title || 'Ready for you to look at'}</h3>
+      <p className="mt-1.5 whitespace-pre-line break-words text-sm leading-6 text-ink-soft">{update.body}</p>
       <UpdateLink update={update} />
       {mode === 'changes' && (
         <div className="mt-4">
