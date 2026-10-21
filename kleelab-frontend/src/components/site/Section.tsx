@@ -71,12 +71,24 @@ export function PageHero({
   return (
     <section className="px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20">
       <div className="mx-auto max-w-content">
-        <p className="tag">{tag}</p>
-        <h1 className="mt-5 max-w-4xl font-display text-5xl font-extrabold leading-[0.98] tracking-tightest sm:text-6xl lg:text-7xl">
+        {/* Rises in line by line on arrival, like the home page's opening. */}
+        <p className="tag kl-hero-in">{tag}</p>
+        <h1
+          className="kl-hero-in mt-5 max-w-4xl font-display text-5xl font-extrabold leading-[0.98] tracking-tightest sm:text-6xl lg:text-7xl"
+          style={{ animationDelay: '80ms' }}
+        >
           {title}
         </h1>
-        {intro && <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl">{intro}</p>}
-        {children}
+        {intro && (
+          <p className="kl-hero-in mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl" style={{ animationDelay: '180ms' }}>
+            {intro}
+          </p>
+        )}
+        {children && (
+          <div className="kl-hero-in" style={{ animationDelay: '260ms' }}>
+            {children}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -167,6 +167,21 @@ main[tabindex='-1']:focus-visible {
   animation: kl-rise 320ms var(--ease-out) both;
 }
 
+/* Page heroes: a slower, longer rise than kl-rise, staggered with inline delays. */
+@keyframes kl-hero {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.kl-hero-in {
+  animation: kl-hero 700ms var(--ease-out) both;
+}
+
 .kl-dot {
   animation: kl-blink 1.2s infinite both;
 }

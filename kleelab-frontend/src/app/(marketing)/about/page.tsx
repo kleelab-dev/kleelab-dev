@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
+import { Reveal } from '@/components/site/Reveal';
 
 export const metadata: Metadata = {
   title: 'About',
@@ -49,11 +50,13 @@ export default function AboutPage() {
         <SectionHeading tag="What we believe" title="Four rules we do not bend." />
         <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border-[1.5px] border-ink bg-ink sm:grid-cols-2">
           {BELIEFS.map((belief, index) => (
-            <div key={belief.title} className="bg-white p-7 sm:p-9">
-              <span className="font-mono text-xs text-cobalt">R-{String(index + 1).padStart(2, '0')}</span>
-              <h3 className="mt-3 font-display text-2xl font-extrabold tracking-tight">{belief.title}</h3>
-              <p className="mt-3 leading-relaxed text-muted">{belief.body}</p>
-            </div>
+            <Reveal key={belief.title} delay={(index % 2) * 90} className="bg-white">
+              <div className="h-full p-7 transition-colors duration-300 hover:bg-sun-soft sm:p-9">
+                <span className="font-mono text-xs text-cobalt">R-{String(index + 1).padStart(2, '0')}</span>
+                <h3 className="mt-3 font-display text-2xl font-extrabold tracking-tight">{belief.title}</h3>
+                <p className="mt-3 leading-relaxed text-muted">{belief.body}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </Section>
@@ -65,17 +68,17 @@ export default function AboutPage() {
             title="Because waiting in the dark is the worst part."
             intro="Most people who have had a website built remember the silence: weeks between emails, then a big reveal that was not quite right. Our client dashboard exists so that never happens. You see the work while it can still change."
           />
-          <div className="card relative p-7 shadow-block">
+          <Reveal className="card relative p-7 shadow-block">
             <div className="dim">what we turn down</div>
             <ul className="grid gap-4">
-              {TURN_DOWN.map((item) => (
-                <li key={item} className="flex gap-3 leading-relaxed">
+              {TURN_DOWN.map((item, index) => (
+                <Reveal as="li" key={item} delay={150 + index * 110} className="flex gap-3 leading-relaxed">
                   <span className="mt-1 font-mono text-sm text-danger" aria-hidden>✕</span>
                   {item}
-                </li>
+                </Reveal>
               ))}
             </ul>
-          </div>
+          </Reveal>
         </div>
       </Section>
 

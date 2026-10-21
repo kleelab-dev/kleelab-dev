@@ -4,6 +4,7 @@ import { addOns, pricingModel, services } from '@/content/services';
 import { ButtonLink } from '@/components/ui/Button';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
+import { Reveal } from '@/components/site/Reveal';
 
 export const metadata: Metadata = {
   title: 'Services',
@@ -27,7 +28,7 @@ export default function ServicesPage() {
         <div className="grid gap-16">
           {services.map((service, index) => (
             <article id={service.slug} key={service.slug} className="grid scroll-mt-24 gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-              <div>
+              <Reveal>
                 <span className="font-mono text-xs text-cobalt">
                   {service.code} / {String(services.length).padStart(2, '0')}
                 </span>
@@ -43,8 +44,8 @@ export default function ServicesPage() {
                     <dd className="font-sans text-sm text-ink">{service.timeline}</dd>
                   </div>
                 </dl>
-              </div>
-              <div className={index % 2 === 0 ? 'card relative p-7 shadow-block' : 'card relative p-7 shadow-block-cobalt'}>
+              </Reveal>
+              <Reveal delay={120} className={index % 2 === 0 ? 'card relative p-7 shadow-block' : 'card relative p-7 shadow-block-cobalt'}>
                 <div className="dim">what is included</div>
                 <ul className="grid gap-4">
                   {service.includes.map((item) => (
@@ -62,7 +63,7 @@ export default function ServicesPage() {
                     Your own project dashboard, start to handover
                   </li>
                 </ul>
-              </div>
+              </Reveal>
             </article>
           ))}
         </div>
@@ -75,20 +76,22 @@ export default function ServicesPage() {
           intro="Add any of these to a project, or ask for them on their own for a site you already have."
         />
         <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {addOns.map((addOn) => (
-            <div key={addOn.slug} className="card p-7">
-              <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
-              <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-muted">{addOn.summary}</p>
-              <ul className="mt-5 grid gap-2 border-t border-line pt-5 text-sm">
-                {addOn.includes.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="text-cobalt" aria-hidden>→</span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {addOns.map((addOn, index) => (
+            <Reveal key={addOn.slug} delay={index * 90}>
+              <div className="card card-lift h-full p-7">
+                <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
+                <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted">{addOn.summary}</p>
+                <ul className="mt-5 grid gap-2 border-t border-line pt-5 text-sm">
+                  {addOn.includes.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="text-cobalt" aria-hidden>→</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
           ))}
         </div>
         <ButtonLink href="/care" variant="secondary" className="mt-10">
@@ -100,11 +103,13 @@ export default function ServicesPage() {
         <SectionHeading tag="Pricing" title="Clear numbers, agreed up front." />
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {pricingModel.map((item, index) => (
-            <div key={item.heading} className="rounded-2xl border-[1.5px] border-dashed border-ink p-6">
-              <span className="font-mono text-xs text-cobalt">{String(index + 1).padStart(2, '0')}</span>
-              <h3 className="mt-3 font-display text-xl font-bold">{item.heading}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
-            </div>
+            <Reveal key={item.heading} delay={index * 90}>
+              <div className="card-lift h-full rounded-2xl border-[1.5px] border-dashed border-ink bg-paper p-6">
+                <span className="font-mono text-xs text-cobalt">{String(index + 1).padStart(2, '0')}</span>
+                <h3 className="mt-3 font-display text-xl font-bold">{item.heading}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </Section>

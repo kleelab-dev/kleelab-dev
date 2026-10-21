@@ -1,7 +1,8 @@
 'use client';
 
 import { clsx } from 'clsx';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
+import { useScrollProgress } from '@/components/site/useScrollProgress';
 import { processStages } from '@/content/site';
 
 const COUNT = processStages.length;
@@ -13,36 +14,7 @@ const COUNT = processStages.length;
  */
 export function ProcessTimeline() {
   const ref = useRef<HTMLOListElement>(null);
-  // Starts complete so the server render and reduced-motion users see it all.
-  const [progress, setProgress] = useState(1);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      const rect = node.getBoundingClientRect();
-      const vh = window.innerHeight;
-      // 0 when the list's top reaches 80% down the screen, 1 when its bottom reaches 55%.
-      const start = vh * 0.8;
-      const end = vh * 0.55 - rect.height;
-      const raw = (start - rect.top) / (start - end);
-      setProgress(Math.min(1, Math.max(0, raw)));
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, []);
+  const progress = useScrollProgress(ref);
 
   // Stop i is reached once the line passes its share of the track.
   const reached = (index: number) => progress >= index / (COUNT - 1) - 0.001;
