@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { INVOICE_STATUS, LEAD_STATUS, PROJECT_STATUS, errorText, formatMoney } from '@/components/project/format';
+import { INVOICE_STATUS, LEAD_STATUS, PROJECT_STATUS, errorText, formatDate, formatMoney } from '@/components/project/format';
 import { apiService } from '@/services/api';
 import type { SearchResults } from '@/types/api';
 
@@ -56,10 +56,29 @@ function toItems(results: SearchResults): Item[] {
       badge: INVOICE_STATUS[i.status]?.label,
       href: `/projects/${i.project_id}`,
     })),
+    ...results.team.map((t) => ({
+      key: `team-${t.id}`,
+      group: 'Team',
+      label: t.name || t.email,
+      hint: t.name ? `${t.email} · see what they did` : 'See what they did',
+      badge: t.is_active ? undefined : 'Switched off',
+      href: `/activity?person=${t.id}`,
+    })),
+    ...results.messages.map((m) => ({
+      key: `message-${m.id}`,
+      group: 'Messages',
+      label: m.snippet,
+      hint: [m.project_reference, m.project_title, m.author_name, formatDate(m.created_at)].filter(Boolean).join(' · '),
+      badge: m.kind === 'note' ? 'Team note' : undefined,
+      href: `/projects/${m.project_id}`,
+    })),
   ];
 }
 
-/** Ctrl+K / ⌘K: jump to a page, or find a project, client, enquiry or invoice by name, email or number. */
+/**
+ * Ctrl+K / ⌘K: jump to a page, or find a project, client, enquiry, invoice or
+ * teammate by name, email or number, or a message by the words in it.
+ */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -159,7 +178,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
               setQuery(e.target.value);
               setActive(0);
             }}
-            placeholder="Search projects, clients, enquiries, invoices…"
+            placeholder="Search projects, people, invoices, messages…"
             className="min-w-0 flex-1 bg-transparent py-4 text-base outline-none placeholder:text-muted"
             role="combobox"
             aria-expanded="true"
@@ -207,7 +226,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                   ? 'Type one more letter to search.'
                   : answered
                     ? '↑ ↓ to choose, Enter to open'
-                    : 'Search by name, email, reference or invoice number.'}
+                    : 'Search by name, email, reference, invoice number or words in a message.'}
         </p>
       </div>
     </div>

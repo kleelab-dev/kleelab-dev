@@ -50,6 +50,8 @@ class User(Base):
     two_step_locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # JSON list of keyed hashes of the unused recovery codes.
     recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Staff: alerts newer than this count as unread. None until they first look.
+    alerts_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

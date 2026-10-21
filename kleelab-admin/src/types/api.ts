@@ -87,6 +87,40 @@ export interface SearchResults {
     project_id: string;
     project_reference: string;
   }[];
+  team: { id: string; name: string | null; email: string; is_active: boolean }[];
+  /** Posts on a project whose words match, newest first. `snippet` is a few words around the match. */
+  messages: {
+    id: string;
+    kind: UpdateKind;
+    snippet: string;
+    project_id: string;
+    project_reference: string;
+    project_title: string;
+    author_name: string | null;
+    created_at: string;
+  }[];
+}
+
+/** Something a client, or a new enquirer, did that the team should see. */
+export interface AlertItem {
+  id: string;
+  action: string;
+  summary: string;
+  actor_name: string | null;
+  project_id: string | null;
+  project_reference: string | null;
+  project_title: string | null;
+  subject_type: string | null;
+  subject_id: string | null;
+  created_at: string;
+  /** Newer than when you last looked. */
+  unread: boolean;
+}
+
+export interface AlertList {
+  items: AlertItem[];
+  unread: number;
+  seen_at: string | null;
 }
 
 export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';

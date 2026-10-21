@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDownIcon, ArrowUpIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/States';
+import { useWhileVisible } from '@/lib/useWhileVisible';
 import { apiService } from '@/services/api';
 import type { ProjectDetail, ProjectStatus, RequestStatus, Stage, StaffMember, StageStatus, UpdateKind } from '@/types/api';
 import { FilesPanel } from './FilesPanel';
@@ -18,15 +19,30 @@ import { UpdateFeed } from './UpdateFeed';
 
 type Save = (work: () => Promise<ProjectDetail>) => Promise<void>;
 
+// How often the open project checks for new client messages, sign-offs and files.
+const REFRESH_MS = 30_000;
+
 /** The team's controls for one project: steps, posts, approvals, files, invoices and details. */
 export function AdminProjectView({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Bumped by our own saves only, so the details form resets after you save it
+  // but never because a background refresh brought newer data.
+  const [detailsVersion, setDetailsVersion] = useState(0);
+  // Counts every change of project data from here. A background refresh that
+  // started before one is stale and is dropped rather than undoing it.
+  const changes = useRef(0);
+
+  const replace = useCallback((next: ProjectDetail) => {
+    changes.current += 1;
+    setProject(next);
+  }, []);
 
   useEffect(() => {
     let active = true;
+    changes.current += 1;
     apiService
       .getProject(projectId)
       .then((detail) => active && setProject(detail))
@@ -39,6 +55,22 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
       active = false;
     };
   }, [projectId]);
+
+  // Quietly pick up what the client did while this page is open. Only the
+  // project data is replaced: forms keep whatever is being typed.
+  useWhileVisible(
+    () => {
+      const started = changes.current;
+      apiService
+        .getProject(projectId)
+        .then((detail) => {
+          if (changes.current === started) setProject(detail);
+        })
+        .catch(() => undefined);
+    },
+    REFRESH_MS,
+    project !== null,
+  );
 
   if (error) {
     return (
@@ -54,7 +86,8 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
   const save: Save = async (work) => {
     setSaveError(null);
     try {
-      setProject(await work());
+      replace(await work());
+      setDetailsVersion((n) => n + 1);
     } catch (reason) {
       setSaveError(errorText(reason));
       throw reason;
@@ -111,13 +144,13 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
             {project.requests.length > 0 && <p className="mt-3 text-xs text-muted">The client gets an email when you agree, say no, or finish.</p>}
           </Panel>
           <Panel tag="shared" title="Files">
-            <FilesPanel project={project} team onChange={setProject} />
+            <FilesPanel project={project} team onChange={replace} />
           </Panel>
           <Panel tag="money" title="Invoices">
-            <AdminInvoices project={project} onChange={setProject} />
+            <AdminInvoices project={project} onChange={replace} />
           </Panel>
           <Panel tag="about" title="Project details">
-            <ProjectDetails key={project.updated_at} project={project} save={save} />
+            <ProjectDetails key={detailsVersion} project={project} save={save} />
           </Panel>
         </aside>
       </div>

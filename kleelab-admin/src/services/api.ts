@@ -1,5 +1,6 @@
 import type {
   ActivityPage,
+  AlertList,
   AdminInvoice,
   AdminStats,
   AttentionItem,
@@ -541,6 +542,15 @@ export const apiService = {
 
   async adminSearch(q: string, signal?: AbortSignal): Promise<SearchResults> {
     return request<SearchResults>(`/api/admin/search?q=${encodeURIComponent(q)}`, { signal });
+  },
+
+  /** The latest alerts and how many came in since you last looked, on any device. */
+  async adminAlerts(): Promise<AlertList> {
+    return request<AlertList>('/api/admin/alerts');
+  },
+
+  async adminMarkAlertsSeen(): Promise<{ status: string; seen_at: string }> {
+    return post<{ status: string; seen_at: string }>('/api/admin/alerts/seen');
   },
 
   /** Email a fresh 7-day link to set a password and sign in. */
