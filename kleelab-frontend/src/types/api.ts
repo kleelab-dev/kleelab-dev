@@ -80,7 +80,27 @@ export interface Invoice {
   status: InvoiceStatus;
   pay_url: string | null;
   paid_at: string | null;
+  /** 'paystack' when paid online by card; null when the team marked it paid. */
+  paid_via?: string | null;
+  payment_reference?: string | null;
   created_at: string;
+}
+
+export interface PaymentsConfig {
+  enabled: boolean;
+  provider: string;
+  currencies: string[];
+  test_mode: boolean;
+}
+
+export interface PaymentResult {
+  status: 'paid' | 'pending' | 'failed' | 'mismatch';
+  reference: string;
+  invoice_id: string;
+  invoice_number: string;
+  project_id: string;
+  amount_cents: number;
+  currency: string;
 }
 
 export interface ProjectSummary {

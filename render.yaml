@@ -51,6 +51,11 @@ services:
       # Falls back to SENDGRID_FROM_EMAIL, which is usually a no-reply address.
       - key: TEAM_INBOX
         sync: false
+      # Paystack secret key (sk_test_... until the account is live). Unset means
+      # online invoice payment is off. Webhook URL to set in Paystack:
+      # https://<api host>/api/payments/paystack/webhook
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
 
 databases:
   - name: kleelab-db

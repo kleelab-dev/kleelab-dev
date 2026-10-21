@@ -88,13 +88,18 @@ export function InvoiceRow({
         <Pill tone={late ? 'bg-danger-soft text-danger' : status.tone}>{late ? 'Overdue' : status.label}</Pill>
         <p className={clsx('mt-1', late ? 'font-medium text-danger' : 'text-muted')}>
           {invoice.status === 'paid' && invoice.paid_at
-            ? `Paid ${formatDate(invoice.paid_at)}`
+            ? `Paid ${invoice.paid_via === 'paystack' ? 'online ' : ''}${formatDate(invoice.paid_at)}`
             : invoice.status === 'unpaid'
               ? invoice.due_date
                 ? `Due ${formatDate(invoice.due_date)}`
                 : `Sent ${formatDate(invoice.created_at)}`
               : `Sent ${formatDate(invoice.created_at)}`}
         </p>
+        {invoice.status === 'paid' && invoice.payment_reference && (
+          <p className="mt-0.5 truncate font-mono text-[10px] text-muted" title="Paystack reference">
+            Paystack {invoice.payment_reference}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 md:justify-end">
         {invoice.status === 'unpaid' && (

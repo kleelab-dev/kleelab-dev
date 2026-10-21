@@ -80,6 +80,9 @@ class InvoiceOut(BaseModel):
     status: str
     pay_url: str | None
     paid_at: datetime | None
+    # "paystack" when it was paid online by card; null when marked paid by hand.
+    paid_via: str | None = None
+    payment_reference: str | None = None
     created_at: datetime
 
 

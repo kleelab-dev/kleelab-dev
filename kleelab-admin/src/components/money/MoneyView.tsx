@@ -48,7 +48,7 @@ function toCsv(rows: (string | number | null)[][]): string {
 
 function downloadCsv(invoices: AdminInvoice[]) {
   const csv = toCsv([
-    ['Number', 'Title', 'Client', 'Client email', 'Project', 'Currency', 'Amount', 'Status', 'Issued', 'Due', 'Paid'],
+    ['Number', 'Title', 'Client', 'Client email', 'Project', 'Currency', 'Amount', 'Status', 'Issued', 'Due', 'Paid', 'Paystack reference'],
     ...invoices.map((i) => [
       i.number,
       i.title,
@@ -61,6 +61,7 @@ function downloadCsv(invoices: AdminInvoice[]) {
       i.created_at.slice(0, 10),
       i.due_date,
       i.paid_at ? i.paid_at.slice(0, 10) : null,
+      i.payment_reference ?? null,
     ]),
   ]);
   const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));

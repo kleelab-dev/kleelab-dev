@@ -6,6 +6,7 @@ Kept out of the routers so both sides agree on what "the current stage" and
 
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timezone
 from uuid import UUID
@@ -26,6 +27,9 @@ from kleelab.schemas.project import (
     StageOut,
     UpdateOut,
 )
+from kleelab.services import email as email_svc
+
+logger = logging.getLogger(__name__)
 
 # The process we run for almost every build. Staff can pass their own list.
 # Worded for the client, who reads these on their dashboard.
@@ -204,6 +208,42 @@ def _file_out(item: ProjectFile) -> FileOut:
     out.uploaded_by_name = display_name(item.uploader)
     out.from_team = item.uploader is not None and is_staff(item.uploader)
     return out
+
+
+def money(cents: int, currency: str) -> str:
+    return f"{currency} {cents / 100:,.2f}"
+
+
+def set_invoice_status(invoice: ProjectInvoice, new_status: str) -> None:
+    """Change an invoice's status and keep the paid fields in step with it.
+
+    The one place an invoice becomes paid or stops being paid, whether the team
+    marks it by hand or a card payment lands. How it was paid (`paid_via`) is
+    the caller's to set after this; leaving "paid" clears it.
+    """
+
+    invoice.status = new_status
+    invoice.paid_at = now() if new_status == "paid" else None
+    if new_status != "paid":
+        invoice.paid_via = None
+        invoice.payment_reference = None
+
+
+def paid_notice(invoice: ProjectInvoice) -> str:
+    """What the client is told when an invoice is paid."""
+
+    return f"Thank you. We have received your payment for {invoice.number}"
+
+
+def notify_client(project: Project, headline: str) -> None:
+    """Email the client about their project. The change is already saved; this is a courtesy."""
+
+    if project.client is None:
+        return
+    try:
+        email_svc.send_client_project_notice(project.client.email, str(project.id), project.title, headline)
+    except Exception:  # noqa: BLE001
+        logger.exception("Could not email %s about %s", project.client.email, project.reference)
 
 
 async def touch(db: AsyncSession, project: Project) -> None:

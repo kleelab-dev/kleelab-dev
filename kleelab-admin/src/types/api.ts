@@ -153,6 +153,10 @@ export interface Invoice {
   status: InvoiceStatus;
   pay_url: string | null;
   paid_at: string | null;
+  /** 'paystack' when the client paid online by card; null when marked paid by hand. */
+  paid_via?: string | null;
+  /** The Paystack reference for an online payment, to find it in their dashboard. */
+  payment_reference?: string | null;
   created_at: string;
 }
 
