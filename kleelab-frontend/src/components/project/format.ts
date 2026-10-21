@@ -1,4 +1,4 @@
-import type { ApprovalStatus, Currency, InvoiceStatus, LeadStatus, ProjectStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
+import type { ApprovalStatus, Currency, InvoiceStatus, ProjectStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_TIME = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -30,8 +30,6 @@ export function timeAgo(iso: string | null | undefined): string {
   if (days === 1) return 'yesterday';
   return `${days} days ago`;
 }
-
-export const CURRENCIES: Currency[] = ['USD', 'GBP', 'EUR', 'NGN', 'CAD', 'AUD'];
 
 export function formatMoney(cents: number, currency: Currency | string): string {
   try {
@@ -92,13 +90,6 @@ export const INVOICE_STATUS: Record<InvoiceStatus, { label: string; tone: string
   cancelled: { label: 'Cancelled', tone: 'bg-line text-muted' },
 };
 
-export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: string }> = {
-  new: { label: 'New', tone: 'bg-sun text-ink' },
-  contacted: { label: 'We replied', tone: 'bg-cobalt-soft text-cobalt-dark' },
-  won: { label: 'Became a client', tone: 'bg-mint text-ink' },
-  lost: { label: 'Not going ahead', tone: 'bg-line text-muted' },
-};
-
 export function leadSource(source: string): string {
   if (source === 'chat') return 'From the chat';
   if (source === 'marketing') return 'From the contact form';
@@ -123,11 +114,6 @@ export function budgetLabel(budget: string | null): string | null {
   const own = /^ngn_(\d+)$/.exec(budget);
   if (own) return `₦${Number(own[1]).toLocaleString('en-NG')} (their figure)`;
   return BUDGETS[budget] ?? budget.replace(/_/g, ' ');
-}
-
-/** A team member's name, with their email when two people share it. */
-export function staffLabel(member: { name: string; email: string }, everyone: { name: string }[]): string {
-  return everyone.filter((m) => m.name === member.name).length > 1 ? `${member.name} (${member.email})` : member.name;
 }
 
 export function errorText(reason: unknown, fallback = 'Something went wrong. Please try again.'): string {

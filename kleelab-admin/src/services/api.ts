@@ -308,7 +308,7 @@ export const apiService = {
 
   /** Always answers the same way, so it cannot be used to find out who has an account. */
   async requestPasswordReset(email: string): Promise<void> {
-    await request<unknown>(`/api/auth/request-password-reset?email=${encodeURIComponent(email)}`, { method: 'POST' });
+    await post<unknown>('/api/auth/request-password-reset', { email });
   },
 
   /** Used both by "forgot password" and by the invite a new client receives. */

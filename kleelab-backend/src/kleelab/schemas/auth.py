@@ -27,6 +27,12 @@ class UserLogin(BaseModel):
     _validate_password = field_validator("password")(validate_password_size)
 
 
+class PasswordResetStart(BaseModel):
+    """Carried in the body: an email address in a query string ends up in access logs."""
+
+    email: EmailStr
+
+
 class PasswordResetRequest(BaseModel):
     """Carried in the body: a password in a query string ends up in access logs."""
 

@@ -8,7 +8,6 @@ import { Logo } from '@/components/ui/Logo';
 import { ApiError, apiService, hasSession } from '@/services/api';
 import type { User } from '@/types/api';
 
-const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL || 'https://admin.kleelab.com';
 
 const UserContext = createContext<User | null>(null);
 
@@ -85,7 +84,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const { user } = state;
-  const staff = user.role === 'staff';
   const nav = [{ href: '/dashboard', label: 'Your projects' }];
 
   return (
@@ -99,11 +97,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/dashboard" className="no-underline" aria-label="Dashboard home">
               <Logo />
             </Link>
-            {staff && (
-              <a href={ADMIN_URL} className="stamp hidden -rotate-2 no-underline sm:inline-block">
-                Team dashboard ↗
-              </a>
-            )}
             <nav className="flex flex-1 items-center gap-1" aria-label="Dashboard">
               {nav.map((item) => {
                 const current = item.href === '/dashboard'

@@ -1,20 +1,9 @@
 import type {
-  AttentionItem,
   ChatReply,
   ChatTurn,
-  InvoiceCreateInput,
-  InvoicePatchInput,
-  Lead,
-  LeadStatus,
-  ProjectCreateInput,
   ProjectDetail,
-  ProjectPatchInput,
   ProjectSummary,
   RequestKind,
-  RequestStatus,
-  StaffMember,
-  StagePatchInput,
-  StaffUpdateInput,
   User,
 } from '@/types/api';
 
@@ -199,10 +188,6 @@ function post<T>(path: string, body?: unknown): Promise<T> {
   });
 }
 
-function patch<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(body) });
-}
-
 /** Fetch a signed-in download and hand it to the browser to save. */
 async function saveDownload(path: string, filename: string, failure: string): Promise<void> {
   let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
@@ -259,7 +244,7 @@ export const apiService = {
 
   /** Always answers the same way, so it cannot be used to find out who has an account. */
   async requestPasswordReset(email: string): Promise<void> {
-    await request<unknown>(`/api/auth/request-password-reset?email=${encodeURIComponent(email)}`, { method: 'POST' });
+    await post<unknown>('/api/auth/request-password-reset', { email });
   },
 
   /** Used both by "forgot password" and by the invite a new client receives. */
@@ -353,72 +338,5 @@ export const apiService = {
       `KleeLab-${invoice.number}.pdf`,
       'The invoice could not be downloaded.',
     );
-  },
-
-  // --- Team admin ----------------------------------------------------------
-
-  async adminStaff(): Promise<StaffMember[]> {
-    return request<StaffMember[]>('/api/admin/staff');
-  },
-
-  async adminOverview(): Promise<AttentionItem[]> {
-    return request<AttentionItem[]>('/api/admin/overview');
-  },
-
-  async adminProjects(): Promise<ProjectSummary[]> {
-    return request<ProjectSummary[]>('/api/admin/projects');
-  },
-
-  async adminCreateProject(input: ProjectCreateInput): Promise<{ project: ProjectDetail; invited: boolean }> {
-    return post<{ project: ProjectDetail; invited: boolean }>('/api/admin/projects', input);
-  },
-
-  async adminUpdateProject(projectId: string, input: ProjectPatchInput): Promise<ProjectDetail> {
-    return patch<ProjectDetail>(`/api/admin/projects/${projectId}`, input);
-  },
-
-  /** Email the client a fresh sign-in link. */
-  async adminResendInvite(projectId: string): Promise<{ status: string; email: string }> {
-    return post<{ status: string; email: string }>(`/api/admin/projects/${projectId}/invite`);
-  },
-
-  async adminAddStage(projectId: string, name: string, description?: string | null): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/admin/projects/${projectId}/stages`, { name, description: description || null });
-  },
-
-  async adminUpdateStage(projectId: string, stageId: string, input: StagePatchInput): Promise<ProjectDetail> {
-    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}`, input);
-  },
-
-  async adminMoveStage(projectId: string, stageId: string, direction: 'up' | 'down'): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}/move`, { direction });
-  },
-
-  async adminDeleteStage(projectId: string, stageId: string): Promise<ProjectDetail> {
-    return request<ProjectDetail>(`/api/admin/projects/${projectId}/stages/${stageId}`, { method: 'DELETE' });
-  },
-
-  async adminPostUpdate(projectId: string, input: StaffUpdateInput): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/admin/projects/${projectId}/updates`, input);
-  },
-
-  async adminUpdateRequest(projectId: string, requestId: string, status: RequestStatus): Promise<ProjectDetail> {
-    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/requests/${requestId}`, { status });
-  },
-
-  async adminCreateInvoice(projectId: string, input: InvoiceCreateInput): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/admin/projects/${projectId}/invoices`, input);
-  },
-
-  async adminUpdateInvoice(projectId: string, invoiceId: string, input: InvoicePatchInput): Promise<ProjectDetail> {
-    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/invoices/${invoiceId}`, input);
-  },
-
-  async adminLeads(): Promise<Lead[]> {
-    return request<Lead[]>('/api/admin/leads');
-  },
-
-  async adminUpdateLead(leadId: string, status: LeadStatus): Promise<Lead> {
-    return patch<Lead>(`/api/admin/leads/${leadId}`, { status });
   },
 };

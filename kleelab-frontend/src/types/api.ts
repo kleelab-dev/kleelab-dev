@@ -126,64 +126,6 @@ export interface ProjectDetail {
   lead_id: string | null;
 }
 
-export interface ProjectCreateInput {
-  client_email: string;
-  client_name?: string | null;
-  title: string;
-  summary?: string | null;
-  start_date?: string | null;
-  target_date?: string | null;
-  stages?: string[] | null;
-  owner_id?: string | null;
-  lead_id?: string | null;
-}
-
-export interface ProjectPatchInput {
-  title?: string;
-  summary?: string | null;
-  status?: ProjectStatus;
-  start_date?: string | null;
-  target_date?: string | null;
-  live_url?: string | null;
-  owner_id?: string | null;
-}
-
-export interface StagePatchInput {
-  name?: string;
-  status?: StageStatus;
-  due_date?: string | null;
-  description?: string | null;
-}
-
-export interface StaffUpdateInput {
-  kind: UpdateKind;
-  title?: string | null;
-  body: string;
-  stage_id?: string | null;
-  link_url?: string | null;
-  link_label?: string | null;
-}
-
-export interface InvoiceCreateInput {
-  title: string;
-  amount_cents: number;
-  currency: Currency;
-  due_date?: string | null;
-  pay_url?: string | null;
-}
-
-export interface InvoicePatchInput {
-  status?: InvoiceStatus;
-  due_date?: string | null;
-  pay_url?: string | null;
-}
-
-export interface StaffMember {
-  id: string;
-  name: string;
-  email: string;
-}
-
 export type AttentionKind =
   | 'new_enquiry'
   | 'client_message'
@@ -191,34 +133,6 @@ export type AttentionKind =
   | 'waiting_approval'
   | 'overdue_step'
   | 'unpaid_invoice';
-
-export interface AttentionItem {
-  kind: AttentionKind;
-  project_id: string | null;
-  reference: string | null;
-  project_title: string | null;
-  text: string;
-  since: string | null;
-  owner_name: string | null;
-  lead_id: string | null;
-}
-
-export type LeadStatus = 'new' | 'contacted' | 'won' | 'lost';
-
-export interface Lead {
-  id: string;
-  email: string;
-  name: string | null;
-  company: string | null;
-  interest: string | null;
-  budget: string | null;
-  source: string;
-  feature_requested: string | null;
-  message: string | null;
-  status: LeadStatus;
-  created_at: string;
-  project_id: string | null;
-}
 
 export type ChatRole = 'visitor' | 'assistant';
 

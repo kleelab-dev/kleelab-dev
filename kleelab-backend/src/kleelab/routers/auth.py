@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import JWTError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.config import settings
@@ -25,6 +25,7 @@ from kleelab.schemas.auth import (
     LogoutRequest,
     PasswordConfirm,
     PasswordResetRequest,
+    PasswordResetStart,
     PlanLimitsOut,
     PlanUsageOut,
     RecoveryCodesOut,
@@ -100,10 +101,15 @@ def _wrong_password() -> HTTPException:
     )
 
 
+async def _user_by_email(db: AsyncSession, email: str) -> User | None:
+    """Find an account by email, ignoring case: phones often capitalise the first letter."""
+
+    return await db.scalar(select(User).where(func.lower(User.email) == email.strip().lower()).limit(1))
+
+
 async def _authenticate(user_data: UserLogin, db: AsyncSession) -> User:
     ensure_password_supported(user_data.password)
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    user = result.scalar_one_or_none()
+    user = await _user_by_email(db, user_data.email)
     if user is None or not verify_password(user_data.password, user.password_hash):
         raise _wrong_password()
     if not user.is_active:
@@ -146,7 +152,7 @@ async def staff_login(
     """
 
     ensure_password_supported(user_data.password)
-    user = await db.scalar(select(User).where(User.email == user_data.email))
+    user = await _user_by_email(db, user_data.email)
     if user is None or not verify_password(user_data.password, user.password_hash):
         if user is not None and user.role == "staff":
             activity.record(db, user, "auth.sign_in_failed", "Failed to sign in: wrong password", request=request)
@@ -369,26 +375,37 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)) -> dict[s
 
 
 @router.post("/forgot-password")
-async def forgot_password(email: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+async def forgot_password(
+    body: PasswordResetStart | None = None, email: str | None = None, db: AsyncSession = Depends(get_db)
+) -> dict[str, str]:
     """Alias for /request-password-reset."""
 
-    return await request_password_reset(email, db)
+    return await request_password_reset(body, email, db)
 
 
 @router.post("/request-password-reset")
-async def request_password_reset(email: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
-    """Generate a password reset token and send it to the user if the account exists."""
+async def request_password_reset(
+    body: PasswordResetStart | None = None, email: str | None = None, db: AsyncSession = Depends(get_db)
+) -> dict[str, str]:
+    """Email a password reset link if the account exists.
 
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    if user is None:
-        return {"status": "if_account_exists_reset_email_sent"}
-    token = create_signed_token(
-        {"user_id": str(user.id), "purpose": "password_reset", "pf": password_fingerprint(user)},
-        timedelta(minutes=15),
-    )
-    send_password_reset_email(user.email, token, staff=user.role == "staff")
-    return {"status": "reset_email_sent"}
+    The address belongs in the body: in a query string it ends up in access
+    logs. The `?email=` form is still read so a page cached from before this
+    change keeps working. The answer is the same whether or not the account
+    exists, so this cannot be used to find out who has one.
+    """
+
+    address = body.email if body is not None else email
+    if not address:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enter your email address")
+    user = await _user_by_email(db, address)
+    if user is not None and user.is_active:
+        token = create_signed_token(
+            {"user_id": str(user.id), "purpose": "password_reset", "pf": password_fingerprint(user)},
+            timedelta(minutes=15),
+        )
+        send_password_reset_email(user.email, token, staff=user.role == "staff")
+    return {"status": "if_account_exists_reset_email_sent"}
 
 
 @router.post("/reset-password")
