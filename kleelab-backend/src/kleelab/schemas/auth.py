@@ -49,6 +49,40 @@ class Token(BaseModel):
     expires_in: int | None = None
 
 
+class ProfileUpdate(BaseModel):
+    """What someone can change about themselves from their Account page."""
+
+    full_name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("full_name")
+    @classmethod
+    def _tidy_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("Type your name")
+        return value
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+    _validate_current = field_validator("current_password")(validate_password_size)
+    _validate_new = field_validator("new_password")(validate_password_size)
+
+
+class OtherSessionsSignedOut(BaseModel):
+    """After a password change or "sign out other devices".
+
+    `tokens` is set only when the session making the call could not be told
+    apart from the others (a token from before sessions were tracked): then
+    every session was signed out and this is the new one to carry on with.
+    """
+
+    signed_out: int
+    tokens: Token | None = None
+
+
 class TwoStepChallenge(BaseModel):
     """The password was right; now the code. No session yet."""
 

@@ -1,5 +1,6 @@
 """Session lifecycle: issue, rotate, and revoke refresh tokens."""
 
+import uuid
 from datetime import timedelta
 from typing import Any
 from uuid import UUID
@@ -22,9 +23,11 @@ class RefreshError(Exception):
     """Raised when a refresh token cannot be exchanged for a new session."""
 
 
-def _access_token_for(user: User) -> str:
+def _access_token_for(user: User, session_id: UUID) -> str:
+    # `sid` ties the access token to its session, so signing that session out
+    # (here or from another device) stops the access token too.
     return create_access_token(
-        data={"user_id": str(user.id)},
+        data={"user_id": str(user.id), "sid": str(session_id)},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
@@ -35,8 +38,10 @@ async def issue_tokens(
     """Mint a fresh access + refresh token pair and persist the refresh token."""
 
     raw_refresh = generate_refresh_token()
+    session_id = uuid.uuid4()
     db.add(
         RefreshToken(
+            id=session_id,
             user_id=user.id,
             token_hash=hash_refresh_token(raw_refresh),
             expires_at=utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
@@ -46,7 +51,7 @@ async def issue_tokens(
     await db.commit()
 
     return {
-        "access_token": _access_token_for(user),
+        "access_token": _access_token_for(user, session_id),
         "refresh_token": raw_refresh,
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
@@ -57,8 +62,12 @@ async def rotate(
 ) -> tuple[User, dict[str, Any]]:
     """Exchange a refresh token for a new pair, revoking the old one.
 
-    Presenting an already-revoked token is treated as theft: every session for
-    that user is revoked rather than silently issuing another pair.
+    Presenting a token that was already rotated is treated as theft: every
+    session for that user is revoked rather than silently issuing another pair.
+    A token that was signed out (by logging out, "sign out other devices" or a
+    password change) is only refused: the device it was taken from will keep
+    presenting it until it notices, and that must not sign out the device that
+    did the signing out.
     """
 
     record = await db.scalar(
@@ -68,6 +77,8 @@ async def rotate(
         raise RefreshError("Unknown refresh token")
 
     if record.revoked_at is not None:
+        if record.replaced_by is None:
+            raise RefreshError("This session was signed out")
         await revoke_all_for_user(record.user_id, db)
         raise RefreshError("Refresh token has already been used")
 
@@ -112,3 +123,39 @@ async def revoke_all_for_user(user_id: UUID, db: AsyncSession) -> None:
         .values(revoked_at=utcnow())
     )
     await db.commit()
+
+
+async def live_session(db: AsyncSession, user_id: UUID, session_id: UUID | None) -> RefreshToken | None:
+    """The still-active refresh token behind a session id, following rotations.
+
+    None when the id is unknown, belongs to someone else, or was signed out.
+    """
+
+    current = session_id
+    for _ in range(20):
+        if current is None:
+            return None
+        record = await db.get(RefreshToken, current)
+        if record is None or record.user_id != user_id:
+            return None
+        if record.revoked_at is None:
+            return record if record.expires_at > utcnow() else None
+        current = record.replaced_by
+    return None
+
+
+async def revoke_others(user_id: UUID, keep: UUID, db: AsyncSession) -> int:
+    """Sign out every session of a user except `keep`. Returns how many were active."""
+
+    result = await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.id != keep,
+            RefreshToken.expires_at > utcnow(),
+        )
+        .values(revoked_at=utcnow())
+    )
+    await db.commit()
+    return result.rowcount or 0

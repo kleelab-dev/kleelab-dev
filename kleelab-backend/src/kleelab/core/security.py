@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.config import settings
 from kleelab.core.database import get_db
+from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
 
 
@@ -113,6 +114,52 @@ def decode_signed_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
 
+# A session that rotates more often than this inside one access token's
+# lifetime is not a browser refreshing normally.
+MAX_ROTATIONS_FOLLOWED = 20
+
+
+async def session_alive(db: AsyncSession, session_id: UUID) -> bool:
+    """Whether the session an access token was issued for is still signed in.
+
+    Access tokens carry the id of the refresh token issued with them (`sid`).
+    Rotation replaces that refresh token, so the chain of replacements is
+    followed to the newest one: the session is alive while that one has not
+    been revoked. Signing out, "sign out other devices" and a password change
+    revoke without a replacement, so the access tokens of those sessions stop
+    working straight away instead of lasting until they expire.
+    """
+
+    current: UUID | None = session_id
+    for _ in range(MAX_ROTATIONS_FOLLOWED):
+        record = await db.get(RefreshToken, current)
+        if record is None:
+            return False
+        if record.revoked_at is None:
+            return True
+        if record.replaced_by is None:
+            return False
+        current = record.replaced_by
+    return False
+
+
+def token_session_id(token: str) -> UUID | None:
+    """The session id in an access token, or None for one issued before sessions were tracked."""
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        sid = payload.get("sid")
+        return UUID(str(sid)) if sid else None
+    except (JWTError, ValueError):
+        return None
+
+
+async def current_session_id(token: str = Depends(oauth2_scheme)) -> UUID | None:
+    """Dependency: the session the caller signed in with. Use next to get_current_user."""
+
+    return token_session_id(token)
+
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
@@ -131,6 +178,8 @@ async def get_current_user(
         if not user_id or payload.get("type") != "access":
             raise credentials_exception
         user_uuid = UUID(str(user_id))
+        sid = payload.get("sid")
+        session_uuid = UUID(str(sid)) if sid else None
     except (JWTError, ValueError):
         raise credentials_exception from None
 
@@ -138,6 +187,9 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     # A deactivated account loses access straight away, not when its token expires.
     if user is None or not user.is_active:
+        raise credentials_exception
+    # So does a session that was signed out, from this device or another one.
+    if session_uuid is not None and not await session_alive(db, session_uuid):
         raise credentials_exception
     return user
 
@@ -164,10 +216,16 @@ async def get_optional_user(
         if not user_id or payload.get("type") != "access":
             return None
         user_uuid = UUID(str(user_id))
+        sid = payload.get("sid")
+        session_uuid = UUID(str(sid)) if sid else None
     except (JWTError, ValueError):
         # An expired or malformed token makes the visitor anonymous; it must not
         # turn a public page into an error.
         return None
 
     user = await db.scalar(select(User).where(User.id == user_uuid))
-    return user if user is not None and user.is_active else None
+    if user is None or not user.is_active:
+        return None
+    if session_uuid is not None and not await session_alive(db, session_uuid):
+        return None
+    return user
