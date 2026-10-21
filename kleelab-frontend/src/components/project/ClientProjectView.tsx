@@ -81,6 +81,7 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
             {approvals.map((update) => (
               <ApprovalCard
                 key={update.id}
+                projectId={project.id}
                 update={update}
                 stageName={update.stage_id ? stageName.get(update.stage_id) : undefined}
                 onDecide={async (decision, note) => setProject(await apiService.answerApproval(project.id, update.id, decision, note))}
@@ -105,9 +106,12 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
             </Panel>
           )}
           <Panel tag="talk to us" title="Messages and updates">
-            <MessageComposer onSend={async (body) => setProject(await apiService.sendMessage(project.id, body))} />
+            <MessageComposer
+              projectId={project.id}
+              onSend={async (body, attachmentIds) => setProject(await apiService.sendMessage(project.id, body, attachmentIds))}
+            />
             <div className="mt-5">
-              <UpdateFeed updates={history} stages={project.stages} empty="Nothing here yet. We post an update at every step, and you can message us any time." />
+              <UpdateFeed projectId={project.id} updates={history} stages={project.stages} empty="Nothing here yet. We post an update at every step, and you can message us any time." />
             </div>
           </Panel>
         </div>

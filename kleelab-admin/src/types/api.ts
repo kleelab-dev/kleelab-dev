@@ -157,6 +157,8 @@ export interface ProjectUpdate {
   created_at: string;
   author_name: string | null;
   from_team: boolean;
+  /** Files and pictures sent with this update. */
+  attachments: ProjectFile[];
 }
 
 export interface ProjectRequest {
@@ -173,6 +175,8 @@ export interface ProjectFile {
   content_type: string;
   size: number;
   created_at: string;
+  /** The update this file was sent with, if any. */
+  update_id: string | null;
   uploaded_by_name: string | null;
   from_team: boolean;
 }
@@ -275,6 +279,8 @@ export interface StaffUpdateInput {
   stage_id?: string | null;
   link_url?: string | null;
   link_label?: string | null;
+  /** Files uploaded ahead with uploadAttachment. Not allowed on team notes. */
+  attachment_ids?: string[];
 }
 
 export interface InvoiceCreateInput {

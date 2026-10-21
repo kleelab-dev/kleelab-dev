@@ -14,7 +14,7 @@ import uuid
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
@@ -159,6 +159,13 @@ class ProjectFile(Base):
     content_type: Mapped[str] = mapped_column(String(120), nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     data: Mapped[bytes] = deferred(mapped_column(LargeBinary, nullable=False))
+    # Set when the file came with a message, so the message can show it.
+    update_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("project_updates.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Uploaded for a message that is not sent yet: hidden from everyone but the
+    # uploader until it is, and cleared away if it never is.
+    held: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     project = relationship("Project", back_populates="files")

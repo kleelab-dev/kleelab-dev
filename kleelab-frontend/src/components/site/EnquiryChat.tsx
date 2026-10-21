@@ -178,9 +178,9 @@ export function EnquiryChat() {
 
             {lead === 'open' || lead === 'sending' ? (
               <form onSubmit={submitLead} className="rounded-2xl border-[1.5px] border-ink bg-white p-4" noValidate>
-                <p className="font-display text-base font-bold">Talk to the team</p>
+                <p className="font-display text-base font-bold">Talk to a person</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted">
-                  We will send them this conversation and reply by email, usually within a working day.
+                  Someone at KleeLab will read this conversation and reply by email, usually within a working day.
                 </p>
                 <div className="mt-3 grid gap-2">
                   <input className="field py-2" placeholder="Your name" value={leadName} onChange={(e) => setLeadName(e.target.value)} autoComplete="name" aria-label="Your name" />
@@ -189,7 +189,7 @@ export function EnquiryChat() {
                 {leadError && <p className="mt-2 text-xs text-danger" role="alert">{leadError}</p>}
                 <div className="mt-3 flex items-center gap-2">
                   <button type="submit" disabled={lead === 'sending'} className="rounded-full bg-cobalt px-4 py-2 text-sm font-semibold text-white hover:bg-cobalt-dark disabled:opacity-50">
-                    {lead === 'sending' ? 'Sending…' : 'Send to the team'}
+                    {lead === 'sending' ? 'Sending…' : 'Send to KleeLab'}
                   </button>
                   <button type="button" onClick={() => setLead('hidden')} className="rounded-full px-3 py-2 text-sm text-muted hover:text-ink">
                     Not now

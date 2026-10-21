@@ -5,12 +5,25 @@ import { clsx } from 'clsx';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import type { ProjectUpdate, Stage } from '@/types/api';
+import { Attachments } from './Attachments';
 import { APPROVAL_STATUS, formatDateTime } from './format';
 
 const KIND_LABEL = { progress: 'Progress', message: 'Message', approval: 'Approval', note: 'Team note' } as const;
 
 /** Updates and messages, newest first. */
-export function UpdateFeed({ updates, stages, empty, team = false }: { updates: ProjectUpdate[]; stages: Stage[]; empty?: string; team?: boolean }) {
+export function UpdateFeed({
+  projectId,
+  updates,
+  stages,
+  empty,
+  team = false,
+}: {
+  projectId: string;
+  updates: ProjectUpdate[];
+  stages: Stage[];
+  empty?: string;
+  team?: boolean;
+}) {
   const stageName = new Map(stages.map((s) => [s.id, s.name]));
   const ordered = [...updates].sort((a, b) => b.created_at.localeCompare(a.created_at));
   if (!ordered.length) {
@@ -40,8 +53,9 @@ export function UpdateFeed({ updates, stages, empty, team = false }: { updates: 
             )}
             <span className="ml-auto normal-case tracking-normal">{formatDateTime(update.created_at)}</span>
           </div>
-          {update.title && <h3 className="mt-2 font-semibold">{update.title}</h3>}
-          <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-ink-soft">{update.body}</p>
+          {update.title && <h3 className="mt-2 break-words font-semibold">{update.title}</h3>}
+          {update.body && <p className="mt-1.5 whitespace-pre-line break-words text-sm leading-6 text-ink-soft">{update.body}</p>}
+          <Attachments projectId={projectId} files={update.attachments ?? []} />
           {update.link_url && <UpdateLink update={update} />}
           {update.kind === 'approval' && update.approval_status && (
             <p className="mt-3 text-sm">
@@ -68,10 +82,12 @@ export function UpdateLink({ update }: { update: Pick<ProjectUpdate, 'link_url' 
 
 /** One thing waiting for the client to approve, with both answers. */
 export function ApprovalCard({
+  projectId,
   update,
   stageName,
   onDecide,
 }: {
+  projectId: string;
   update: ProjectUpdate;
   stageName?: string;
   onDecide: (decision: 'approved' | 'changes_requested', note: string) => Promise<void>;
@@ -101,8 +117,9 @@ export function ApprovalCard({
       <p className="font-mono text-[10px] uppercase tracking-label text-cobalt">
         Please approve{stageName ? ` · ${stageName}` : ''}
       </p>
-      <h3 className="mt-1.5 font-display text-lg font-extrabold">{update.title || 'Ready for you to look at'}</h3>
-      <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-ink-soft">{update.body}</p>
+      <h3 className="mt-1.5 break-words font-display text-lg font-extrabold">{update.title || 'Ready for you to look at'}</h3>
+      <p className="mt-1.5 whitespace-pre-line break-words text-sm leading-6 text-ink-soft">{update.body}</p>
+      <Attachments projectId={projectId} files={update.attachments ?? []} />
       <UpdateLink update={update} />
       {mode === 'changes' && (
         <div className="mt-4">

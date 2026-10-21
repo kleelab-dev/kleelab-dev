@@ -1,6 +1,7 @@
 """The client's side of a project: see progress, talk to us, sign things off."""
 
 import logging
+from datetime import timedelta
 from urllib.parse import quote, unquote
 from uuid import UUID
 
@@ -15,6 +16,7 @@ from kleelab.models.project import Project, ProjectFile, ProjectRequest, Project
 from kleelab.models.user import User
 from kleelab.schemas.project import (
     ApprovalDecision,
+    FileOut,
     MessageCreate,
     ProjectDetail,
     ProjectSummary,
@@ -38,6 +40,9 @@ REQUEST_LABELS = {
 }
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
+# Files waiting on an unsent message: how many one person may have, and for how long.
+MAX_HELD = 12
+HELD_FOR = timedelta(days=1)
 # Served as a download, never rendered: an uploaded page or SVG must not be able
 # to run script on our origin.
 RISKY_TYPES = {"text/html", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/xml", "text/javascript", "application/javascript"}
@@ -85,29 +90,41 @@ async def post_message(
     user: User = Depends(get_current_user),
 ) -> ProjectDetail:
     project = await svc.load_project(db, project_id, user)
+    body = payload.body.strip()
+
+    attached = svc.claim_attachments(project, user, payload.attachment_ids)
+
     stage = svc.current_stage(project)
-    db.add(
-        ProjectUpdate(
-            project_id=project.id,
-            stage_id=stage.id if stage else None,
-            author_id=user.id,
-            kind="message",
-            body=payload.body.strip(),
-        )
+    message = ProjectUpdate(
+        project_id=project.id,
+        stage_id=stage.id if stage else None,
+        author_id=user.id,
+        kind="message",
+        body=body,
     )
+    db.add(message)
+    await db.flush()
+    svc.attach(attached, message)
+
+    names = [f.filename for f in attached]
+    summary = quoted(body) if body else ""
+    if attached:
+        files_text = svc.files_phrase(attached)
+        summary = f"{summary} (with {files_text})" if summary else files_text
     activity.record(
         db, user, "update.message",
-        f"{'Messaged the client' if svc.is_staff(user) else 'Sent a message'}: {quoted(payload.body)}",
+        f"{'Messaged the client' if svc.is_staff(user) else 'Sent a message'}: {summary}",
         project_id=project.id, subject_type="project", subject_id=project.id,
     )
     await svc.touch(db, project)
     await db.commit()
     if not svc.is_staff(user):
-        _notify_team(
-            project,
-            f"[{project.reference}] New message from {user.email}",
-            [project.title, payload.body.strip()],
-        )
+        lines = [project.title]
+        if body:
+            lines.append(body)
+        if names:
+            lines.append("Attached: " + ", ".join(names))
+        _notify_team(project, f"[{project.reference}] New message from {user.email}", lines)
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project, team=svc.is_staff(user))
 
@@ -220,6 +237,68 @@ def _clean_filename(raw: str | None) -> str:
     return (name or "file")[:255]
 
 
+async def _read_upload(request: Request, project: Project, user: User) -> ProjectFile:
+    """Read a raw-body upload into a file row, refusing anything over the size cap."""
+
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_FILE_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Files can be up to 10 MB")
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MAX_FILE_BYTES:
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Files can be up to 10 MB")
+    if not data:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="That file is empty")
+
+    content_type = (request.headers.get("content-type") or "application/octet-stream").split(";")[0].strip()[:120]
+    return ProjectFile(
+        project_id=project.id,
+        uploaded_by=user.id,
+        filename=_clean_filename(request.headers.get("x-file-name")),
+        content_type=content_type or "application/octet-stream",
+        size=len(data),
+        data=bytes(data),
+    )
+
+
+@router.post("/{project_id}/attachments", response_model=FileOut, status_code=status.HTTP_201_CREATED)
+async def upload_attachment(
+    project_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> FileOut:
+    """Upload a file for a message that is about to be sent.
+
+    It stays hidden until the message goes, then shows on the message and in the
+    project's files. Nobody is told about it on its own: the message says it all.
+    """
+
+    project = await svc.load_project(db, project_id, user)
+    mine = [f for f in project.files if f.held and f.uploaded_by == user.id]
+    # Ones never sent are cleared away after a day.
+    cutoff = svc.now() - HELD_FOR
+    for old in [f for f in mine if f.created_at is not None and f.created_at < cutoff]:
+        await db.delete(old)
+        mine.remove(old)
+    if len(mine) >= MAX_HELD:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Send or remove the files you have already attached first.",
+        )
+
+    item = await _read_upload(request, project, user)
+    item.held = True
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    out = FileOut.model_validate(item)
+    out.uploaded_by_name = svc.display_name(user)
+    out.from_team = svc.is_staff(user)
+    return out
+
+
 @router.post("/{project_id}/files", response_model=ProjectDetail, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     project_id: UUID,
@@ -234,29 +313,9 @@ async def upload_file(
     """
 
     project = await svc.load_project(db, project_id, user)
-    declared = request.headers.get("content-length")
-    if declared and declared.isdigit() and int(declared) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Files can be up to 10 MB")
-    data = bytearray()
-    async for chunk in request.stream():
-        data.extend(chunk)
-        if len(data) > MAX_FILE_BYTES:
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Files can be up to 10 MB")
-    if not data:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="That file is empty")
-
-    filename = _clean_filename(request.headers.get("x-file-name"))
-    content_type = (request.headers.get("content-type") or "application/octet-stream").split(";")[0].strip()[:120]
-    db.add(
-        ProjectFile(
-            project_id=project.id,
-            uploaded_by=user.id,
-            filename=filename,
-            content_type=content_type or "application/octet-stream",
-            size=len(data),
-            data=bytes(data),
-        )
-    )
+    item = await _read_upload(request, project, user)
+    filename = item.filename
+    db.add(item)
     activity.record(db, user, "file.add", f"Shared the file {quoted(filename)}", project_id=project.id,
                     subject_type="project", subject_id=project.id)
     await svc.touch(db, project)
@@ -289,7 +348,7 @@ async def download_file(
         .where(ProjectFile.id == file_id, ProjectFile.project_id == project.id)
         .options(undefer(ProjectFile.data))
     )
-    if item is None:
+    if item is None or (item.held and item.uploaded_by != user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     media_type = "application/octet-stream" if item.content_type in RISKY_TYPES else item.content_type
     ascii_name = item.filename.encode("ascii", "ignore").decode().replace('"', "") or "file"
@@ -339,10 +398,16 @@ async def delete_file(
 
     project = await svc.load_project(db, project_id, user)
     item = next((f for f in project.files if f.id == file_id), None)
-    if item is None:
+    if item is None or (item.held and item.uploaded_by != user.id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     if not svc.is_staff(user) and item.uploaded_by != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the person who shared this file can remove it")
+    if item.held:
+        # Taken off a message before it was sent: nothing to log or tell anyone.
+        await db.delete(item)
+        await db.commit()
+        project = await svc.load_project(db, project_id, user)
+        return svc.detail(project, team=svc.is_staff(user))
     await db.delete(item)
     activity.record(db, user, "file.delete", f"Removed the file {quoted(item.filename)}", project_id=project.id,
                     subject_type="project", subject_id=project.id)

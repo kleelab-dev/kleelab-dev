@@ -19,7 +19,7 @@ const AUDIENCES = ['Start-ups', 'Charities', 'Clinics', 'Schools', 'Shops', 'Age
 
 const DASHBOARD_FEATURES = [
   { icon: MapIcon, title: 'Every step', body: 'The whole plan, from the first call to hand-over. You can see where we are now and what comes next.' },
-  { icon: ChatBubbleLeftEllipsisIcon, title: 'Updates and messages', body: 'News from the team and a place to ask questions. All in one place, not lost in your inbox.' },
+  { icon: ChatBubbleLeftEllipsisIcon, title: 'Updates and messages', body: 'News from us and a place to ask questions. All in one place, not lost in your inbox.' },
   { icon: CheckBadgeIcon, title: 'Approve with one click', body: 'Approve a design or ask for changes. Every decision is saved, so nobody has to remember.' },
   { icon: DocumentTextIcon, title: 'Links and files', body: 'Preview links and documents, shared both ways and easy to find.' },
   { icon: PlusCircleIcon, title: 'Extra help when you want it', body: 'Ask us to put it online, host it or look after it, whenever you are ready.' },

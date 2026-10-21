@@ -10,6 +10,7 @@ import { apiService } from '@/services/api';
 import type { ProjectDetail, ProjectStatus, RequestStatus, Stage, StaffMember, StageStatus, UpdateKind } from '@/types/api';
 import { FilesPanel } from './FilesPanel';
 import { errorText, staffLabel, PROJECT_STATUS, REQUEST_STATUS, STAGE_STATUS, stageLabel, toDateInput } from './format';
+import { AttachmentPicker, useAttachments } from './AttachmentPicker';
 import { AdminInvoices } from './Invoices';
 import { Panel } from './Pill';
 import { ProjectHeader } from './ProjectHeader';
@@ -108,7 +109,7 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
             <PostUpdate project={project} save={save} />
           </Panel>
           <Panel tag="history" title="Everything posted">
-            <UpdateFeed updates={project.updates} stages={project.stages} team empty="Nothing posted yet." />
+            <UpdateFeed projectId={project.id} updates={project.updates} stages={project.stages} team empty="Nothing posted yet." />
           </Panel>
         </div>
         <aside className="grid content-start gap-6">
@@ -355,12 +356,13 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
   const blank = { kind: 'progress' as UpdateKind, title: '', body: '', stage_id: current?.id ?? '', link_url: '', link_label: '' };
   const [form, setForm] = useState(blank);
   const [busy, setBusy] = useState(false);
+  const files = useAttachments(project.id);
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
   const note = form.kind === 'note';
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.body.trim()) return;
+    if (!form.body.trim() || files.uploading) return;
     setBusy(true);
     try {
       await save(() =>
@@ -371,9 +373,12 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
           stage_id: form.stage_id || null,
           link_url: form.link_url.trim() || null,
           link_label: form.link_label.trim() || null,
+          // Team notes cannot carry files: the client would see them in their files.
+          attachment_ids: note ? [] : files.ids,
         }),
       );
       setForm({ ...blank, kind: form.kind, stage_id: form.stage_id });
+      files.clear();
     } catch {
       // Shown by `save`.
     } finally {
@@ -396,7 +401,10 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
             key={k.value}
             type="button"
             aria-pressed={form.kind === k.value}
-            onClick={() => setForm({ ...form, kind: k.value })}
+            onClick={() => {
+              if (k.value === 'note') files.discard();
+              setForm({ ...form, kind: k.value });
+            }}
             className={
               form.kind === k.value
                 ? k.value === 'note'
@@ -441,10 +449,11 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
           </div>
         </div>
       )}
+      {!note && <AttachmentPicker id="u-files" files={files} disabled={busy} />}
       <p className="text-xs text-muted">{note ? 'Not emailed. Only people on the team see notes.' : 'The client gets an email about this.'}</p>
       <div>
-        <Button type="submit" disabled={busy || !form.body.trim()}>
-          {busy ? 'Posting…' : note ? 'Save note' : form.kind === 'approval' ? 'Ask for approval' : 'Post to the client'}
+        <Button type="submit" disabled={busy || files.uploading || !form.body.trim()}>
+          {busy ? 'Posting…' : files.uploading ? 'Uploading…' : note ? 'Save note' : form.kind === 'approval' ? 'Ask for approval' : 'Post to the client'}
         </Button>
       </div>
     </form>

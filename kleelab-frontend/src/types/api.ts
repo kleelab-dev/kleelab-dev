@@ -58,6 +58,8 @@ export interface ProjectUpdate {
   created_at: string;
   author_name: string | null;
   from_team: boolean;
+  /** Files and pictures sent with this message. */
+  attachments: ProjectFile[];
 }
 
 export interface ProjectRequest {
@@ -74,6 +76,8 @@ export interface ProjectFile {
   content_type: string;
   size: number;
   created_at: string;
+  /** The message this file was sent with, if any. */
+  update_id: string | null;
   uploaded_by_name: string | null;
   from_team: boolean;
 }

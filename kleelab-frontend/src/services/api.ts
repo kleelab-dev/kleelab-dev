@@ -5,6 +5,7 @@ import type {
   PaymentsConfig,
   OtherSessionsSignedOut,
   ProjectDetail,
+  ProjectFile,
   ProjectSummary,
   RequestKind,
   User,
@@ -314,8 +315,34 @@ export const apiService = {
     return request<ProjectDetail>(`/api/projects/${projectId}`);
   },
 
-  async sendMessage(projectId: string, body: string): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/projects/${projectId}/messages`, { body });
+  async sendMessage(projectId: string, body: string, attachmentIds: string[] = []): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/messages`, { body, attachment_ids: attachmentIds });
+  },
+
+  /**
+   * Upload one file for a message that has not been sent yet. It stays hidden
+   * until the message goes; pass its id to sendMessage.
+   */
+  async uploadAttachment(projectId: string, file: File): Promise<ProjectFile> {
+    return request<ProjectFile>(`/api/projects/${projectId}/attachments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    });
+  },
+
+  /** A signed-in file as a local object URL, for showing a picture. Revoke it when done. */
+  async fileObjectUrl(projectId: string, fileId: string): Promise<string> {
+    const path = `/api/projects/${projectId}/files/${fileId}`;
+    let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    if (response.status === 401 && (await refreshSession())) {
+      response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    }
+    if (!response.ok) throw new ApiError('That picture could not be loaded.', response.status);
+    return URL.createObjectURL(await response.blob());
   },
 
   async answerApproval(

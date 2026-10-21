@@ -16,6 +16,7 @@ import type {
   LeadPatchInput,
   ProjectCreateInput,
   ProjectDetail,
+  ProjectFile,
   ProjectPatchInput,
   ProjectSummary,
   RequestKind,
@@ -386,6 +387,32 @@ export const apiService = {
 
   async deleteFile(projectId: string, fileId: string): Promise<ProjectDetail> {
     return request<ProjectDetail>(`/api/projects/${projectId}/files/${fileId}`, { method: 'DELETE' });
+  },
+
+  /**
+   * Upload one file for an update that has not been posted yet. It stays hidden
+   * until the update goes; pass its id in attachment_ids.
+   */
+  async uploadAttachment(projectId: string, file: File): Promise<ProjectFile> {
+    return request<ProjectFile>(`/api/projects/${projectId}/attachments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    });
+  },
+
+  /** A signed-in file as a local object URL, for showing a picture. Revoke it when done. */
+  async fileObjectUrl(projectId: string, fileId: string): Promise<string> {
+    const path = `/api/projects/${projectId}/files/${fileId}`;
+    let response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    if (response.status === 401 && (await refreshSession())) {
+      response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+    }
+    if (!response.ok) throw new ApiError('That picture could not be loaded.', response.status);
+    return URL.createObjectURL(await response.blob());
   },
 
   /**

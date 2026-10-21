@@ -164,11 +164,19 @@ def summarise(project: Project, team: bool = False) -> ProjectSummary:
 def detail(project: Project, team: bool = False) -> ProjectDetail:
     """The full project. `team` adds the client's details and the team's own notes."""
 
+    # Files waiting for a message that has not been sent are nobody else's business.
+    shared = [f for f in project.files if not f.held]
+    by_update: dict[UUID, list[FileOut]] = {}
+    for item in shared:
+        if item.update_id is not None:
+            by_update.setdefault(item.update_id, []).append(_file_out(item))
+
     updates = []
     for update in project.updates:
         if update.kind == "note" and not team:
             continue
         out = UpdateOut.model_validate(update)
+        out.attachments = by_update.get(update.id, [])
         if update.author is not None:
             out.author_name = display_name(update.author)
             out.from_team = is_staff(update.author)
@@ -192,7 +200,7 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         stages=[StageOut.model_validate(s) for s in project.stages],
         updates=updates,
         requests=[RequestOut.model_validate(r) for r in reversed(project.requests)],
-        files=[_file_out(f) for f in reversed(project.files)],
+        files=[_file_out(f) for f in reversed(shared)],
         invoices=[InvoiceOut.model_validate(i) for i in reversed(project.invoices)],
         client_email=project.client.email if team and project.client else None,
         client_name=project.client.full_name if team and project.client else None,
@@ -201,6 +209,40 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         owner_name=display_name(project.owner) if team else None,
         lead_id=project.lead_id if team else None,
     )
+
+
+def claim_attachments(project: Project, user: User, ids: list[UUID]) -> list[ProjectFile]:
+    """The unsent files `user` uploaded on this project, one for each id, or a 422.
+
+    Only the uploader can send a file, and only once: a file someone else
+    uploaded, one on another project, or one already sent is refused.
+    """
+
+    if not ids:
+        return []
+    wanted = set(ids)
+    found = [
+        f for f in project.files
+        if f.id in wanted and f.held and f.uploaded_by == user.id and f.update_id is None
+    ]
+    if len(found) != len(wanted):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="One of the attached files is no longer there. Remove it and attach it again.",
+        )
+    return found
+
+
+def attach(files: list[ProjectFile], update: ProjectUpdate) -> None:
+    """Put files on a saved update and make them visible. Call after a flush."""
+
+    for item in files:
+        item.update_id = update.id
+        item.held = False
+
+
+def files_phrase(files: list[ProjectFile]) -> str:
+    return f"{len(files)} file{'s' if len(files) != 1 else ''}" if files else ""
 
 
 def _file_out(item: ProjectFile) -> FileOut:

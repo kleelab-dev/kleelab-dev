@@ -507,19 +507,29 @@ async def post_update(
             detail="Give it a title so the client knows what they are approving",
         )
 
-    db.add(
-        ProjectUpdate(
-            project_id=project.id,
-            stage_id=stage_id,
-            author_id=staff.id,
-            kind=payload.kind,
-            title=(payload.title or "").strip() or None,
-            body=payload.body.strip(),
-            link_url=str(payload.link_url) if payload.link_url else None,
-            link_label=payload.link_label,
-            approval_status="pending" if is_approval else None,
+    if payload.attachment_ids and payload.kind == "note":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Team notes cannot carry files, because the client would see them in their files.",
         )
+    if len(set(payload.attachment_ids)) != len(payload.attachment_ids):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="The same file is attached twice")
+    attached = svc.claim_attachments(project, staff, payload.attachment_ids)
+
+    update = ProjectUpdate(
+        project_id=project.id,
+        stage_id=stage_id,
+        author_id=staff.id,
+        kind=payload.kind,
+        title=(payload.title or "").strip() or None,
+        body=payload.body.strip(),
+        link_url=str(payload.link_url) if payload.link_url else None,
+        link_label=payload.link_label,
+        approval_status="pending" if is_approval else None,
     )
+    db.add(update)
+    await db.flush()
+    svc.attach(attached, update)
     title = (payload.title or "").strip()
     described = {
         "progress": f"Posted an update {quoted(title or payload.body)}",
@@ -527,6 +537,8 @@ async def post_update(
         "note": f"Added a team note: {quoted(payload.body)}",
         "approval": f"Asked the client to approve {quoted(title)}",
     }[payload.kind]
+    if attached:
+        described += f" (with {svc.files_phrase(attached)})"
     activity.record(db, staff, f"update.{payload.kind}", described, project_id=project.id,
                     subject_type="project", subject_id=project.id)
     if is_approval and stage_id is not None:

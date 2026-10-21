@@ -89,7 +89,7 @@ async def main():
     email_svc.settings.REPLY_TO_EMAIL = 'info@kleelab.com'
     email_svc.send_lead_reply('x@example.com', 'S', 'Hi <b>you</b>\nline two\n\nPara two', 'Ada')
     check('email escapes html', '&lt;b&gt;' in captured['html'] and '<b>you' not in captured['html'])
-    check('email keeps breaks and paragraphs', 'you&lt;/b&gt;<br>line two</p><p>Para two</p>' in captured['html'])
+    check('email keeps breaks and paragraphs', 'you&lt;/b&gt;<br>line two</p><p ' in captured['html'] and '>Para two</p>' in captured['html'])
     check('reply-to set', captured['reply_to'] == 'info@kleelab.com')
 
 asyncio.run(main())

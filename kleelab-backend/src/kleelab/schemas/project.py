@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, model_validator
 
 ProjectStatus = Literal["active", "on_hold", "completed", "cancelled"]
 StageStatus = Literal["upcoming", "in_progress", "waiting_on_client", "done"]
@@ -44,6 +44,7 @@ class UpdateOut(BaseModel):
     # Filled in by the service: who wrote it, and whether that was the KleeLab team.
     author_name: str | None = None
     from_team: bool = False
+    attachments: list["FileOut"] = []
 
 
 class RequestOut(BaseModel):
@@ -64,8 +65,13 @@ class FileOut(BaseModel):
     content_type: str
     size: int
     created_at: datetime
+    # The message this file was sent with, if any.
+    update_id: UUID | None = None
     uploaded_by_name: str | None = None
     from_team: bool = False
+
+
+UpdateOut.model_rebuild()
 
 
 class InvoiceOut(BaseModel):
@@ -140,8 +146,22 @@ class ProjectDetail(BaseModel):
 # --- Client actions -------------------------------------------------------
 
 
+MAX_ATTACHMENTS = 6
+
+
 class MessageCreate(BaseModel):
-    body: str = Field(min_length=1, max_length=4000)
+    """Words, files sent ahead to /attachments, or both."""
+
+    body: str = Field(default="", max_length=4000)
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> "MessageCreate":
+        if not self.body.strip() and not self.attachment_ids:
+            raise ValueError("Write a message or attach a file")
+        if len(set(self.attachment_ids)) != len(self.attachment_ids):
+            raise ValueError("The same file is attached twice")
+        return self
 
 
 class ApprovalDecision(BaseModel):
@@ -204,6 +224,9 @@ class StaffUpdateCreate(BaseModel):
     stage_id: UUID | None = None
     link_url: HttpUrl | None = None
     link_label: str | None = Field(default=None, max_length=100)
+    # Files sent ahead to /api/projects/{id}/attachments. Not on team notes: a
+    # file always ends up in the client's file list.
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
 
 
 class RequestPatch(BaseModel):
