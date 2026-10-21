@@ -171,6 +171,98 @@ main[tabindex='-1']:focus-visible {
   animation: kl-blink 1.2s infinite both;
 }
 
+/*
+ * Scroll reveal. <Reveal> only hides a block once it is fully off screen, on
+ * the side it left from, so it slides in the right way in either direction.
+ */
+.reveal-wait {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.reveal-wait-above {
+  opacity: 0;
+  transform: translateY(-18px);
+}
+.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 600ms var(--ease-out),
+    transform 600ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+/* A card that lifts and leans a touch, like a sheet picked up off the desk. */
+.card-lift {
+  transition:
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+.card-lift:hover {
+  transform: translate(-2px, -4px) rotate(-0.6deg);
+  box-shadow: 6px 6px 0 0 #0e1530;
+}
+
+/* The "Built for" ticker: two copies of the list sliding as one strip. */
+@keyframes kl-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee {
+  animation: kl-marquee 38s linear infinite;
+}
+.marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes kl-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.95) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(4deg);
+  }
+}
+.kl-stamp-in {
+  animation: kl-stamp 420ms var(--ease-out) both;
+}
+
+@keyframes kl-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.kl-pop {
+  animation: kl-pop 380ms var(--ease-out) both;
+}
+
+/* Line drawings in the service cards trace themselves in on hover. */
+.sketch path,
+.sketch rect,
+.sketch line,
+.sketch circle,
+.sketch polyline {
+  vector-effect: non-scaling-stroke;
+}
+.group:hover .sketch .sketch-accent {
+  transform: translateY(-3px);
+}
+.sketch .sketch-accent {
+  transition: transform 260ms var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -178,5 +270,21 @@ main[tabindex='-1']:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* A stopped ticker would sit half-scrolled, so lay the list out flat. */
+  .marquee {
+    animation: none !important;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+  .marquee [data-copy='2'] {
+    display: none;
+  }
+  .marquee [data-copy='1'] {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
   }
 }

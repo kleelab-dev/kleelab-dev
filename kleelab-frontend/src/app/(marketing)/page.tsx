@@ -1,28 +1,25 @@
 import Link from 'next/link';
-import {
-  ArrowRightIcon,
-  ChatBubbleLeftEllipsisIcon,
-  CheckBadgeIcon,
-  DocumentTextIcon,
-  MapIcon,
-  PlusCircleIcon,
-} from '@heroicons/react/24/outline';
-import { processStages } from '@/content/site';
+import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import { addOns, services } from '@/content/services';
+import { workExamples } from '@/content/work';
 import { ButtonLink } from '@/components/ui/Button';
 import { AskButton } from '@/components/site/AskButton';
+import { AudienceTicker } from '@/components/site/AudienceTicker';
 import { CallToAction } from '@/components/site/CallToAction';
+import { DashboardShowcase } from '@/components/site/DashboardShowcase';
+import { ExampleShot } from '@/components/site/ExampleShot';
+import { ProcessTimeline } from '@/components/site/ProcessTimeline';
 import { ProjectPreview } from '@/components/site/ProjectPreview';
+import { Reveal } from '@/components/site/Reveal';
 import { Section, SectionHeading } from '@/components/site/Section';
+import { ServiceSketch } from '@/components/site/ServiceSketch';
 
-const AUDIENCES = ['Start-ups', 'Charities', 'Clinics', 'Schools', 'Shops', 'Agencies', 'Councils', 'Co-ops', 'Studios', 'Trades'];
-
-const DASHBOARD_FEATURES = [
-  { icon: MapIcon, title: 'Every step', body: 'The whole plan, from the first call to hand-over. You can see where we are now and what comes next.' },
-  { icon: ChatBubbleLeftEllipsisIcon, title: 'Updates and messages', body: 'News from us and a place to ask questions. All in one place, not lost in your inbox.' },
-  { icon: CheckBadgeIcon, title: 'Approve with one click', body: 'Approve a design or ask for changes. Every decision is saved, so nobody has to remember.' },
-  { icon: DocumentTextIcon, title: 'Links and files', body: 'Preview links and documents, shared both ways and easy to find.' },
-  { icon: PlusCircleIcon, title: 'Extra help when you want it', body: 'Ask us to put it online, host it or look after it, whenever you are ready.' },
+/** Facts already promised elsewhere on the site, pulled out as big numbers. */
+const PROMISES = [
+  { figure: '1 day', label: 'to hear back from us after you get in touch' },
+  { figure: 'Fixed', label: 'price, in writing, before any work starts' },
+  { figure: '3–6 wks', label: 'for a typical website, with dates agreed up front' },
+  { figure: '100%', label: 'yours at hand-over: code, accounts and domain' },
 ];
 
 const FAQS = [
@@ -85,16 +82,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="overflow-hidden border-y-[1.5px] border-ink bg-ink py-4 text-paper">
-        <ul className="mx-auto flex max-w-content flex-wrap justify-center gap-x-8 gap-y-2 px-5 font-mono text-xs uppercase tracking-label">
-          <li className="text-sun">Built for</li>
-          {AUDIENCES.map((audience) => (
-            <li key={audience} className="text-paper/80">
-              {audience}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <AudienceTicker />
 
       <Section>
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -111,19 +99,18 @@ export default function HomePage() {
           </ButtonLink>
         </div>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {services.map((service) => (
-            <Link
-              key={service.slug}
-              href={`/services#${service.slug}`}
-              className="card group flex flex-col p-6 no-underline transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-block"
-            >
-              <span className="font-mono text-[11px] text-cobalt">{service.code}</span>
-              <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{service.name}</h3>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{service.summary}</p>
-              <span className="mt-6 font-mono text-[11px] uppercase tracking-label text-ink group-hover:text-cobalt">
-                {service.timeline} →
-              </span>
-            </Link>
+          {services.map((service, index) => (
+            <Reveal key={service.slug} delay={index * 90} className="flex">
+              <Link href={`/services#${service.slug}`} className="card card-lift group flex flex-1 flex-col p-5 no-underline">
+                <ServiceSketch slug={service.slug} />
+                <span className="mt-5 font-mono text-[11px] text-cobalt">{service.code}</span>
+                <h3 className="mt-2 font-display text-2xl font-extrabold tracking-tight">{service.name}</h3>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{service.summary}</p>
+                <span className="mt-6 font-mono text-[11px] uppercase tracking-label text-ink group-hover:text-cobalt">
+                  {service.timeline} →
+                </span>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </Section>
@@ -134,53 +121,69 @@ export default function HomePage() {
           title="Six steps. You always know where we are."
           intro="Every project follows the same route, and each step ends with something you can see and approve."
         />
-        <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border-[1.5px] border-ink bg-ink sm:grid-cols-2 lg:grid-cols-3">
-          {processStages.map((stage, index) => (
-            <li key={stage.name} className="bg-white p-6 sm:p-7">
-              <div className="flex items-center justify-between">
-                <span className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-ink font-mono text-xs">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-                {index === 0 && <span className="font-mono text-[10px] uppercase tracking-label text-cobalt">starts with a free call</span>}
-                {index === processStages.length - 1 && <span className="font-mono text-[10px] uppercase tracking-label text-cobalt">then it is yours</span>}
-              </div>
-              <h3 className="mt-5 font-display text-xl font-extrabold tracking-tight">{stage.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted">{stage.short}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="mt-10">
+        <ProcessTimeline />
+        <div className="mt-12">
           <ButtonLink href="/how-we-build" variant="secondary">
             See each step in detail <ArrowRightIcon className="h-4 w-4" />
           </ButtonLink>
         </div>
       </Section>
 
+      <section className="border-b-[1.5px] border-ink bg-sun px-5 py-12 sm:px-8">
+        <dl className="mx-auto grid max-w-content gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          {PROMISES.map((promise, index) => (
+            <Reveal key={promise.figure} delay={index * 80} className="border-l-[1.5px] border-ink pl-5">
+              <dt className="font-display text-5xl font-extrabold tracking-tightest">{promise.figure}</dt>
+              <dd className="mt-2 max-w-[22ch] text-sm leading-snug text-ink/80">{promise.label}</dd>
+            </Reveal>
+          ))}
+        </dl>
+      </section>
+
       <Section tone="ink">
-        <div className="grid gap-14 lg:grid-cols-[1fr_1.1fr] lg:items-start">
-          <SectionHeading
-            inverted
-            tag="Your client dashboard"
-            title={
-              <>
-                No more <span className="mark text-ink">“any update?”</span> emails.
-              </>
-            }
-            intro="The moment your project starts you get a private dashboard. It is the one place where we tell you how things are going, ask you questions and get your approval."
-          />
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {DASHBOARD_FEATURES.map((feature) => (
-              <li key={feature.title} className="rounded-2xl border-[1.5px] border-paper/20 p-5">
-                <feature.icon className="h-6 w-6 text-sun" aria-hidden />
-                <h3 className="mt-4 font-display text-lg font-bold">{feature.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-paper/70">{feature.body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <SectionHeading
+          inverted
+          tag="Your client dashboard"
+          title={
+            <>
+              No more <span className="mark text-ink">“any update?”</span> emails.
+            </>
+          }
+          intro="The moment your project starts you get a private dashboard. It is the one place where we tell you how things are going, ask you questions and get your approval."
+        />
+        <DashboardShowcase />
       </Section>
 
       <Section>
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <SectionHeading
+            tag="The kind of thing we build"
+            title={
+              <>
+                Real problems, <span className="mark">tidy</span> tools.
+              </>
+            }
+            intro="Case studies are on their way as projects are handed over. These are the shapes of project we take on most often."
+          />
+          <ButtonLink href="/work" variant="secondary">
+            See more examples
+          </ButtonLink>
+        </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {workExamples.slice(0, 3).map((example, index) => (
+            <Reveal key={example.code} delay={index * 90} className="flex">
+              <Link href="/work" className="card card-lift flex flex-1 flex-col p-5 no-underline">
+                <ExampleShot shot={example.shot} />
+                <span className="mt-5 font-mono text-[11px] uppercase tracking-label text-muted">Example · {example.sector}</span>
+                <h3 className="mt-2 font-display text-xl font-extrabold tracking-tight">{example.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{example.body}</p>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      <Section tone="white">
         <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <SectionHeading
             tag="Optional extras"
@@ -193,16 +196,18 @@ export default function HomePage() {
         </div>
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {addOns.map((addOn, index) => (
-            <div key={addOn.slug} className={index === 1 ? 'card bg-sun p-7 shadow-block' : 'card p-7'}>
-              <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
-              <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-ink/75">{addOn.summary}</p>
-            </div>
+            <Reveal key={addOn.slug} delay={index * 90} className="flex">
+              <div className={index === 1 ? 'card card-lift flex-1 bg-sun p-7 shadow-block' : 'card card-lift flex-1 p-7'}>
+                <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
+                <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/75">{addOn.summary}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </Section>
 
-      <Section tone="white">
+      <Section>
         <div className="grid gap-12 lg:grid-cols-[1fr_1.3fr]">
           <div>
             <SectionHeading tag="Questions" title="Common questions" />
@@ -216,9 +221,9 @@ export default function HomePage() {
           <div className="divide-y-[1.5px] divide-ink border-y-[1.5px] border-ink">
             {FAQS.map((faq) => (
               <details key={faq.q} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-xl font-bold">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-display text-xl font-bold transition-colors hover:text-cobalt">
                   {faq.q}
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] border-ink font-mono text-sm transition-transform group-open:rotate-45">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] border-ink font-mono text-sm transition-[transform,background-color] duration-300 group-open:rotate-45 group-open:bg-sun">
                     +
                   </span>
                 </summary>
