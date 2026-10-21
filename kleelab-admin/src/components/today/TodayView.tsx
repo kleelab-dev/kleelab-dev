@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/components/app/AppShell';
 import { Panel, Pill } from '@/components/project/Pill';
 import { ATTENTION, attentionHref, errorText, formatTotals, timeAgo } from '@/components/project/format';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
+import { useWhileVisible } from '@/lib/useWhileVisible';
 import { apiService } from '@/services/api';
 import type { AdminStats, AttentionItem } from '@/types/api';
 
@@ -44,6 +45,17 @@ export function TodayView() {
       active = false;
     };
   }, [attempt]);
+
+  // Keep the numbers and the list current while the page is open. Silent: no
+  // skeleton, and a failed check keeps what is on screen until the next one.
+  useWhileVisible(
+    () => {
+      apiService.adminStats().then(setStats).catch(() => undefined);
+      apiService.adminOverview().then(setItems).catch(() => undefined);
+    },
+    30_000,
+    !error,
+  );
 
   const firstName = user.full_name?.split(' ')[0] || user.email.split('@')[0];
   const list = items ?? [];

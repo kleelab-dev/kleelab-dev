@@ -33,11 +33,14 @@ def record(
     subject_type: str | None = None,
     subject_id: UUID | None = None,
     request: Request | None = None,
+    label: str | None = None,
 ) -> None:
+    """`label` names someone without an account, such as a visitor sending an enquiry."""
+
     db.add(
         ActivityEvent(
             actor_id=actor.id if actor else None,
-            actor_label=actor_label(actor),
+            actor_label=actor_label(actor) if actor else label,
             action=action,
             summary=summary if len(summary) <= 300 else summary[:299] + "…",
             project_id=project_id,

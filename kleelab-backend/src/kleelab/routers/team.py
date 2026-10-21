@@ -10,21 +10,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from kleelab.core.database import get_db
+from kleelab.core.time import utcnow
 from kleelab.core.security import create_signed_token, get_password_hash, password_fingerprint
 from kleelab.models.activity import ActivityEvent
 from kleelab.models.agency_lead import AgencyLead
-from kleelab.models.project import Project, ProjectInvoice
+from kleelab.models.project import Project, ProjectInvoice, ProjectUpdate
 from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
 from kleelab.routers.admin import require_staff
 from kleelab.schemas.team import (
     ActivityOut,
     ActivityPage,
+    AlertList,
+    AlertOut,
     SearchClient,
     SearchInvoice,
     SearchLead,
+    SearchMessage,
     SearchProject,
     SearchResults,
+    SearchTeammate,
     TeamCreate,
     TeamInviteResult,
     TeamMember,
@@ -327,6 +332,79 @@ async def list_activity(
     )
 
 
+# --- Alerts ---------------------------------------------------------------------------
+
+# What a client can do that someone on the team should look at, plus new enquiries.
+ALERT_ACTIONS = (
+    "update.message",
+    "approval.approved",
+    "approval.changes_requested",
+    "request.create",
+    "file.add",
+    "lead.create",
+)
+
+
+def _alerts_query(viewer: User):
+    """Alert-worthy events by anyone but the team: clients, and visitors without an account."""
+
+    return (
+        select(ActivityEvent, Project.reference, Project.title, User.full_name, User.email)
+        .outerjoin(Project, Project.id == ActivityEvent.project_id)
+        .outerjoin(User, User.id == ActivityEvent.actor_id)
+        .where(
+            ActivityEvent.action.in_(ALERT_ACTIONS),
+            or_(User.id.is_(None), User.role != "staff"),
+            or_(ActivityEvent.actor_id.is_(None), ActivityEvent.actor_id != viewer.id),
+        )
+    )
+
+
+@router.get("/alerts", response_model=AlertList)
+async def list_alerts(db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)) -> AlertList:
+    """The latest alerts, newest first, and how many came in since this teammate last looked."""
+
+    seen_at = staff.alerts_seen_at
+    rows = (
+        await db.execute(
+            _alerts_query(staff).order_by(ActivityEvent.created_at.desc(), ActivityEvent.id.desc()).limit(20)
+        )
+    ).all()
+    unread_query = _alerts_query(staff)
+    if seen_at is not None:
+        unread_query = unread_query.where(ActivityEvent.created_at > seen_at)
+    unread = await db.scalar(select(func.count()).select_from(unread_query.subquery()))
+    return AlertList(
+        items=[
+            AlertOut(
+                id=event.id,
+                action=event.action,
+                summary=event.summary,
+                actor_name=(full_name or email) if email else event.actor_label,
+                project_id=event.project_id,
+                project_reference=reference,
+                project_title=title,
+                subject_type=event.subject_type,
+                subject_id=event.subject_id,
+                created_at=event.created_at,
+                unread=seen_at is None or event.created_at > seen_at,
+            )
+            for event, reference, title, full_name, email in rows
+        ],
+        unread=int(unread or 0),
+        seen_at=seen_at,
+    )
+
+
+@router.post("/alerts/seen")
+async def mark_alerts_seen(db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)) -> dict:
+    """Everything up to now counts as read, on every device this teammate uses."""
+
+    staff.alerts_seen_at = utcnow()
+    await db.commit()
+    return {"status": "seen", "seen_at": staff.alerts_seen_at.isoformat()}
+
+
 # --- Search ---------------------------------------------------------------------------
 
 
@@ -335,9 +413,30 @@ def _like(q: str) -> str:
     return f"%{escaped}%"
 
 
+def _snippet(text: str, q: str, width: int = 120) -> str:
+    """About `width` characters of `text` around the first match of `q`, on one line."""
+
+    text = " ".join(text.split())
+    if len(text) <= width:
+        return text
+    at = text.lower().find(" ".join(q.split()).lower())
+    start = max(0, min(at - 40, len(text) - width)) if at >= 0 else 0
+    piece = text[start:start + width].strip()
+    return ("…" if start > 0 else "") + piece + ("…" if start + width < len(text) else "")
+
+
+def _message_snippet(update: ProjectUpdate, q: str) -> str:
+    """From the body when the words are in it; otherwise they matched the title."""
+
+    body = " ".join(update.body.split())
+    if update.title and " ".join(q.split()).lower() not in body.lower():
+        return _snippet(update.title, q)
+    return _snippet(body, q)
+
+
 @router.get("/search", response_model=SearchResults)
 async def search(q: str = Query(min_length=2, max_length=100), db: AsyncSession = Depends(get_db)) -> SearchResults:
-    """Projects, clients, enquiries and invoices matching `q`, a few of each."""
+    """Projects, clients, enquiries, invoices, teammates and posts matching `q`, a few of each."""
 
     pattern = _like(q.strip())
     per_kind = 6
@@ -376,6 +475,22 @@ async def search(q: str = Query(min_length=2, max_length=100), db: AsyncSession 
         .order_by(ProjectInvoice.created_at.desc())
         .limit(per_kind)
     )
+    team = await db.scalars(
+        select(User)
+        .where(User.role == "staff", or_(has(User.full_name), has(User.email)))
+        .order_by(User.is_active.desc(), User.full_name, User.email)
+        .limit(per_kind)
+    )
+    messages = (
+        await db.execute(
+            select(ProjectUpdate, Project.reference, Project.title, User.full_name, User.email)
+            .join(Project, Project.id == ProjectUpdate.project_id)
+            .outerjoin(User, User.id == ProjectUpdate.author_id)
+            .where(or_(has(ProjectUpdate.body), has(ProjectUpdate.title)))
+            .order_by(ProjectUpdate.created_at.desc())
+            .limit(5)
+        )
+    ).all()
     return SearchResults(
         projects=[
             SearchProject(
@@ -397,5 +512,19 @@ async def search(q: str = Query(min_length=2, max_length=100), db: AsyncSession 
                 project_reference=i.project.reference,
             )
             for i in invoices
+        ],
+        team=[SearchTeammate(id=u.id, name=u.full_name, email=u.email, is_active=u.is_active) for u in team],
+        messages=[
+            SearchMessage(
+                id=update.id,
+                kind=update.kind,
+                snippet=_message_snippet(update, q.strip()),
+                project_id=update.project_id,
+                project_reference=reference,
+                project_title=title,
+                author_name=full_name or email,
+                created_at=update.created_at,
+            )
+            for update, reference, title, full_name, email in messages
         ],
     )

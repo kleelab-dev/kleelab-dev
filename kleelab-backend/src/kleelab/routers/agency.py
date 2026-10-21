@@ -10,6 +10,8 @@ from kleelab.core.security import get_optional_user
 from kleelab.models.agency_lead import AgencyLead
 from kleelab.models.user import User
 from kleelab.schemas.agency import LeadCreate, LeadReceived
+from kleelab.services import activity
+from kleelab.services.activity import quoted
 from kleelab.services.email import send_agency_lead_notification
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,14 @@ async def create_lead(
         status="new",
     )
     db.add(lead)
+    await db.flush()
+    # Logged so the team's alerts bell shows it. Visitors rarely have an
+    # account, so the event carries the name they gave.
+    sent = f"Sent an enquiry{f' for {lead.company}' if lead.company else ''}"
+    activity.record(
+        db, user, "lead.create", f"{sent}: {quoted(lead.message)}" if lead.message else sent,
+        subject_type="lead", subject_id=lead.id, label=lead.name or lead.email,
+    )
     await db.commit()
 
     try:

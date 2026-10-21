@@ -92,8 +92,53 @@ class SearchInvoice(BaseModel):
     project_reference: str
 
 
+class SearchTeammate(BaseModel):
+    id: UUID
+    name: str | None
+    email: str
+    is_active: bool
+
+
+class SearchMessage(BaseModel):
+    """A post on a project whose words match, with a few words either side."""
+
+    id: UUID
+    kind: str
+    snippet: str
+    project_id: UUID
+    project_reference: str
+    project_title: str
+    author_name: str | None
+    created_at: datetime
+
+
 class SearchResults(BaseModel):
     projects: list[SearchProject]
     clients: list[SearchClient]
     leads: list[SearchLead]
     invoices: list[SearchInvoice]
+    team: list[SearchTeammate]
+    messages: list[SearchMessage]
+
+
+class AlertOut(BaseModel):
+    """Something a client (or a new enquirer) did that the team should see."""
+
+    id: UUID
+    action: str
+    summary: str
+    actor_name: str | None
+    project_id: UUID | None
+    project_reference: str | None
+    project_title: str | None
+    subject_type: str | None
+    subject_id: UUID | None
+    created_at: datetime
+    # Newer than when this teammate last looked.
+    unread: bool
+
+
+class AlertList(BaseModel):
+    items: list[AlertOut]
+    unread: int
+    seen_at: datetime | None

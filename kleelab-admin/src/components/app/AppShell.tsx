@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Logo } from '@/components/ui/Logo';
+import { AlertsBell } from '@/components/app/AlertsBell';
 import { CommandPalette } from '@/components/app/CommandPalette';
 import { ApiError, apiService, hasSession } from '@/services/api';
 import type { User } from '@/types/api';
@@ -210,6 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <kbd className="hidden font-mono text-[10px] md:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
                 </button>
               )}
+              {staff && <AlertsBell />}
               <div ref={menuRef} className="relative">
                 <button
                   type="button"
