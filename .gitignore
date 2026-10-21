@@ -34,3 +34,6 @@ Thumbs.db
 graphify-out/
 graph.svg
 graph.graphml
+
+# Local Claude Code worktrees and preview config
+.claude/
