@@ -206,8 +206,8 @@ async def send_proposal(
     proposal.status = "sent"
     proposal.sent_at = project_svc.now()
     lead = proposal.lead
-    if lead is not None and lead.status == "new":
-        lead.status = "contacted"
+    if lead is not None and lead.status not in ("won", "lost"):
+        lead.status = "proposal"
     activity.record(
         db, staff, "proposal.send",
         f"{'Sent again' if again else 'Sent'} proposal {proposal.reference} ({total}) to {proposal.client_email}",

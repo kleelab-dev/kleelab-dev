@@ -409,6 +409,7 @@ async def start_project(
     lead: AgencyLead | None = None,
     start_date: date | None = None,
     target_date: date | None = None,
+    checklist: list[ProjectChecklistItem] | None = None,
 ) -> tuple[Project, User, bool]:
     """Set a project up for a client, creating their account if they have none.
 
@@ -450,7 +451,7 @@ async def start_project(
         target_date=target_date,
         status="active",
         stages=stages,
-        checklist=build_checklist(),
+        checklist=build_checklist() if checklist is None else checklist,
     )
     db.add(project)
     if lead is not None:

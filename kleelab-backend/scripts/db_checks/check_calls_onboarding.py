@@ -98,7 +98,7 @@ async def main():
                 bot = await db.scalar(select(CallBooking).where(CallBooking.email == callers[2]))
                 lead = await db.scalar(select(AgencyLead).where(AgencyLead.email == callers[0]))
             check('honeypot looks booked, keeps nothing', r.status_code == 201 and bot is None)
-            check('booking makes an enquiry', lead and lead.source == 'call' and lead.status == 'new' and lead.company == 'Zero Ltd'
+            check('booking makes an enquiry', lead and lead.source == 'call' and lead.status == 'call' and lead.company == 'Zero Ltd'
                   and lead.message == 'A booking site for my salon')
 
             r = await c.post('/api/calls', json={'name': 'Existing', 'email': callers[3], 'starts_at': iso(third)})

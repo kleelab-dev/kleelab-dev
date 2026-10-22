@@ -95,9 +95,19 @@ export const INVOICE_STATUS: Record<InvoiceStatus, { label: string; tone: string
 export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: string }> = {
   new: { label: 'New', tone: 'bg-sun text-ink' },
   contacted: { label: 'We replied', tone: 'bg-cobalt-soft text-cobalt-dark' },
+  call: { label: 'Call booked', tone: 'bg-sun-soft text-ink' },
+  proposal: { label: 'Proposal sent', tone: 'bg-cobalt text-white' },
   won: { label: 'Became a client', tone: 'bg-mint text-ink' },
   lost: { label: 'Not going ahead', tone: 'bg-line text-muted' },
 };
+
+/** The pipeline, in order: one column each on the board. */
+export const LEAD_STATUSES: LeadStatus[] = ['new', 'contacted', 'call', 'proposal', 'won', 'lost'];
+
+/** Still being talked about, so follow-ups count. */
+export function leadIsOpen(status: LeadStatus): boolean {
+  return status !== 'won' && status !== 'lost';
+}
 
 export const PROPOSAL_STATUS: Record<ProposalStatus, { label: string; tone: string }> = {
   draft: { label: 'Draft', tone: 'bg-line text-ink' },
@@ -117,7 +127,7 @@ export function todayISO(offsetDays = 0): string {
 
 /** An open enquiry whose follow-up day has come. */
 export function followUpDue(lead: Pick<Lead, 'follow_up_on' | 'status'>): boolean {
-  return Boolean(lead.follow_up_on) && lead.follow_up_on! <= todayISO() && (lead.status === 'new' || lead.status === 'contacted');
+  return Boolean(lead.follow_up_on) && lead.follow_up_on! <= todayISO() && leadIsOpen(lead.status);
 }
 
 /** An unpaid invoice past its pay-by date. */

@@ -20,10 +20,13 @@ import type {
   ProjectFile,
   ProjectPatchInput,
   ProjectSummary,
+  ProjectTemplate,
+  ProjectTemplateInput,
   ProposalDetail,
   ProposalInput,
   RequestKind,
   RequestStatus,
+  SavedReply,
   SearchResults,
   StaffMember,
   StagePatchInput,
@@ -550,6 +553,46 @@ export const apiService = {
   async adminCancelCall(callId: string, reason: string): Promise<TeamCall> {
     return post<TeamCall>(`/api/admin/calls/${callId}/cancel`, { reason: reason || null });
   },
+
+  // --- Library ---------------------------------------------------------------------
+
+  async adminTemplates(): Promise<ProjectTemplate[]> {
+    return request<ProjectTemplate[]>('/api/admin/project-templates');
+  },
+
+  async adminCreateTemplate(input: ProjectTemplateInput): Promise<ProjectTemplate> {
+    return post<ProjectTemplate>('/api/admin/project-templates', input);
+  },
+
+  async adminUpdateTemplate(templateId: string, input: ProjectTemplateInput): Promise<ProjectTemplate> {
+    return put<ProjectTemplate>(`/api/admin/project-templates/${templateId}`, input);
+  },
+
+  async adminDeleteTemplate(templateId: string): Promise<void> {
+    await request<void>(`/api/admin/project-templates/${templateId}`, { method: 'DELETE' });
+  },
+
+  async adminSaveProjectAsTemplate(projectId: string, name: string, description: string | null): Promise<ProjectTemplate> {
+    return post<ProjectTemplate>(`/api/admin/projects/${projectId}/save-as-template`, { name, description });
+  },
+
+  async adminSavedReplies(): Promise<SavedReply[]> {
+    return request<SavedReply[]>('/api/admin/saved-replies');
+  },
+
+  async adminCreateSavedReply(title: string, body: string): Promise<SavedReply> {
+    return post<SavedReply>('/api/admin/saved-replies', { title, body });
+  },
+
+  async adminUpdateSavedReply(replyId: string, title: string, body: string): Promise<SavedReply> {
+    return put<SavedReply>(`/api/admin/saved-replies/${replyId}`, { title, body });
+  },
+
+  async adminDeleteSavedReply(replyId: string): Promise<void> {
+    await request<void>(`/api/admin/saved-replies/${replyId}`, { method: 'DELETE' });
+  },
+
+  // --- Enquiries --------------------------------------------------------------------
 
   async adminLeads(): Promise<Lead[]> {
     return request<Lead[]>('/api/admin/leads');

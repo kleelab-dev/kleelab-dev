@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.config import settings
 from kleelab.core.database import get_db
-from kleelab.models.agency_lead import AgencyLead
+from kleelab.models.agency_lead import OPEN_LEAD_STATUSES, AgencyLead
 from kleelab.models.call import CallBooking
 from kleelab.models.user import User
 from kleelab.routers.admin import require_staff
@@ -116,14 +116,17 @@ async def book_call(payload: CallBook, request: Request, db: AsyncSession = Depe
     # An enquiry still being talked about gets the call; otherwise it is a new one.
     lead = await db.scalar(
         select(AgencyLead)
-        .where(AgencyLead.email == email, AgencyLead.status.in_(("new", "contacted")))
+        .where(AgencyLead.email == email, AgencyLead.status.in_(OPEN_LEAD_STATUSES))
         .order_by(AgencyLead.created_at.desc())
         .limit(1)
     )
     if lead is None:
-        lead = AgencyLead(email=email, name=name, company=company, message=notes, source="call", status="new")
+        lead = AgencyLead(email=email, name=name, company=company, message=notes, source="call", status="call")
         db.add(lead)
         await db.flush()
+    elif lead.status in ("new", "contacted"):
+        # Further along already (a proposal is out) stays where it is.
+        lead.status = "call"
     booking = CallBooking(
         lead_id=lead.id, name=name, email=email, company=company, notes=notes,
         starts_at=starts_at, duration_minutes=settings.CALL_MINUTES, status="booked", token=svc.new_token(),

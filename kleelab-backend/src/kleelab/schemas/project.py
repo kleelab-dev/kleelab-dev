@@ -228,6 +228,9 @@ class ProjectCreate(BaseModel):
     owner_id: UUID | None = None
     # The enquiry this project grew from. It is marked as won.
     lead_id: UUID | None = None
+    # Steps and getting-started list from a saved template. `stages`, when
+    # also sent, wins for the steps.
+    template_id: UUID | None = None
 
 
 class ProjectPatch(BaseModel):

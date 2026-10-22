@@ -12,6 +12,8 @@ import { FilesPanel } from './FilesPanel';
 import { errorText, staffLabel, PROJECT_STATUS, REQUEST_STATUS, STAGE_STATUS, stageLabel, toDateInput } from './format';
 import { AttachmentPicker, useAttachments } from './AttachmentPicker';
 import { ChecklistEditor } from './ChecklistEditor';
+import { useCurrentUser } from '@/components/app/AppShell';
+import { SavedReplyPicker } from '@/components/library/SavedReplyPicker';
 import { HandoverEditor } from './HandoverEditor';
 import { AdminInvoices } from './Invoices';
 import { Panel } from './Pill';
@@ -135,6 +137,7 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
               renderControls={(stage) => <StageControls project={project} stage={stage} save={quiet} />}
             />
             <AddStage project={project} save={save} />
+            <SaveAsTemplate project={project} />
           </Panel>
           <Panel tag={openRequests ? `${openRequests} need an answer` : 'asked for'} title="Extra services">
             {project.requests.length ? (
@@ -366,6 +369,62 @@ function AddStage({ project, save }: { project: ProjectDetail; save: Save }) {
   );
 }
 
+/** Keep this project's steps and getting-started list for the next one like it. */
+function SaveAsTemplate({ project }: { project: ProjectDetail }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (name.trim().length < 2) return setError('Give the template a name.');
+    setBusy(true);
+    setError(null);
+    try {
+      const template = await apiService.adminSaveProjectAsTemplate(project.id, name.trim(), null);
+      setSaved(template.name);
+      setOpen(false);
+      setName('');
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!project.stages.length) return null;
+  if (!open) {
+    return (
+      <div className="mt-3 border-t border-line pt-3">
+        <button type="button" onClick={() => { setOpen(true); setSaved(null); }} className="text-xs font-semibold text-cobalt underline-offset-4 hover:underline">
+          Save these steps as a template
+        </button>
+        {saved && (
+          <p role="status" className="mt-1 text-xs text-ink">
+            Saved as &ldquo;{saved}&rdquo;. Find it in the <Link href="/library" className="font-semibold text-cobalt">Library</Link>.
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={submit} className="mt-3 grid gap-2 border-t border-line pt-3">
+      <div>
+        <label htmlFor="tpl-name" className="label">Template name</label>
+        <input id="tpl-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className="field" placeholder="Online shop" autoFocus />
+      </div>
+      <p className="text-xs text-muted">Keeps the {project.stages.length} steps and the {project.checklist.length} things we ask the client for. Nothing else is copied.</p>
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={busy}>{busy ? 'Saving…' : 'Save template'}</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </form>
+  );
+}
+
 function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
   const current = project.stages.find((s) => s.status === 'in_progress' || s.status === 'waiting_on_client');
   const blank = { kind: 'progress' as UpdateKind, title: '', body: '', stage_id: current?.id ?? '', link_url: '', link_label: '' };
@@ -374,6 +433,7 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
   const files = useAttachments(project.id);
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
   const note = form.kind === 'note';
+  const user = useCurrentUser();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -451,6 +511,15 @@ function PostUpdate({ project, save }: { project: ProjectDetail; save: Save }) {
       <div>
         <label htmlFor="u-body" className="label">{note ? 'Note' : 'Message'}</label>
         <textarea id="u-body" rows={4} value={form.body} onChange={set('body')} className="field" placeholder={note ? 'Anything the team should know. The client never sees this.' : undefined} />
+        {!note && (
+          <div className="mt-2">
+            <SavedReplyPicker
+              id="u-saved"
+              words={{ firstName: project.client_name?.split(' ')[0], project: project.title, myName: user.full_name || user.email.split('@')[0] }}
+              onPick={(text) => setForm({ ...form, body: form.body.trim() ? `${form.body.trimEnd()}\n\n${text}` : text })}
+            />
+          </div>
+        )}
       </div>
       {!note && (
         <div className="grid gap-3 sm:grid-cols-2">

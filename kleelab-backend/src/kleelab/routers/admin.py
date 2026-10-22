@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
-from kleelab.models.agency_lead import AgencyLead, LeadNote
+from kleelab.models.agency_lead import LEAD_STATUS_WORDS, OPEN_LEAD_STATUSES, AgencyLead, LeadNote
 from kleelab.models.call import CallBooking
 from kleelab.models.project import (
     Project,
@@ -23,6 +23,7 @@ from kleelab.models.project import (
     ProjectStage,
     ProjectUpdate,
 )
+from kleelab.models.library import ProjectTemplate
 from kleelab.models.proposal import Proposal
 from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
@@ -195,24 +196,37 @@ async def create_project(
         if lead is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
 
+    stages = svc.build_stages(payload.stages)
+    checklist = None
+    template = None
+    if payload.template_id is not None:
+        template = await db.get(ProjectTemplate, payload.template_id)
+        if template is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        if not payload.stages and template.stages:
+            stages = svc.build_stages_from([(s["name"], s.get("description")) for s in template.stages])
+        checklist = svc.build_checklist(pairs=[(c["title"], c.get("description")) for c in template.checklist])
+
     project, client, invited = await svc.start_project(
         db,
         client_email=str(payload.client_email),
         client_name=payload.client_name,
         title=payload.title,
         summary=payload.summary,
-        stages=svc.build_stages(payload.stages),
+        stages=stages,
         owner_id=owner_id,
         welcome_author_id=staff.id,
         lead=lead,
         start_date=payload.start_date,
         target_date=payload.target_date,
+        checklist=checklist,
     )
     who = svc.display_name(client) or client.email
     activity.record(
         db, staff, "project.create",
         f"Started the project for {who}" + (" and invited them" if invited else "")
-        + (" from their enquiry" if lead is not None else ""),
+        + (" from their enquiry" if lead is not None else "")
+        + (f" using the {template.name} template" if template is not None else ""),
         project_id=project.id, subject_type="project", subject_id=project.id,
     )
     await db.commit()
@@ -896,7 +910,7 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
         .where(
             AgencyLead.follow_up_on.is_not(None),
             AgencyLead.follow_up_on <= today,
-            AgencyLead.status.in_(("new", "contacted")),
+            AgencyLead.status.in_(OPEN_LEAD_STATUSES),
         )
         .order_by(AgencyLead.follow_up_on)
     )
@@ -1026,7 +1040,7 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
 
 
 class LeadPatch(BaseModel):
-    status: Literal["new", "contacted", "won", "lost"] | None = None
+    status: Literal["new", "contacted", "call", "proposal", "won", "lost"] | None = None
     # Sent as null to clear the date; left out to keep it.
     follow_up_on: date | None = None
 
@@ -1055,7 +1069,7 @@ async def patch_lead(
     who = lead.name or lead.email
     if payload.status is not None and payload.status != lead.status:
         lead.status = payload.status
-        activity.record(db, staff, "lead.status", f"Marked the enquiry from {who} as {payload.status}",
+        activity.record(db, staff, "lead.status", f"Moved the enquiry from {who} to {LEAD_STATUS_WORDS[payload.status]}",
                         subject_type="lead", subject_id=lead.id)
     if "follow_up_on" in payload.model_fields_set and payload.follow_up_on != lead.follow_up_on:
         lead.follow_up_on = payload.follow_up_on
@@ -1217,7 +1231,7 @@ async def stats(db: AsyncSession = Depends(get_db)) -> AdminStats:
         follow_ups_due=await count(
             AgencyLead.follow_up_on.is_not(None),
             AgencyLead.follow_up_on <= today,
-            AgencyLead.status.in_(("new", "contacted")),
+            AgencyLead.status.in_(OPEN_LEAD_STATUSES),
         ),
         active_projects=int(project_counts.get("active", 0)),
         paused_projects=int(project_counts.get("on_hold", 0)),

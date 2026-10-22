@@ -17,6 +17,8 @@ import {
   formatDateTime,
   formatMoney,
   LEAD_STATUS,
+  LEAD_STATUSES,
+  leadIsOpen,
   leadSource,
   PROPOSAL_STATUS,
   todayISO,
@@ -25,13 +27,9 @@ import { ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { LeadDetail, LeadPatchInput, LeadStatus } from '@/types/api';
 import { CallCard } from '@/components/calls/CallCard';
+import { SavedReplyPicker } from '@/components/library/SavedReplyPicker';
 
-const STATUS_ACTIONS: { value: LeadStatus; label: string }[] = [
-  { value: 'new', label: 'New' },
-  { value: 'contacted', label: 'We replied' },
-  { value: 'won', label: 'Became a client' },
-  { value: 'lost', label: 'Not going ahead' },
-];
+const STATUS_ACTIONS: { value: LeadStatus; label: string }[] = LEAD_STATUSES.map((value) => ({ value, label: LEAD_STATUS[value].label }));
 
 /** One enquiry: the message, a reply by email, notes, follow-up and status. */
 export function LeadView({ leadId }: { leadId: string }) {
@@ -78,7 +76,7 @@ export function LeadView({ leadId }: { leadId: string }) {
   }
 
   const budget = budgetLabel(lead.budget);
-  const open = lead.status === 'new' || lead.status === 'contacted';
+  const open = leadIsOpen(lead.status);
 
   return (
     <div>
@@ -348,7 +346,8 @@ function ReplyBox({ lead, onSent, onError }: { lead: LeadDetail; onSent: (lead: 
   const user = useCurrentUser();
   const firstName = lead.name?.split(' ')[0];
   const [subject, setSubject] = useState('Your enquiry to KleeLab');
-  const [body, setBody] = useState(`Hi ${firstName || 'there'},\n\nThank you for getting in touch with KleeLab.\n\n`);
+  const greeting = `Hi ${firstName || 'there'},\n\nThank you for getting in touch with KleeLab.\n\n`;
+  const [body, setBody] = useState(greeting);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const sender = user.full_name || user.email.split('@')[0];
@@ -390,6 +389,17 @@ function ReplyBox({ lead, onSent, onError }: { lead: LeadDetail; onSent: (lead: 
         <div>
           <label htmlFor="reply_body" className="label">Message</label>
           <textarea id="reply_body" rows={8} value={body} onChange={(e) => { setBody(e.target.value); setConfirming(false); }} maxLength={10000} className="field leading-6" />
+          <div className="mt-2">
+            <SavedReplyPicker
+              id="reply_saved"
+              words={{ firstName, project: lead.interest || lead.feature_requested, myName: sender }}
+              onPick={(text) => {
+                // Over the untouched greeting (the saved reply has its own); otherwise added on.
+                setBody(!body.trim() || body === greeting ? text : `${body.trimEnd()}\n\n${text}`);
+                setConfirming(false);
+              }}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={busy || !ready} variant={confirming ? 'sun' : 'primary'}>

@@ -98,7 +98,7 @@ async def main():
                   and proposal_emails[-1]['total'] == 'NGN 1,000,000.50' and proposal_emails[-1]['sender'] == 'Ada Team')
             r = await c.get(f'/api/admin/leads/{lead_id}', headers=h)
             ld = r.json()
-            check('lead shows proposal and moved to contacted', ld['status'] == 'contacted' and ld['proposals'][0]['id'] == pid
+            check('lead shows proposal and moved to proposal sent', ld['status'] == 'proposal' and ld['proposals'][0]['id'] == pid
                   and ld['proposals'][0]['status'] == 'sent')
 
             r = await c.delete(f'/api/admin/proposals/{pid}', headers=h)

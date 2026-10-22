@@ -36,6 +36,7 @@ const NAV = [
   { href: '/calls', label: 'Calls' },
   { href: '/clients', label: 'Clients' },
   { href: '/money', label: 'Money' },
+  { href: '/library', label: 'Library' },
 ];
 
 const MENU = [

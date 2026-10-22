@@ -10,6 +10,7 @@ import { CopyEmail } from '@/components/ui/CopyEmail';
 import { Panel, Pill } from '@/components/project/Pill';
 import { CURRENCIES, errorText, formatDate, formatDateTime, formatMoney, PROPOSAL_STATUS, todayISO } from '@/components/project/format';
 import { ErrorState, Skeleton } from '@/components/ui/States';
+import { TemplatePicker } from '@/components/library/TemplatePicker';
 import { apiService } from '@/services/api';
 import type { Currency, ProposalDetail, ProposalInput } from '@/types/api';
 
@@ -291,6 +292,17 @@ export function ProposalEditor({ proposalId }: { proposalId: string }) {
 
             <Panel tag="becomes the project plan" title="Steps">
               <div className="grid gap-3">
+                <TemplatePicker
+                  id="p_template"
+                  label="Use the steps from a template"
+                  emptyLabel="Pick a template…"
+                  onPick={(t) => {
+                    if (!t) return;
+                    const filled = stages.some((s) => s.name.trim());
+                    if (filled && !window.confirm(`Replace these ${stages.length} steps with the ${t.name} steps?`)) return;
+                    change({ stages: t.stages.map((s) => ({ name: s.name, description: s.description ?? '' })) });
+                  }}
+                />
                 {stages.map((stage, index) => (
                   <div key={index} className="flex gap-2 rounded-xl border-[1.5px] border-line p-3">
                     <span className="mt-2 w-5 shrink-0 font-mono text-xs text-muted">{index + 1}</span>

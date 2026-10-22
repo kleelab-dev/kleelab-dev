@@ -11,6 +11,22 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from kleelab.core.database import Base
 
 
+# Where an enquiry is in the pipeline, in order. The board on the Enquiries page
+# has one column for each.
+LEAD_STATUSES = ("new", "contacted", "call", "proposal", "won", "lost")
+# Still being talked about: follow-ups are due on these, and a call or a
+# proposal joins one of these rather than starting a new enquiry.
+OPEN_LEAD_STATUSES = ("new", "contacted", "call", "proposal")
+LEAD_STATUS_WORDS = {
+    "new": "new",
+    "contacted": "replied to",
+    "call": "call booked",
+    "proposal": "proposal sent",
+    "won": "became a client",
+    "lost": "not going ahead",
+}
+
+
 class AgencyLead(Base):
     __tablename__ = "agency_leads"
 

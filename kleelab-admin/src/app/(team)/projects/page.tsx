@@ -11,7 +11,8 @@ import { Panel } from '@/components/project/Pill';
 import { errorText, staffLabel } from '@/components/project/format';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
-import type { Lead, ProjectStatus, ProjectSummary, StaffMember } from '@/types/api';
+import { TemplatePicker } from '@/components/library/TemplatePicker';
+import type { Lead, ProjectStatus, ProjectSummary, ProjectTemplate, StaffMember } from '@/types/api';
 
 const FILTERS: { value: ProjectStatus | 'all'; label: string }[] = [
   { value: 'active', label: 'In progress' },
@@ -168,6 +169,7 @@ function CreateProject({ lead, staff, defaultOwner }: { lead: Lead | null; staff
     owner_id: defaultOwner,
     steps: '',
   });
+  const [template, setTemplate] = useState<ProjectTemplate | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
@@ -190,6 +192,7 @@ function CreateProject({ lead, staff, defaultOwner }: { lead: Lead | null; staff
         owner_id: form.owner_id || null,
         stages: steps.length ? steps : null,
         lead_id: lead?.id ?? null,
+        template_id: template?.id ?? null,
       });
       router.push(`/projects/${project.id}`);
     } catch (reason) {
@@ -227,16 +230,34 @@ function CreateProject({ lead, staff, defaultOwner }: { lead: Lead | null; staff
             {!staff.some((m) => m.id === defaultOwner) && <option value={defaultOwner}>Me</option>}
           </select>
         </div>
+        <TemplatePicker
+          id="template_id"
+          label="Start from a template"
+          value={template?.id}
+          emptyLabel="No template: the usual steps and list"
+          onPick={setTemplate}
+          className="sm:col-span-2"
+        />
         <div className="sm:col-span-2">
-          <label htmlFor="steps" className="label">Steps (optional, one per line)</label>
+          <label htmlFor="steps" className="label">{template ? 'Different steps (optional, one per line)' : 'Steps (optional, one per line)'}</label>
           <textarea
             id="steps"
             rows={3}
             value={form.steps}
             onChange={set('steps')}
             className="field"
-            placeholder={'Leave empty for the usual six:\nPlanning, Design, Build, Testing, Going live, Hand-over'}
+            placeholder={
+              template
+                ? `Leave empty for the template's ${template.stages.length}:\n${template.stages.map((s) => s.name).join(', ')}`
+                : 'Leave empty for the usual six:\nPlanning, Design, Build, Testing, Going live, Hand-over'
+            }
           />
+          {template && (
+            <p className="mt-1.5 text-xs text-muted">
+              The client is asked for:{' '}
+              {template.checklist.length ? template.checklist.map((c) => c.title).join(', ') : 'nothing yet (add to the list on the project page)'}.
+            </p>
+          )}
         </div>
         <p className="text-xs leading-5 text-muted sm:col-span-2">
           If this email has no account yet, we create one and email the client a link to set a password and sign in.

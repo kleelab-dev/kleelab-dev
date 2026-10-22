@@ -287,6 +287,8 @@ export interface ProjectCreateInput {
   stages?: string[] | null;
   owner_id?: string | null;
   lead_id?: string | null;
+  /** Steps and getting-started list from a template; `stages` wins for the steps. */
+  template_id?: string | null;
 }
 
 export interface ProjectPatchInput {
@@ -360,7 +362,46 @@ export interface AttentionItem {
   lead_id: string | null;
 }
 
-export type LeadStatus = 'new' | 'contacted' | 'won' | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'call' | 'proposal' | 'won' | 'lost';
+
+// --- Library: project templates and saved replies ---------------------------------
+
+export interface TemplateStage {
+  name: string;
+  description: string | null;
+}
+
+export interface TemplateChecklistItem {
+  title: string;
+  description: string | null;
+}
+
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  /** For the team: when to use it. */
+  description: string | null;
+  stages: TemplateStage[];
+  checklist: TemplateChecklistItem[];
+  created_by_name: string | null;
+  updated_at: string;
+}
+
+export interface ProjectTemplateInput {
+  name: string;
+  description: string | null;
+  stages: TemplateStage[];
+  checklist: TemplateChecklistItem[];
+}
+
+export interface SavedReply {
+  id: string;
+  title: string;
+  /** May hold {first_name}, {project} and {my_name}. */
+  body: string;
+  created_by_name: string | null;
+  updated_at: string;
+}
 
 export interface Lead {
   id: string;

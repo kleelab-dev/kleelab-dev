@@ -26,6 +26,7 @@ from kleelab.routers.auth import router as auth_router
 from kleelab.routers.calls import router as calls_router, team_router as calls_team_router
 from kleelab.routers.chat import router as chat_router
 from kleelab.routers.gdpr import router as gdpr_router
+from kleelab.routers.library import router as library_router
 from kleelab.routers.payments import router as payments_router
 from kleelab.routers.projects import router as projects_router
 from kleelab.routers.proposals import router as proposals_router, team_router as proposals_team_router
@@ -113,6 +114,7 @@ app.include_router(proposals_team_router)
 app.include_router(calls_router)
 app.include_router(calls_team_router)
 app.include_router(team_router)
+app.include_router(library_router)
 app.include_router(gdpr_router)
 app.include_router(payments_router)
 
