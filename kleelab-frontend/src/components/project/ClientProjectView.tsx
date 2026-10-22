@@ -6,6 +6,7 @@ import { Bone, ErrorState, Loading } from '@/components/ui/States';
 import { useLiveData } from '@/lib/useLiveData';
 import { ApiError, apiService } from '@/services/api';
 import type { ProjectDetail } from '@/types/api';
+import { CarePlanCard } from './CarePlanCard';
 import { Checklist } from './Checklist';
 import { FilesPanel } from './FilesPanel';
 import { HandoverPack } from './HandoverPack';
@@ -167,6 +168,11 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
                   </li>
                 ))}
               </ul>
+            </Panel>
+          )}
+          {project.care_plan && (
+            <Panel tag="care plan" title="Looking after your site">
+              <CarePlanCard plan={project.care_plan} />
             </Panel>
           )}
           <Panel tag="extra services" title="Going live, hosting and care">

@@ -255,6 +255,15 @@ export const apiService = {
     });
   },
 
+  /** Turn kinds of email on or off. Only the keys sent change. */
+  async setEmailPrefs(prefs: Record<string, boolean>): Promise<User> {
+    return request<User>('/api/auth/me/email-prefs', {
+      method: 'PUT',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ prefs }),
+    });
+  },
+
   /** Keeps this device signed in and signs out every other one. */
   async changePassword(currentPassword: string, newPassword: string): Promise<OtherSessionsSignedOut> {
     const result = await post<OtherSessionsSignedOut>('/api/auth/change-password', {

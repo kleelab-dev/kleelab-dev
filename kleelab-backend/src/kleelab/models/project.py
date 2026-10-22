@@ -89,6 +89,15 @@ class Project(Base):
     )
     # Everything the client needs once it is theirs, written up at the end.
     handover = relationship("ProjectHandover", back_populates="project", cascade="all, delete-orphan", uselist=False)
+    # Looking after it once it is live: the plan that is not ended, if any.
+    care_plan = relationship(
+        "CarePlan",
+        primaryjoin="and_(Project.id == foreign(CarePlan.project_id), CarePlan.status != 'ended')",
+        uselist=False,
+        viewonly=True,
+    )
+    # The team's logged hours. The database removes them with the project.
+    time_entries = relationship("TimeEntry", viewonly=True, order_by="TimeEntry.worked_on")
 
 
 class ProjectStage(Base):

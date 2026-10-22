@@ -15,6 +15,8 @@ import { ChecklistEditor } from './ChecklistEditor';
 import { useCurrentUser } from '@/components/app/AppShell';
 import { SavedReplyPicker } from '@/components/library/SavedReplyPicker';
 import { HandoverEditor } from './HandoverEditor';
+import { CarePlanPanel } from './CarePlanPanel';
+import { TimePanel } from './TimePanel';
 import { AdminInvoices } from './Invoices';
 import { Panel } from './Pill';
 import { ProjectHeader } from './ProjectHeader';
@@ -99,6 +101,10 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
     }
   };
   const quiet = (work: () => Promise<ProjectDetail>) => save(work).catch(() => undefined);
+  // Time logged counts against a care plan's hours, so the plan's figure is fetched again.
+  const timeLogged = () => {
+    if (project.care_plan?.minutes_included) quiet(() => apiService.getProject(project.id));
+  };
   const openRequests = project.requests.filter((r) => r.status === 'open').length;
   const stillNeeded = project.checklist.filter((i) => !i.done_at).length;
   // The pack matters once the work is nearly done; before that it sits lower down.
@@ -167,6 +173,12 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
           </Panel>
           <Panel tag="money" title="Invoices">
             <AdminInvoices project={project} onChange={replace} />
+          </Panel>
+          <Panel tag={project.care_plan ? 'after launch' : 'not started'} title="Care plan">
+            <CarePlanPanel key={project.care_plan?.id ?? 'none'} project={project} save={save} />
+          </Panel>
+          <Panel tag="team only" title="Time">
+            <TimePanel project={project} onLogged={timeLogged} />
           </Panel>
           <Panel tag="about" title="Project details">
             <ProjectDetails key={detailsVersion} project={project} save={save} />

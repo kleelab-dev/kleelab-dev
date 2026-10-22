@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from kleelab.core.database import AsyncSessionLocal
 from kleelab.models.project import Project, ProjectInvoice
 from kleelab.models.user import User
-from kleelab.services import activity
+from kleelab.services import activity, care
 from kleelab.services import email as email_svc
 from kleelab.services import projects as project_svc
 
@@ -149,10 +149,14 @@ async def send_due_reminders(db: AsyncSession, today: date | None = None) -> int
 
 
 async def run_daily() -> None:
-    """Send the day's reminders now and then once a day, for as long as the app runs."""
+    """Bill care plans and send the day's reminders now, then once a day, for as long as the app runs."""
 
     while True:
         try:
+            async with AsyncSessionLocal() as db:
+                billed = await care.bill_due(db)
+            if billed:
+                logger.info("Billing: raised %d care plan invoices.", billed)
             async with AsyncSessionLocal() as db:
                 sent = await send_due_reminders(db)
             if sent:

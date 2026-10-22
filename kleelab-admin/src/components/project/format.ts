@@ -205,3 +205,45 @@ export function staffLabel(member: { name: string; email: string }, everyone: { 
 export function errorText(reason: unknown, fallback = 'Something went wrong. Please try again.'): string {
   return reason instanceof Error && reason.message ? reason.message : fallback;
 }
+
+/** Minutes as "1h 30m", "45m" or "2h". */
+export function formatMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest}m`;
+  return rest ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
+/**
+ * Read time the way people type it: "1.5", "1:30", "90m", "1h 30m" or "2h".
+ * A bare number is hours. Returns whole minutes, or null when it can't be read.
+ */
+export function parseDuration(text: string): number | null {
+  const value = text.trim().toLowerCase();
+  if (!value) return null;
+  const clock = /^(\d+):([0-5]\d)$/.exec(value);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  if (/^\d+(\.\d+)?$/.test(value)) return Math.round(Number(value) * 60);
+  const parts = /^(?:(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?)?\s*(?:(\d+)\s*m(?:in(?:ute)?s?)?)?$/.exec(value);
+  if (!parts || (!parts[1] && !parts[2])) return null;
+  return Math.round(Number(parts[1] ?? 0) * 60) + Number(parts[2] ?? 0);
+}
+
+export const CARE_INTERVAL: Record<string, { every: string; per: string }> = {
+  month: { every: 'Every month', per: 'a month' },
+  year: { every: 'Every year', per: 'a year' },
+};
+
+export const CARE_STATUS: Record<string, { label: string; tone: string }> = {
+  active: { label: 'Running', tone: 'bg-mint text-ink' },
+  paused: { label: 'Paused', tone: 'bg-sun-soft text-ink' },
+  ended: { label: 'Ended', tone: 'bg-line text-muted' },
+};
+
+/** What an invoice was raised for, when it came from a proposal or a care plan. */
+export const INVOICE_KIND: Record<string, string> = {
+  deposit: 'Deposit',
+  balance: 'Balance',
+  full: 'Paid in full',
+  care: 'Care plan',
+};

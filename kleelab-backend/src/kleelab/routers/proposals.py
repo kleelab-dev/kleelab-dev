@@ -32,7 +32,7 @@ from kleelab.schemas.proposal import (
     ProposalPatch,
     PublicProposal,
 )
-from kleelab.services import activity
+from kleelab.services import activity, notify
 from kleelab.services import email as email_svc
 from kleelab.services import projects as project_svc
 from kleelab.services import proposals as svc
@@ -317,7 +317,11 @@ def _check_answerable(proposal: Proposal, revision: int) -> None:
 
 def _team_notice(proposal: Proposal, subject: str, lines: list[str], project_id: UUID | None = None) -> None:
     owner = proposal.author
-    also = [owner.email] if owner is not None and project_svc.is_staff(owner) and owner.is_active else []
+    also = (
+        [owner.email]
+        if owner is not None and project_svc.is_staff(owner) and owner.is_active and notify.wants(owner, "approvals")
+        else []
+    )
     try:
         email_svc.send_team_notice(subject, lines, str(project_id) if project_id else None, also_to=also)
     except Exception:  # noqa: BLE001 - the answer is already saved

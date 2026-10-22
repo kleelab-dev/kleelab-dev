@@ -14,6 +14,15 @@ export interface User {
   is_verified: boolean;
   role: Role;
   created_at: string;
+  /** The kinds of email this person can turn off, and whether each is on. */
+  email_topics?: EmailTopic[];
+}
+
+export interface EmailTopic {
+  key: string;
+  label: string;
+  description: string;
+  on: boolean;
 }
 
 /** After a password change or "sign out other devices". */
@@ -96,7 +105,7 @@ export interface Invoice {
   paid_via?: string | null;
   payment_reference?: string | null;
   /** deposit | balance | full when raised from an accepted proposal. */
-  kind?: 'deposit' | 'balance' | 'full' | null;
+  kind?: 'deposit' | 'balance' | 'full' | 'care' | null;
   reminders_sent?: number;
   last_reminded_at?: string | null;
   created_at: string;
@@ -167,6 +176,24 @@ export interface ProjectDetail {
   checklist: ChecklistItem[];
   /** Only once the team has published it. */
   handover: Handover | null;
+  /** Looking after the site once it is live, when there is a plan. */
+  care_plan?: CarePlan | null;
+}
+
+export interface CarePlan {
+  id: string;
+  name: string;
+  includes: string | null;
+  amount_cents: number;
+  currency: string;
+  interval: 'month' | 'year';
+  /** Hours of work included each period, in minutes; null when not counted. */
+  minutes_included: number | null;
+  status: 'active' | 'paused' | 'ended';
+  started_on: string;
+  next_bill_on: string;
+  period_start: string | null;
+  minutes_used: number | null;
 }
 
 export interface ChecklistItem {

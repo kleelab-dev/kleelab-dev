@@ -343,7 +343,8 @@ def send_client_project_notice(email: str, project_id: str, project_title: str, 
             body=_p(f"<strong style=\"color:{INK}\">{escape(headline)}</strong>")
             + _p("See the details, reply or approve on your project dashboard."),
             button=("Open your project", _dashboard_link(project_id)),
-            footer="You are getting this because you have a project with KleeLab.",
+            footer=f"You are getting this because you have a project with KleeLab. Choose which emails you get: "
+                   f"{settings.FRONTEND_URL.rstrip('/')}/account#emails",
         ),
     )
 

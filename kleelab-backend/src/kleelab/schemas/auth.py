@@ -173,6 +173,20 @@ class PlanUsageOut(BaseModel):
     ai_calls_today: int
 
 
+class EmailTopicOut(BaseModel):
+    """One kind of optional email, and whether this person gets it."""
+
+    key: str
+    label: str
+    description: str
+    on: bool
+
+
+class EmailPrefsUpdate(BaseModel):
+    # {"updates": false}. Only the topics for the person's role are accepted.
+    prefs: dict[str, bool]
+
+
 class AccountOut(UserOut):
     """`/api/auth/me`.
 
@@ -185,5 +199,6 @@ class AccountOut(UserOut):
     plan_label: str
     plan_blurb: str
     two_step_enabled: bool = False
+    email_topics: list[EmailTopicOut] = []
     limits: PlanLimitsOut
     usage: PlanUsageOut

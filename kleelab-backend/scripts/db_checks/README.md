@@ -43,3 +43,4 @@ No email or Slack messages are sent.
 | `check_payment_plan.py` | Paying the deposit or everything when accepting, the balance invoice raised at hand-over (once), scheduled and manual payment reminders |
 | `check_calls_onboarding.py` | Booking a free call: open times, clashes, moving and cancelling by link, the team's list; the Getting started checklist; the hand-over pack and its publishing |
 | `check_templates_pipeline.py` | Project templates (a project started from one, saving a project as one), saved replies, and the enquiry pipeline: moving between columns, calls and proposals moving an enquiry on |
+| `check_care_time_prefs.py` | Care plans (billing in advance, pausing, ending, one period per daily run, hours used), the team's time log and timesheet, and choosing which emails you get |

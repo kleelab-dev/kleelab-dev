@@ -42,13 +42,68 @@ export function AccountView() {
     <div>
       <p className="tag">your account</p>
       <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest sm:text-5xl">Your account</h1>
-      <p className="mt-3 max-w-measure text-muted">Your name, your password and the devices signed in to this account.</p>
+      <p className="mt-3 max-w-measure text-muted">Your name, the emails you get, your password and the devices signed in to this account.</p>
 
       <div className="mt-8 grid max-w-2xl gap-6 sm:mt-10">
         <NamePanel />
+        <EmailsPanel />
         <PasswordPanel />
         <DevicesPanel />
       </div>
+    </div>
+  );
+}
+
+/** Turn optional emails off. Invoices, sign-in links and security emails always come. */
+function EmailsPanel() {
+  const user = useCurrentUser();
+  const setUser = useUpdateUser();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  const topics = user.email_topics ?? [];
+  if (!topics.length) return null;
+
+  async function toggle(key: string, on: boolean) {
+    setBusy(true);
+    setStatus({ kind: 'idle' });
+    try {
+      const updated = await apiService.setEmailPrefs({ [key]: on });
+      setUser({ ...user, email_topics: updated.email_topics });
+      setStatus({ kind: 'done', message: 'Saved.' });
+    } catch (reason) {
+      setStatus({ kind: 'error', message: errorText(reason) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div id="emails" className="scroll-mt-24">
+      <Panel tag="emails" title="Emails you get">
+        <ul className="grid gap-2">
+          {topics.map((topic) => (
+            <li key={topic.key}>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border-[1.5px] border-line bg-white p-3 hover:border-ink">
+                <input
+                  type="checkbox"
+                  checked={topic.on}
+                  disabled={busy}
+                  onChange={(e) => toggle(topic.key, e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-cobalt"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">{topic.label}</span>
+                  <span className="block text-xs text-muted">{topic.description}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <p className="text-xs text-muted">Invoices, payment reminders, sign-in links and security emails always come.</p>
+          <Feedback status={status} />
+        </div>
+      </Panel>
     </div>
   );
 }

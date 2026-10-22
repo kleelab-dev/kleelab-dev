@@ -74,6 +74,27 @@ class FileOut(BaseModel):
 UpdateOut.model_rebuild()
 
 
+class CarePlanOut(BaseModel):
+    """A project's care plan, as the client sees it too."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    includes: str | None
+    amount_cents: int
+    currency: str
+    interval: str
+    minutes_included: int | None
+    status: str
+    started_on: date
+    next_bill_on: date
+    # The period the latest invoice paid for starts here and runs to next_bill_on.
+    period_start: date | None = None
+    # Logged this period, only when the plan includes hours.
+    minutes_used: int | None = None
+
+
 class InvoiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -180,6 +201,7 @@ class ProjectDetail(BaseModel):
     owner_id: UUID | None = None
     owner_name: str | None = None
     lead_id: UUID | None = None
+    care_plan: CarePlanOut | None = None
 
 
 # --- Client actions -------------------------------------------------------

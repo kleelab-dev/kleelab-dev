@@ -10,6 +10,12 @@ import type {
   ClientPatchInput,
   ClientSummary,
   HandoverItem,
+  CarePlanInput,
+  CarePlanRow,
+  CareStatus,
+  ProjectTime,
+  TimeEntryInput,
+  TimeSheet,
   InvoiceCreateInput,
   InvoicePatchInput,
   Lead,
@@ -315,6 +321,11 @@ export const apiService = {
     return request<User>('/api/auth/me');
   },
 
+  /** Turn kinds of email on or off. Only the keys sent change. */
+  async setEmailPrefs(prefs: Record<string, boolean>): Promise<User> {
+    return put<User>('/api/auth/me/email-prefs', { prefs });
+  },
+
   async verifyEmail(token: string): Promise<void> {
     return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
   },
@@ -542,6 +553,45 @@ export const apiService = {
 
   async adminUnpublishHandover(projectId: string): Promise<ProjectDetail> {
     return post<ProjectDetail>(`/api/admin/projects/${projectId}/handover/unpublish`);
+  },
+
+  // --- Care plans and time --------------------------------------------------------
+
+  async adminStartCarePlan(projectId: string, input: CarePlanInput & { first_bill_on: string }): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/care-plan`, input);
+  },
+
+  async adminUpdateCarePlan(
+    planId: string,
+    input: Partial<CarePlanInput> & { status?: CareStatus; next_bill_on?: string },
+  ): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/care-plans/${planId}`, input);
+  },
+
+  async adminCarePlans(): Promise<CarePlanRow[]> {
+    return request<CarePlanRow[]>('/api/admin/care-plans');
+  },
+
+  async adminProjectTime(projectId: string): Promise<ProjectTime> {
+    return request<ProjectTime>(`/api/admin/projects/${projectId}/time`);
+  },
+
+  async adminLogTime(projectId: string, input: TimeEntryInput): Promise<ProjectTime> {
+    return post<ProjectTime>(`/api/admin/projects/${projectId}/time`, input);
+  },
+
+  async adminEditTime(entryId: string, input: TimeEntryInput): Promise<ProjectTime> {
+    return patch<ProjectTime>(`/api/admin/time/${entryId}`, input);
+  },
+
+  async adminDeleteTime(entryId: string): Promise<ProjectTime> {
+    return request<ProjectTime>(`/api/admin/time/${entryId}`, { method: 'DELETE' });
+  },
+
+  async adminTimesheet(start: string, end: string, userId?: string | null): Promise<TimeSheet> {
+    const query = new URLSearchParams({ start, end });
+    if (userId) query.set('user_id', userId);
+    return request<TimeSheet>(`/api/admin/time?${query}`);
   },
 
   // --- Calls ----------------------------------------------------------------------

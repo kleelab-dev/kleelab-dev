@@ -5,7 +5,7 @@ import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/2
 import { Button, buttonClass } from '@/components/ui/Button';
 import { apiService } from '@/services/api';
 import type { Currency, Invoice, InvoiceStatus, ProjectDetail } from '@/types/api';
-import { CURRENCIES, errorText, formatDate, formatMoney, INVOICE_STATUS } from './format';
+import { CURRENCIES, errorText, formatDate, formatMoney, INVOICE_STATUS, INVOICE_KIND } from './format';
 import { Pill } from './Pill';
 
 function isLate(invoice: Invoice): boolean {
@@ -39,6 +39,7 @@ export function InvoiceList({
             <p className="mt-1 font-display text-2xl font-extrabold">{formatMoney(invoice.amount_cents, invoice.currency)}</p>
             <p className="text-xs text-muted">
               {invoice.number}
+              {invoice.kind && INVOICE_KIND[invoice.kind] ? ` · ${INVOICE_KIND[invoice.kind]}` : ''}
               {invoice.status === 'paid' && invoice.paid_at
                 ? ` · Paid ${invoice.paid_via === 'paystack' ? 'online ' : ''}${formatDate(invoice.paid_at)}`
                 : invoice.due_date

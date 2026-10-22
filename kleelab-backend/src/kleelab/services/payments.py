@@ -22,7 +22,7 @@ from kleelab.core.config import settings
 from kleelab.core.exceptions import PaymentError
 from kleelab.models.project import InvoicePayment, Project, ProjectInvoice
 from kleelab.models.user import User
-from kleelab.services import activity, paystack
+from kleelab.services import activity, notify, paystack
 from kleelab.services import email as email_svc
 from kleelab.services import projects as svc
 
@@ -234,12 +234,13 @@ async def _apply(db: AsyncSession, payment_id: UUID, data: dict[str, Any]) -> No
     _notify_team(project, f"{invoice.number} paid online", [
         f"{project.reference} {project.title}: {paid_money} received by card through Paystack.",
         f"Reference: {payment.reference}",
-    ])
+    ], "payments")
 
 
-def _notify_team(project: Project, subject: str, lines: list[str]) -> None:
+def _notify_team(project: Project, subject: str, lines: list[str], topic: str | None = None) -> None:
     owner = project.owner
-    also = [owner.email] if owner is not None and owner.is_active else []
+    wanted = topic is None or notify.wants(owner, topic)
+    also = [owner.email] if owner is not None and owner.is_active and wanted else []
     try:
         email_svc.send_team_notice(subject, lines, project_id=str(project.id), also_to=also)
     except Exception:  # noqa: BLE001 - the payment is already recorded

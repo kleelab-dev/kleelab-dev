@@ -16,6 +16,15 @@ export interface User {
   created_at: string;
   /** Staff only: whether sign-in asks for a code from an authenticator app. */
   two_step_enabled?: boolean;
+  /** The kinds of email this person can turn off, and whether each is on. */
+  email_topics?: EmailTopic[];
+}
+
+export interface EmailTopic {
+  key: string;
+  label: string;
+  description: string;
+  on: boolean;
 }
 
 /** The password was right and two-step is on: swap this for a session with a code. */
@@ -195,8 +204,8 @@ export interface Invoice {
   paid_via?: string | null;
   /** The Paystack reference for an online payment, to find it in their dashboard. */
   payment_reference?: string | null;
-  /** deposit | balance | full when raised from an accepted proposal. */
-  kind?: 'deposit' | 'balance' | 'full' | null;
+  /** deposit | balance | full when raised from an accepted proposal; care from a care plan. */
+  kind?: 'deposit' | 'balance' | 'full' | 'care' | null;
   reminders_sent?: number;
   last_reminded_at?: string | null;
   created_at: string;
@@ -252,6 +261,98 @@ export interface ProjectDetail {
   checklist: ChecklistItem[];
   /** The team sees drafts too; published_at says whether the client can. */
   handover: Handover | null;
+  /** The live care plan, if any. Ended plans are not shown. */
+  care_plan?: CarePlan | null;
+}
+
+export type CareInterval = 'month' | 'year';
+export type CareStatus = 'active' | 'paused' | 'ended';
+
+export interface CarePlan {
+  id: string;
+  name: string;
+  includes: string | null;
+  amount_cents: number;
+  currency: Currency;
+  interval: CareInterval;
+  /** Hours included each period, in minutes; null when hours are not counted. */
+  minutes_included: number | null;
+  status: CareStatus;
+  started_on: string;
+  /** The next invoice goes out on this day. The current period runs up to it. */
+  next_bill_on: string;
+  period_start: string | null;
+  minutes_used: number | null;
+}
+
+export interface CarePlanInput {
+  name: string;
+  includes: string | null;
+  amount_cents: number;
+  currency: Currency;
+  interval: CareInterval;
+  minutes_included: number | null;
+}
+
+export interface CarePlanRow {
+  id: string;
+  project_id: string;
+  project_reference: string;
+  project_title: string;
+  client_name: string | null;
+  client_email: string | null;
+  name: string;
+  amount_cents: number;
+  currency: Currency;
+  interval: CareInterval;
+  status: CareStatus;
+  next_bill_on: string;
+  minutes_included: number | null;
+  minutes_used: number | null;
+}
+
+export interface TimeEntry {
+  id: string;
+  project_id: string;
+  user_id: string | null;
+  user_name: string | null;
+  stage_id: string | null;
+  stage_name: string | null;
+  worked_on: string;
+  minutes: number;
+  note: string | null;
+  /** Only the person who logged it can change it. */
+  mine: boolean;
+  project_reference: string | null;
+  project_title: string | null;
+}
+
+export interface TimeEntryInput {
+  worked_on: string;
+  minutes: number;
+  stage_id: string | null;
+  note: string | null;
+}
+
+export interface TimeTotal {
+  id: string | null;
+  name: string;
+  minutes: number;
+}
+
+export interface ProjectTime {
+  entries: TimeEntry[];
+  total_minutes: number;
+  by_person: TimeTotal[];
+  by_stage: TimeTotal[];
+}
+
+export interface TimeSheet {
+  start: string;
+  end: string;
+  entries: TimeEntry[];
+  total_minutes: number;
+  by_project: TimeTotal[];
 }
 
 export interface ChecklistItem {

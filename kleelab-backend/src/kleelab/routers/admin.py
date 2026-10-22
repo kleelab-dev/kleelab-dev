@@ -105,8 +105,8 @@ async def require_staff(user: User = Depends(get_current_user)) -> User:
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_staff)])
 
 
-def _notify_client(project: Project, headline: str) -> None:
-    svc.notify_client(project, headline)
+def _notify_client(project: Project, headline: str, topic: str | None = None) -> None:
+    svc.notify_client(project, headline, topic)
 
 
 def _send_invite(client: User, project: Project) -> bool:
@@ -289,9 +289,9 @@ async def patch_project(
     await svc.touch(db, project)
     await db.commit()
     if finished:
-        _notify_client(project, headline)
+        _notify_client(project, headline, "updates")
     elif went_live:
-        _notify_client(project, "Your site is live")
+        _notify_client(project, "Your site is live", "updates")
     return await _reload(db, project_id, staff)
 
 
@@ -471,7 +471,7 @@ async def patch_stage(
     await svc.touch(db, project)
     await db.commit()
     if headline:
-        _notify_client(project, headline)
+        _notify_client(project, headline, "updates")
     return await _reload(db, project_id, staff)
 
 
@@ -723,11 +723,11 @@ async def post_update(
 
     # A team note is for the team only, so the client is not emailed.
     if payload.kind == "approval":
-        _notify_client(project, f"Please take a look and approve: {payload.title}")
+        _notify_client(project, f"Please take a look and approve: {payload.title}", "approvals")
     elif payload.kind == "progress":
-        _notify_client(project, payload.title or "There is news on your project")
+        _notify_client(project, payload.title or "There is news on your project", "updates")
     elif payload.kind == "message":
-        _notify_client(project, "You have a new message from the KleeLab team")
+        _notify_client(project, "You have a new message from the KleeLab team", "messages")
     return await _reload(db, project_id, staff)
 
 

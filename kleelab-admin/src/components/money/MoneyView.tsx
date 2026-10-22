@@ -9,6 +9,7 @@ import { errorText, formatMoney, isOverdue, sumInvoices, todayISO } from '@/comp
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { AdminInvoice, MoneyTotal } from '@/types/api';
+import { CarePlans } from './CarePlans';
 import { InvoiceRow } from './InvoiceRow';
 
 type Filter = 'unpaid' | 'overdue' | 'paid' | 'cancelled' | 'all';
@@ -210,6 +211,8 @@ export function MoneyView() {
           </ul>
         )}
       </div>
+
+      <CarePlans />
     </div>
   );
 }

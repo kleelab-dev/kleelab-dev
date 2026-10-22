@@ -23,7 +23,7 @@ from kleelab.schemas.project import (
     ProjectSummary,
     RequestCreate,
 )
-from kleelab.services import activity
+from kleelab.services import activity, notify
 from kleelab.services import projects as svc
 from kleelab.services.activity import quoted
 from kleelab.services.email import send_client_project_notice, send_team_notice
@@ -49,11 +49,14 @@ HELD_FOR = timedelta(days=1)
 RISKY_TYPES = {"text/html", "image/svg+xml", "application/xhtml+xml", "text/xml", "application/xml", "text/javascript", "application/javascript"}
 
 
-def _notify_team(project: Project, subject: str, lines: list[str]) -> None:
-    """Email the team inbox and whoever is in charge, with a link to the project."""
+def _notify_team(project: Project, subject: str, lines: list[str], topic: str) -> None:
+    """Email the team inbox and whoever is in charge, with a link to the project.
+
+    The person in charge only gets it when they have not turned `topic` off.
+    """
 
     owner = project.owner
-    also = [owner.email] if owner is not None and owner.is_active else []
+    also = [owner.email] if owner is not None and owner.is_active and notify.wants(owner, topic) else []
     try:
         send_team_notice(subject, lines, project_id=str(project.id), also_to=also)
     except Exception:  # noqa: BLE001 - the action itself is already saved
@@ -125,7 +128,7 @@ async def post_message(
             lines.append(body)
         if names:
             lines.append("Attached: " + ", ".join(names))
-        _notify_team(project, f"[{project.reference}] New message from {user.email}", lines)
+        _notify_team(project, f"[{project.reference}] New message from {user.email}", lines, "messages")
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project, team=svc.is_staff(user))
 
@@ -186,6 +189,7 @@ async def decide_approval(
         project,
         f"[{project.reference}] {user.email} {verdict} {update.title or 'a sign-off'}",
         [project.title, update.approval_note or ""],
+        "approvals",
     )
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project)
@@ -240,6 +244,7 @@ async def tick_checklist(
             [f"{user.full_name or user.email} has ticked off everything on the Getting started list for "
              f"{project.title}."]
             + [f"{i.title}: {i.note}" for i in project.checklist if i.note],
+            "approvals",
         )
     return svc.detail(project, team=staff)
 
@@ -277,6 +282,7 @@ async def create_request(
         project,
         f"[{project.reference}] {REQUEST_LABELS[payload.kind]} requested by {user.email}",
         [project.title, payload.message or ""],
+        "messages",
     )
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project, team=svc.is_staff(user))
@@ -378,13 +384,14 @@ async def upload_file(
     if svc.is_staff(user):
         if project.client is not None:
             try:
-                send_client_project_notice(
-                    project.client.email, str(project.id), project.title, f"We shared a file with you: {filename}"
-                )
+                if notify.wants(project.client, "updates"):
+                    send_client_project_notice(
+                        project.client.email, str(project.id), project.title, f"We shared a file with you: {filename}"
+                    )
             except Exception:  # noqa: BLE001
                 logger.exception("Could not email the client about a file on %s", project.reference)
     else:
-        _notify_team(project, f"[{project.reference}] {user.email} uploaded {filename}", [project.title])
+        _notify_team(project, f"[{project.reference}] {user.email} uploaded {filename}", [project.title], "messages")
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project, team=svc.is_staff(user))
 

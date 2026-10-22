@@ -40,6 +40,7 @@ from kleelab.schemas.project import (
     UpdateOut,
 )
 from kleelab.services import email as email_svc
+from kleelab.services import notify
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,8 @@ def with_everything():
         selectinload(Project.proposal),
         selectinload(Project.checklist).selectinload(ProjectChecklistItem.done_by),
         selectinload(Project.handover),
+        selectinload(Project.care_plan),
+        selectinload(Project.time_entries),
         selectinload(Project.client),
         selectinload(Project.owner),
     )
@@ -211,6 +214,9 @@ def summarise(project: Project, team: bool = False) -> ProjectSummary:
 def detail(project: Project, team: bool = False) -> ProjectDetail:
     """The full project. `team` adds the client's details and the team's own notes."""
 
+    from kleelab.services import care  # care builds on this module
+
+
     # Files waiting for a message that has not been sent are nobody else's business.
     shared = [f for f in project.files if not f.held]
     by_update: dict[UUID, list[FileOut]] = {}
@@ -254,6 +260,7 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         balance_currency=project.proposal.currency if balance else None,
         checklist=[_checklist_out(item) for item in project.checklist],
         handover=handover_out(project, team),
+        care_plan=care.plan_out(project),
         client_email=project.client.email if team and project.client else None,
         client_name=project.client.full_name if team and project.client else None,
         client_id=project.client_id if team else None,
@@ -373,10 +380,13 @@ def paid_notice(invoice: ProjectInvoice) -> str:
     return f"Thank you. We have received your payment for {invoice.number}"
 
 
-def notify_client(project: Project, headline: str) -> None:
-    """Email the client about their project. The change is already saved; this is a courtesy."""
+def notify_client(project: Project, headline: str, topic: str | None = None) -> None:
+    """Email the client about their project. The change is already saved; this is a courtesy.
 
-    if project.client is None:
+    With a `topic`, only when the client has not turned that kind of email off.
+    """
+
+    if project.client is None or (topic and not notify.wants(project.client, topic)):
         return
     try:
         email_svc.send_client_project_notice(project.client.email, str(project.id), project.title, headline)

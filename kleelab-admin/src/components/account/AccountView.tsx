@@ -8,6 +8,7 @@ import { useCurrentUser, useUpdateUser } from '@/components/app/AppShell';
 import { Panel, Pill } from '@/components/project/Pill';
 import { errorText, formatDate } from '@/components/project/format';
 import { apiService } from '@/services/api';
+import { EmailChoices } from './EmailChoices';
 import type { TwoStepSetup, TwoStepStatus } from '@/types/api';
 
 type Step =
@@ -48,7 +49,7 @@ export function AccountView() {
     <div>
       <p className="tag">you</p>
       <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest sm:text-5xl">Your account</h1>
-      <p className="mt-3 text-muted">How you sign in to the team dashboard.</p>
+      <p className="mt-3 text-muted">How you sign in to the team dashboard, and which emails you get.</p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_2fr]">
         <Panel tag="details" title={user.full_name || 'No name yet'} className="self-start">
@@ -63,6 +64,10 @@ export function AccountView() {
             </div>
           </dl>
           <p className="mt-4 text-xs text-muted">To change your password, sign out and use “Forgot it?” on the sign-in page.</p>
+        </Panel>
+
+        <Panel tag="emails" title="Emails you get" className="self-start lg:order-last lg:col-span-2">
+          <EmailChoices />
         </Panel>
 
         <Panel

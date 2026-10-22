@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from kleelab.core.database import Base
@@ -52,6 +52,9 @@ class User(Base):
     recovery_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Staff: alerts newer than this count as unread. None until they first look.
     alerts_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Which optional emails they turned off: {"updates": false}. A topic not in
+    # here is on. See services/notify.py for the topics.
+    email_prefs: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

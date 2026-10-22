@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { clsx } from 'clsx';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { Pill } from '@/components/project/Pill';
-import { errorText, formatDate, formatMoney, INVOICE_STATUS, isOverdue } from '@/components/project/format';
+import { errorText, formatDate, formatMoney, INVOICE_STATUS, isOverdue, INVOICE_KIND } from '@/components/project/format';
 import { apiService } from '@/services/api';
 import type { AdminInvoice } from '@/types/api';
 
@@ -63,7 +63,10 @@ export function InvoiceRow({
       )}
     >
       <div className={clsx('min-w-0', !showClient && 'flex-1 basis-56')}>
-        <p className="font-mono text-[11px] uppercase tracking-label text-cobalt">{invoice.number}</p>
+        <p className="font-mono text-[11px] uppercase tracking-label text-cobalt">
+          {invoice.number}
+          {invoice.kind && INVOICE_KIND[invoice.kind] && <span className="text-muted"> · {INVOICE_KIND[invoice.kind]}</span>}
+        </p>
         <p className="truncate text-sm font-semibold text-ink">{invoice.title}</p>
         {!showClient && (
           <Link href={`/projects/${invoice.project_id}`} className="block truncate text-xs text-muted no-underline hover:text-cobalt">

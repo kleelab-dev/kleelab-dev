@@ -23,6 +23,8 @@ from kleelab.core.time import utcnow
 from kleelab.models.user import User
 from kleelab.schemas.auth import (
     AccountOut,
+    EmailPrefsUpdate,
+    EmailTopicOut,
     LogoutRequest,
     OtherSessionsSignedOut,
     PasswordChange,
@@ -45,7 +47,7 @@ from kleelab.schemas.auth import (
     UserLogin,
     UserOut,
 )
-from kleelab.services import activity, sessions, two_step
+from kleelab.services import activity, notify, sessions, two_step
 from kleelab.services.email import (
     send_password_reset_email,
     send_security_notice,
@@ -476,6 +478,10 @@ async def _account_out(current_user: User, db: AsyncSession) -> AccountOut:
         plan_label=state["label"],
         plan_blurb=state["blurb"],
         two_step_enabled=two_step.is_enabled(current_user),
+        email_topics=[
+            EmailTopicOut(key=key, label=label, description=description, on=notify.wants(current_user, key))
+            for key, (label, description) in notify.topics_for(current_user).items()
+        ],
         limits=PlanLimitsOut(**state["limits"]),
         usage=PlanUsageOut(**state["usage"]),
     )
@@ -506,6 +512,41 @@ async def update_me(
             db, current_user, "account.renamed",
             f"Changed their name from {activity.quoted(before)} to {activity.quoted(body.full_name)}"
             if before else f"Set their name to {activity.quoted(body.full_name)}",
+            subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
+        )
+        await db.commit()
+        await db.refresh(current_user)
+    return await _account_out(current_user, db)
+
+
+@router.put("/me/email-prefs", response_model=AccountOut)
+async def update_email_prefs(
+    body: EmailPrefsUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AccountOut:
+    """Turn kinds of optional email on or off."""
+
+    topics = notify.topics_for(current_user)
+    unknown = sorted(set(body.prefs) - set(topics))
+    if unknown:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Unknown kind of email: {', '.join(unknown)}")
+    prefs = dict(current_user.email_prefs or {})
+    changed = []
+    for key, on in body.prefs.items():
+        if notify.wants(current_user, key) != on:
+            changed.append(f"{'on' if on else 'off'} {topics[key][0].lower()}")
+        if on:
+            prefs.pop(key, None)
+        else:
+            prefs[key] = False
+    if changed:
+        # A new dict, so SQLAlchemy sees the change to the JSON column.
+        current_user.email_prefs = prefs
+        activity.record(
+            db, current_user, "account.email_prefs", "Turned " + ", ".join(changed) + " emails",
             subject_type=_account_kind(current_user), subject_id=current_user.id, request=request,
         )
         await db.commit()
