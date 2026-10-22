@@ -41,6 +41,7 @@ function alertHref(alert: AlertItem): string {
 function where(alert: AlertItem): string {
   if (alert.project_reference) return `${alert.project_reference} · ${alert.project_title}`;
   if (alert.action === 'lead.create') return 'New enquiry';
+  if (alert.action.startsWith('proposal.')) return 'Proposal';
   return '';
 }
 

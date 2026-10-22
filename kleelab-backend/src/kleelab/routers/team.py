@@ -342,6 +342,9 @@ ALERT_ACTIONS = (
     "request.create",
     "file.add",
     "lead.create",
+    "proposal.viewed",
+    "proposal.accepted",
+    "proposal.declined",
 )
 
 

@@ -353,6 +353,8 @@ export interface LeadNote {
 }
 
 export interface LeadDetail extends Lead {
+  /** Newest first. */
+  proposals: ProposalSummary[];
   notes: LeadNote[];
 }
 
@@ -429,4 +431,71 @@ export interface ClientDetail extends ClientSummary {
 export interface ClientPatchInput {
   full_name?: string | null;
   is_active?: boolean;
+}
+
+// --- Proposals ---------------------------------------------------------------
+
+/** `expired` is worked out from the date; it is never stored. */
+export type ProposalStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
+
+export interface ProposalItem {
+  description: string;
+  amount_cents: number;
+}
+
+export interface ProposalStage {
+  name: string;
+  description?: string | null;
+}
+
+export interface ProposalSummary {
+  id: string;
+  reference: string;
+  title: string;
+  status: ProposalStatus;
+  currency: Currency;
+  total_cents: number;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  valid_until: string | null;
+  created_at: string;
+  updated_at: string;
+  lead_id: string;
+  project_id: string | null;
+}
+
+export interface ProposalDetail extends ProposalSummary {
+  revision: number;
+  client_name: string | null;
+  client_email: string;
+  summary: string | null;
+  scope: string | null;
+  items: ProposalItem[];
+  deposit_percent: number;
+  deposit_cents: number;
+  duration_weeks: number | null;
+  stages: ProposalStage[];
+  terms: string | null;
+  accepted_name: string | null;
+  decline_reason: string | null;
+  author_name: string | null;
+  /** The client's link; null while it is a draft. */
+  public_url: string | null;
+}
+
+export interface ProposalInput {
+  client_name?: string | null;
+  client_email?: string;
+  title?: string;
+  summary?: string | null;
+  scope?: string | null;
+  items?: ProposalItem[];
+  currency?: Currency;
+  deposit_percent?: number;
+  duration_weeks?: number | null;
+  stages?: ProposalStage[];
+  terms?: string | null;
+  valid_until?: string | null;
 }

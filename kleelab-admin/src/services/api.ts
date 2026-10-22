@@ -19,6 +19,8 @@ import type {
   ProjectFile,
   ProjectPatchInput,
   ProjectSummary,
+  ProposalDetail,
+  ProposalInput,
   RequestKind,
   RequestStatus,
   SearchResults,
@@ -511,6 +513,39 @@ export const apiService = {
   /** Email the enquirer; the backend keeps a copy in the enquiry's history. */
   async adminReplyToLead(leadId: string, subject: string, body: string): Promise<LeadDetail> {
     return post<LeadDetail>(`/api/admin/leads/${leadId}/reply`, { subject, body });
+  },
+
+  // --- Proposals -----------------------------------------------------------
+
+  /** A new draft for an enquiry, filled in from it with our usual steps and terms. */
+  async adminCreateProposal(leadId: string, input: ProposalInput = {}): Promise<ProposalDetail> {
+    return post<ProposalDetail>('/api/admin/proposals', { lead_id: leadId, ...input });
+  },
+
+  async adminProposal(proposalId: string): Promise<ProposalDetail> {
+    return request<ProposalDetail>(`/api/admin/proposals/${proposalId}`);
+  },
+
+  async adminUpdateProposal(proposalId: string, input: ProposalInput): Promise<ProposalDetail> {
+    return patch<ProposalDetail>(`/api/admin/proposals/${proposalId}`, input);
+  },
+
+  /** Emails the client their link. Nothing changes if the email fails. */
+  async adminSendProposal(proposalId: string): Promise<ProposalDetail> {
+    return post<ProposalDetail>(`/api/admin/proposals/${proposalId}/send`);
+  },
+
+  async adminWithdrawProposal(proposalId: string): Promise<ProposalDetail> {
+    return post<ProposalDetail>(`/api/admin/proposals/${proposalId}/withdraw`);
+  },
+
+  /** A fresh draft with the same content, for a new version after a decline or expiry. */
+  async adminCopyProposal(proposalId: string): Promise<ProposalDetail> {
+    return post<ProposalDetail>(`/api/admin/proposals/${proposalId}/copy`);
+  },
+
+  async adminDeleteProposal(proposalId: string): Promise<void> {
+    return request<void>(`/api/admin/proposals/${proposalId}`, { method: 'DELETE' });
   },
 
   async adminStats(): Promise<AdminStats> {

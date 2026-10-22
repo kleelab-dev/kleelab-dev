@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -16,6 +16,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from kleelab.core.security import create_signed_token, get_password_hash, password_fingerprint
+from kleelab.models.agency_lead import AgencyLead
 from kleelab.models.project import Project, ProjectFile, ProjectInvoice, ProjectStage, ProjectUpdate
 from kleelab.models.user import User
 from kleelab.schemas.project import (
@@ -105,6 +107,13 @@ async def next_invoice_number(db: AsyncSession) -> str:
 
 def build_stages(names: list[str] | None) -> list[ProjectStage]:
     pairs = [(name.strip(), None) for name in names if name.strip()] if names else DEFAULT_STAGES
+    return build_stages_from(pairs)
+
+
+def build_stages_from(pairs: list[tuple[str, str | None]]) -> list[ProjectStage]:
+    """Steps from (name, description) pairs, the first one started."""
+
+    pairs = pairs or DEFAULT_STAGES
     stages = [
         ProjectStage(position=index, name=name[:80], description=description, status="upcoming")
         for index, (name, description) in enumerate(pairs)
@@ -298,3 +307,90 @@ def random_password() -> str:
     """A password nobody knows, for an invited account until its owner sets one."""
 
     return secrets.token_urlsafe(32)
+
+
+async def start_project(
+    db: AsyncSession,
+    *,
+    client_email: str,
+    client_name: str | None,
+    title: str,
+    summary: str | None,
+    stages: list[ProjectStage],
+    owner_id: UUID | None,
+    welcome_author_id: UUID | None,
+    lead: AgencyLead | None = None,
+    start_date: date | None = None,
+    target_date: date | None = None,
+) -> tuple[Project, User, bool]:
+    """Set a project up for a client, creating their account if they have none.
+
+    A new client gets an account with an unknown password and an emailed link to
+    choose one (sent by the caller after the commit), so we can start the project
+    before they have ever signed in. Returns the project, the client and whether
+    the account is new. Nothing is committed here.
+    """
+
+    email = client_email.lower()
+    client = await db.scalar(select(User).where(User.email == email))
+    invited = False
+    if client is None:
+        client = User(
+            email=email,
+            password_hash=get_password_hash(random_password()),
+            full_name=client_name,
+            provider="invite",
+            # They prove the address by using the emailed link.
+            is_verified=False,
+        )
+        db.add(client)
+        await db.flush()
+        invited = True
+    elif is_staff(client):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That email belongs to a team member. Use the client's own email.",
+        )
+
+    project = Project(
+        client_id=client.id,
+        owner_id=owner_id,
+        lead_id=lead.id if lead else None,
+        reference=await next_reference(db),
+        title=title.strip(),
+        summary=summary,
+        start_date=start_date,
+        target_date=target_date,
+        status="active",
+        stages=stages,
+    )
+    db.add(project)
+    if lead is not None:
+        lead.status = "won"
+    await db.flush()
+    db.add(
+        ProjectUpdate(
+            project_id=project.id,
+            stage_id=project.stages[0].id if project.stages else None,
+            author_id=welcome_author_id,
+            kind="progress",
+            title="Your project has started",
+            body="Welcome. This page shows every step of your project. "
+            "You can message us here, share files, and approve work when it is ready.",
+        )
+    )
+    return project, client, invited
+
+
+def send_invite(client: User, project: Project) -> bool:
+    """Email a client a 7-day link to choose a password, naming their project."""
+
+    token = create_signed_token(
+        {"user_id": str(client.id), "purpose": "password_reset", "pf": password_fingerprint(client)},
+        timedelta(days=7),
+    )
+    try:
+        return bool(email_svc.send_project_invite_email(client.email, client.full_name, project.title, token))
+    except Exception:  # noqa: BLE001
+        logger.exception("Could not send the invite for %s", project.reference)
+        return False

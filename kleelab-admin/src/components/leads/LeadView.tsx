@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { clsx } from 'clsx';
-import { CheckIcon, EnvelopeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, DocumentTextIcon, EnvelopeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { CopyEmail } from '@/components/ui/CopyEmail';
 import { Button, buttonClass } from '@/components/ui/Button';
 import { useCurrentUser } from '@/components/app/AppShell';
@@ -14,8 +15,10 @@ import {
   followUpDue,
   formatDate,
   formatDateTime,
+  formatMoney,
   LEAD_STATUS,
   leadSource,
+  PROPOSAL_STATUS,
   todayISO,
 } from '@/components/project/format';
 import { ErrorState, Skeleton } from '@/components/ui/States';
@@ -117,6 +120,8 @@ export function LeadView({ leadId }: { leadId: string }) {
             )}
           </Panel>
 
+          <Proposals lead={lead} onError={setError} />
+
           <ReplyBox
             lead={lead}
             onSent={(next) => {
@@ -189,6 +194,74 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
       <dd className="mt-0.5 break-words text-ink">{children}</dd>
     </div>
   );
+}
+
+function Proposals({ lead, onError }: { lead: LeadDetail; onError: (message: string) => void }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  // One live proposal at a time: write a new one only when nothing is out with them.
+  const live = lead.proposals.find((p) => p.status === 'draft' || p.status === 'sent');
+  const canWrite = !lead.project_id && lead.status !== 'lost' && !live;
+
+  async function write() {
+    setBusy(true);
+    try {
+      const draft = await apiService.adminCreateProposal(lead.id);
+      router.push(`/proposals/${draft.id}`);
+    } catch (reason) {
+      onError(errorText(reason));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      tag="quote"
+      title="Proposals"
+      action={
+        canWrite && (
+          <Button size="sm" onClick={write} disabled={busy}>
+            <DocumentTextIcon className="h-4 w-4" aria-hidden />
+            {busy ? 'Starting…' : 'Write a proposal'}
+          </Button>
+        )
+      }
+    >
+      {lead.proposals.length === 0 ? (
+        <p className="text-sm text-muted">
+          {canWrite
+            ? 'Price the work and send it. When they accept online, the project and the deposit invoice are set up for you.'
+            : 'No proposals for this enquiry.'}
+        </p>
+      ) : (
+        <ul className="grid gap-2">
+          {lead.proposals.map((p) => (
+            <li key={p.id}>
+              <Link
+                href={`/proposals/${p.id}`}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border-[1.5px] border-line px-4 py-3 text-sm text-ink no-underline hover:border-ink"
+              >
+                <span className="font-mono text-xs text-muted">{p.reference}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold">{p.title}</span>
+                <span className="font-mono text-xs">{formatMoney(p.total_cents, p.currency)}</span>
+                <Pill tone={PROPOSAL_STATUS[p.status].tone}>{PROPOSAL_STATUS[p.status].label}</Pill>
+                <span className="w-full text-xs text-muted">{proposalLine(p)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+function proposalLine(p: LeadDetail['proposals'][number]): string {
+  if (p.accepted_at) return `Accepted ${formatDateTime(p.accepted_at)}`;
+  if (p.declined_at) return `Declined ${formatDateTime(p.declined_at)}`;
+  if (p.status === 'draft') return `Draft, last changed ${formatDateTime(p.updated_at)}`;
+  if (!p.sent_at) return '';
+  const seen = p.viewed_at ? `opened ${formatDateTime(p.viewed_at)}` : 'not opened yet';
+  return `Sent ${formatDateTime(p.sent_at)}, ${seen}`;
 }
 
 function FollowUp({ lead, open, onSave }: { lead: LeadDetail; open: boolean; onSave: (value: string | null, message: string) => void }) {

@@ -179,3 +179,43 @@ export interface ChatReply {
   offer_contact: boolean;
   source: 'ai' | 'fallback';
 }
+
+// --- Proposals ---------------------------------------------------------------
+
+/** `expired` is worked out from the date; it is never stored. */
+export type ProposalStatus = 'sent' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
+
+/** A proposal as its client sees it, from the link in their email. */
+export interface PublicProposal {
+  reference: string;
+  /** Sent back when answering, so nobody accepts a version they did not see. */
+  revision: number;
+  status: ProposalStatus;
+  client_name: string | null;
+  title: string;
+  summary: string | null;
+  scope: string | null;
+  items: { description: string; amount_cents: number }[];
+  currency: Currency;
+  total_cents: number;
+  deposit_percent: number;
+  deposit_cents: number;
+  duration_weeks: number | null;
+  stages: { name: string; description?: string | null }[];
+  terms: string | null;
+  valid_until: string | null;
+  sent_at: string | null;
+  accepted_at: string | null;
+  accepted_name: string | null;
+  declined_at: string | null;
+  prepared_by: string | null;
+}
+
+export interface ProposalAccepted {
+  proposal: PublicProposal;
+  /** True when we just made their account and emailed a link to set a password. */
+  invited: boolean;
+  /** False when that email did not go out, so they set a password through "forgot password". */
+  invite_sent: boolean;
+  email: string;
+}

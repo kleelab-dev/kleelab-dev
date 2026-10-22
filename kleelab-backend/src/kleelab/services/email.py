@@ -453,3 +453,39 @@ def send_lead_reply(email: str, subject: str, body: str, sender_name: str | None
         ),
         reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
     )
+
+
+def send_proposal_email(
+    email: str,
+    name: str | None,
+    title: str,
+    reference: str,
+    url: str,
+    total: str,
+    valid_until: str | None,
+    sender_name: str | None,
+) -> bool:
+    """Send an enquirer the private link to their proposal."""
+
+    who = escape(sender_name) if sender_name else "The KleeLab team"
+    return _send(
+        email,
+        f"Your proposal from KleeLab: {title}",
+        _layout(
+            label=f"proposal {reference}",
+            heading=title,
+            preheader=f"Your proposal is ready: {total}. Read it and accept online.",
+            body=_p(f"Hi {escape(name or 'there')},")
+            + _p(f"{who} has written up what we would build for you, how long it takes and what it costs "
+                 f"(<strong style=\"color:{INK}\">{escape(total)}</strong> in total).")
+            + _p("Read it, and if it is right, accept it on the page. That starts your project straight away: "
+                 "your dashboard opens and the deposit invoice is ready to pay."),
+            button=("Read your proposal", url),
+            after=_note(
+                (f"This proposal is open until {escape(valid_until)}. " if valid_until else "")
+                + "Questions or changes? Reply to this email and we will update it."
+            ),
+            footer="You are getting this because you asked KleeLab for a proposal.",
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )

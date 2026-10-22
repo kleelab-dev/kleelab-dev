@@ -7,6 +7,8 @@ import type {
   ProjectDetail,
   ProjectFile,
   ProjectSummary,
+  ProposalAccepted,
+  PublicProposal,
   RequestKind,
   User,
 } from '@/types/api';
@@ -290,6 +292,20 @@ export const apiService = {
    * Send an enquiry to the team. `source` tells the inbox whether it came from
    * the contact page or from the chat.
    */
+  // --- Proposals (public: the link is the key) --------------------------------
+
+  async getProposal(token: string): Promise<PublicProposal> {
+    return request<PublicProposal>(`/api/proposals/${encodeURIComponent(token)}`);
+  },
+
+  async acceptProposal(token: string, name: string, revision: number): Promise<ProposalAccepted> {
+    return post<ProposalAccepted>(`/api/proposals/${encodeURIComponent(token)}/accept`, { name, agree: true, revision });
+  },
+
+  async declineProposal(token: string, reason: string, revision: number): Promise<PublicProposal> {
+    return post<PublicProposal>(`/api/proposals/${encodeURIComponent(token)}/decline`, { reason: reason || null, revision });
+  },
+
   async submitLead(payload: {
     email: string;
     name?: string | null;

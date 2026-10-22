@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from kleelab.schemas.proposal import ProposalSummary
+
 # What the enquirer is actually after. A free-text "project type" cannot be
 # routed or reported on, which is why the in-app flow asks this instead.
 LeadInterest = Literal["pro", "enterprise", "migration", "general"]
@@ -81,6 +83,8 @@ class LeadDetail(LeadOut):
     """One enquiry with the team's notes and the emails sent about it, oldest first."""
 
     notes: list[LeadNoteOut] = []
+    # Newest first.
+    proposals: list[ProposalSummary] = []
 
 
 class LeadNoteCreate(BaseModel):

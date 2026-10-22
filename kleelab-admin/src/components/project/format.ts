@@ -1,4 +1,4 @@
-import type { ApprovalStatus, AttentionItem, AttentionKind, Currency, InvoiceStatus, Lead, LeadStatus, MoneyTotal, ProjectStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
+import type { ApprovalStatus, AttentionItem, AttentionKind, Currency, InvoiceStatus, Lead, LeadStatus, MoneyTotal, ProjectStatus, ProposalStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_TIME = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -97,6 +97,15 @@ export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: string }> = 
   contacted: { label: 'We replied', tone: 'bg-cobalt-soft text-cobalt-dark' },
   won: { label: 'Became a client', tone: 'bg-mint text-ink' },
   lost: { label: 'Not going ahead', tone: 'bg-line text-muted' },
+};
+
+export const PROPOSAL_STATUS: Record<ProposalStatus, { label: string; tone: string }> = {
+  draft: { label: 'Draft', tone: 'bg-line text-ink' },
+  sent: { label: 'Waiting for them', tone: 'bg-cobalt-soft text-cobalt-dark' },
+  accepted: { label: 'Accepted', tone: 'bg-mint text-ink' },
+  declined: { label: 'Declined', tone: 'bg-danger-soft text-danger' },
+  withdrawn: { label: 'Withdrawn', tone: 'bg-line text-muted' },
+  expired: { label: 'Expired', tone: 'bg-sun-soft text-ink' },
 };
 
 /** Today as `YYYY-MM-DD` in the viewer's time zone, for comparing with date-only fields. */

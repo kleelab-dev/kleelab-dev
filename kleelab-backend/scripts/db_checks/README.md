@@ -39,3 +39,4 @@ No email or Slack messages are sent.
 | `check_paystack.py` | Paying invoices online: webhook signature, verification, replays, mismatches. Paystack is faked; no network calls |
 | `check_retention.py` | Invoices kept when an account is deleted; old enquiries and invoices deleted on schedule |
 | `check_client_account.py` | A client's Account page: name, password change, signing out other devices |
+| `check_proposals.py` | Proposals from an enquiry: drafts, sending, versions, the client's accept or decline, and the project and deposit invoice it creates |

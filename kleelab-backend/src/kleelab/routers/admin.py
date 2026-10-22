@@ -1,7 +1,7 @@
 """The KleeLab team's side: set projects up, post progress, answer requests."""
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal
 from uuid import UUID
 
@@ -12,9 +12,10 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
-from kleelab.core.security import create_signed_token, get_current_user, get_password_hash, password_fingerprint
+from kleelab.core.security import get_current_user
 from kleelab.models.agency_lead import AgencyLead, LeadNote
 from kleelab.models.project import Project, ProjectInvoice, ProjectStage, ProjectUpdate
+from kleelab.models.proposal import Proposal
 from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
 from kleelab.schemas.agency import LeadDetail, LeadNoteCreate, LeadNoteOut, LeadOut, LeadReplyCreate
@@ -42,9 +43,10 @@ from kleelab.schemas.project import (
 )
 from kleelab.services import activity
 from kleelab.services import projects as svc
+from kleelab.services import proposals as proposal_svc
 from kleelab.services import sessions
 from kleelab.services.activity import quoted
-from kleelab.services.email import send_lead_reply, send_project_invite_email
+from kleelab.services.email import send_lead_reply
 
 logger = logging.getLogger(__name__)
 
@@ -90,15 +92,7 @@ def _notify_client(project: Project, headline: str) -> None:
 
 
 def _send_invite(client: User, project: Project) -> bool:
-    token = create_signed_token(
-        {"user_id": str(client.id), "purpose": "password_reset", "pf": password_fingerprint(client)},
-        timedelta(days=7),
-    )
-    try:
-        return bool(send_project_invite_email(client.email, client.full_name, project.title, token))
-    except Exception:  # noqa: BLE001
-        logger.exception("Could not send the invite for %s", project.reference)
-        return False
+    return svc.send_invite(client, project)
 
 
 async def _reload(db: AsyncSession, project_id: UUID, staff: User) -> ProjectDetail:
@@ -184,53 +178,18 @@ async def create_project(
         if lead is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found")
 
-    email = str(payload.client_email).lower()
-    client = await db.scalar(select(User).where(User.email == email))
-    invited = False
-    if client is None:
-        client = User(
-            email=email,
-            password_hash=get_password_hash(svc.random_password()),
-            full_name=payload.client_name,
-            provider="invite",
-            # They prove the address by using the emailed link.
-            is_verified=False,
-        )
-        db.add(client)
-        await db.flush()
-        invited = True
-    elif svc.is_staff(client):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="That email belongs to a team member. Use the client's own email.",
-        )
-
-    project = Project(
-        client_id=client.id,
-        owner_id=owner_id,
-        lead_id=lead.id if lead else None,
-        reference=await svc.next_reference(db),
-        title=payload.title.strip(),
+    project, client, invited = await svc.start_project(
+        db,
+        client_email=str(payload.client_email),
+        client_name=payload.client_name,
+        title=payload.title,
         summary=payload.summary,
+        stages=svc.build_stages(payload.stages),
+        owner_id=owner_id,
+        welcome_author_id=staff.id,
+        lead=lead,
         start_date=payload.start_date,
         target_date=payload.target_date,
-        status="active",
-        stages=svc.build_stages(payload.stages),
-    )
-    db.add(project)
-    if lead is not None:
-        lead.status = "won"
-    await db.flush()
-    db.add(
-        ProjectUpdate(
-            project_id=project.id,
-            stage_id=project.stages[0].id if project.stages else None,
-            author_id=staff.id,
-            kind="progress",
-            title="Your project has started",
-            body="Welcome. This page shows every step of your project. "
-            "You can message us here, share files, and approve work when it is ready.",
-        )
     )
     who = svc.display_name(client) or client.email
     activity.record(
@@ -857,7 +816,10 @@ async def _lead_detail(db: AsyncSession, lead_id: UUID) -> LeadDetail:
         )
         for note in lead.notes
     ]
-    return LeadDetail(**item.model_dump(), notes=notes)
+    proposals = await db.scalars(
+        select(Proposal).where(Proposal.lead_id == lead.id).order_by(Proposal.created_at.desc())
+    )
+    return LeadDetail(**item.model_dump(), notes=notes, proposals=[proposal_svc.summarise(p) for p in proposals])
 
 
 @router.get("/leads/{lead_id}", response_model=LeadDetail)

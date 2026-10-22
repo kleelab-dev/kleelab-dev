@@ -10,7 +10,7 @@ const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kleelab.com').replace
  */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: '*', allow: '/', disallow: ['/dashboard', '/admin', '/api', '/verify-email', '/reset-password'] }],
+    rules: [{ userAgent: '*', allow: '/', disallow: ['/dashboard', '/admin', '/api', '/verify-email', '/reset-password', '/proposal'] }],
     sitemap: `${BASE}/sitemap.xml`,
   };
 }
