@@ -3,11 +3,13 @@
 import logging
 
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kleelab.core.database import get_db
 from kleelab.core.security import get_optional_user
 from kleelab.models.agency_lead import AgencyLead
+from kleelab.models.portfolio import PUBLIC_STATUSES, PortfolioItem
 from kleelab.models.user import User
 from kleelab.schemas.agency import LeadCreate, LeadReceived
 from kleelab.services import activity
@@ -38,6 +40,17 @@ async def create_lead(
         logger.info("Discarded lead from %s: honeypot field was filled", payload.email)
         return LeadReceived(status="received")
 
+    item = None
+    if payload.portfolio_slug:
+        item = await db.scalar(
+            select(PortfolioItem).where(
+                PortfolioItem.slug == payload.portfolio_slug, PortfolioItem.status.in_(PUBLIC_STATUSES)
+            )
+        )
+    asked_about = None
+    if item is not None:
+        asked_about = f"{'Ready-made site' if item.kind == 'for_sale' else 'Something like'}: {item.title}"[:255]
+
     lead = AgencyLead(
         user_id=user.id if user is not None else None,
         email=str(payload.email).lower(),
@@ -46,9 +59,10 @@ async def create_lead(
         interest=payload.interest,
         budget=payload.budget,
         source=payload.source,
-        feature_requested=payload.project_type,
+        feature_requested=asked_about or payload.project_type,
         message=payload.message,
         status="new",
+        portfolio_item_id=item.id if item is not None else None,
     )
     db.add(lead)
     await db.flush()

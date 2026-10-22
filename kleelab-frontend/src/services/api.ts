@@ -356,9 +356,16 @@ export const apiService = {
     message: string;
     project_type?: string | null;
     source?: 'marketing' | 'chat';
+    /** Set when the enquiry comes from a portfolio item's page. */
+    portfolio_slug?: string;
     website?: string;
   }): Promise<{ status: string }> {
     return post<{ status: string }>('/api/agency/leads', { source: 'marketing', ...payload });
+  },
+
+  /** Count a view or a demo click. Best effort: a lost count never bothers the visitor. */
+  portfolioEvent(slug: string, kind: 'view' | 'demo'): void {
+    post(`/api/portfolio/${encodeURIComponent(slug)}/events`, { kind }).catch(() => undefined);
   },
 
   // --- Client dashboard ----------------------------------------------------

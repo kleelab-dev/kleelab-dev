@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
+import { AddToPortfolio } from '@/components/portfolio/AddToPortfolio';
 import { apiService } from '@/services/api';
 import type { HandoverItem, ProjectDetail } from '@/types/api';
 import { Pill } from './Pill';
@@ -197,6 +198,9 @@ export function HandoverEditor({ project, save }: { project: ProjectDetail; save
           </Button>
         )}
         {saved && !dirty && <span className="text-xs text-muted">Saved{published ? '. The client sees the change now.' : '.'}</span>}
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          <AddToPortfolio projectId={project.id} />
+        </span>
       </div>
     </div>
   );

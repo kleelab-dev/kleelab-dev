@@ -21,6 +21,8 @@ import type {
   Lead,
   LeadDetail,
   LeadPatchInput,
+  PortfolioItem,
+  PortfolioItemInput,
   ProjectCreateInput,
   ProjectDetail,
   ProjectFile,
@@ -624,6 +626,46 @@ export const apiService = {
 
   async adminSaveProjectAsTemplate(projectId: string, name: string, description: string | null): Promise<ProjectTemplate> {
     return post<ProjectTemplate>(`/api/admin/projects/${projectId}/save-as-template`, { name, description });
+  },
+
+  // --- Portfolio ----------------------------------------------------------------------
+
+  async adminPortfolio(): Promise<PortfolioItem[]> {
+    return request<PortfolioItem[]>('/api/admin/portfolio');
+  },
+
+  async adminPortfolioItem(itemId: string): Promise<PortfolioItem> {
+    return request<PortfolioItem>(`/api/admin/portfolio/${itemId}`);
+  },
+
+  async adminCreatePortfolioItem(input: PortfolioItemInput): Promise<PortfolioItem> {
+    return post<PortfolioItem>('/api/admin/portfolio', input);
+  },
+
+  async adminUpdatePortfolioItem(itemId: string, input: PortfolioItemInput): Promise<PortfolioItem> {
+    return put<PortfolioItem>(`/api/admin/portfolio/${itemId}`, input);
+  },
+
+  async adminDeletePortfolioItem(itemId: string): Promise<void> {
+    await request<void>(`/api/admin/portfolio/${itemId}`, { method: 'DELETE' });
+  },
+
+  async adminOrderPortfolio(ids: string[]): Promise<PortfolioItem[]> {
+    return put<PortfolioItem[]>('/api/admin/portfolio-order', { ids });
+  },
+
+  /** `data` is the image as a data URL. */
+  async adminUploadPortfolioImage(itemId: string, data: string, filename: string, alt: string): Promise<PortfolioItem> {
+    return post<PortfolioItem>(`/api/admin/portfolio/${itemId}/images`, { data, filename, alt });
+  },
+
+  async adminCheckPortfolioDemo(itemId: string): Promise<PortfolioItem> {
+    return post<PortfolioItem>(`/api/admin/portfolio/${itemId}/check-demo`);
+  },
+
+  /** A portfolio draft from a finished project: its name, client and live address. */
+  async adminPortfolioFromProject(projectId: string): Promise<PortfolioItem> {
+    return post<PortfolioItem>(`/api/admin/projects/${projectId}/portfolio`);
   },
 
   async adminSavedReplies(): Promise<SavedReply[]> {

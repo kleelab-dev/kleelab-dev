@@ -111,7 +111,15 @@ export function LeadView({ leadId }: { leadId: string }) {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid min-w-0 content-start gap-6">
-          <Panel tag="their message" title={lead.feature_requested || 'Enquiry'}>
+          <Panel
+            tag="their message"
+            title={lead.feature_requested || 'Enquiry'}
+            action={lead.portfolio_item_id && (
+              <Link href={`/portfolio/${lead.portfolio_item_id}`} className="shrink-0 text-sm font-semibold text-cobalt hover:underline">
+                See the item
+              </Link>
+            )}
+          >
             {lead.message ? (
               <p className="whitespace-pre-line break-words text-sm leading-7 text-ink-soft">{lead.message}</p>
             ) : (

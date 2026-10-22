@@ -19,6 +19,8 @@ from sqlalchemy.orm import selectinload
 from kleelab.core.database import get_db
 from kleelab.core.rate_limiter import client_ip
 from kleelab.models.agency_lead import AgencyLead
+from kleelab.models.library import ProjectTemplate
+from kleelab.models.portfolio import PortfolioItem
 from kleelab.models.project import ProjectInvoice
 from kleelab.models.proposal import Proposal
 from kleelab.models.user import User
@@ -86,6 +88,25 @@ def _apply(proposal: Proposal, changes: dict) -> None:
         setattr(proposal, field, value)
 
 
+async def _from_portfolio(db: AsyncSession, proposal: Proposal, lead: AgencyLead) -> None:
+    """An enquiry about a ready-made site starts with its price and its template's steps."""
+
+    item = await db.get(PortfolioItem, lead.portfolio_item_id)
+    if item is None or item.kind != "for_sale":
+        return
+    proposal.title = f"{item.title} for {lead.company}" if lead.company else item.title
+    proposal.summary = item.summary or None
+    if item.price_cents:
+        proposal.items = [{"description": f"{item.title}, changed to suit you", "amount_cents": item.price_cents}]
+        proposal.currency = item.currency
+    if item.delivery_days:
+        proposal.duration_weeks = max(1, -(-item.delivery_days // 7))
+    if item.template_id:
+        template = await db.get(ProjectTemplate, item.template_id)
+        if template is not None and template.stages:
+            proposal.stages = [{"name": s["name"], "description": s.get("description")} for s in template.stages]
+
+
 # --- The team's side ------------------------------------------------------------
 
 
@@ -116,6 +137,8 @@ async def create_proposal(
         terms=svc.DEFAULT_TERMS,
         valid_until=date.today() + timedelta(days=DEFAULT_VALID_DAYS),
     )
+    if lead.portfolio_item_id:
+        await _from_portfolio(db, proposal, lead)
     _apply(proposal, changes)
     await _check_client_email(db, proposal.client_email)
     db.add(proposal)

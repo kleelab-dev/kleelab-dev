@@ -33,6 +33,8 @@ class LeadCreate(BaseModel):
     interest: LeadInterest | None = None
     budget: str | None = Field(default=None, max_length=20)
     source: LeadSource = "marketing"
+    # Sent from a portfolio item's page: which one they asked about.
+    portfolio_slug: str | None = Field(default=None, max_length=80)
     # Honeypot. The form hides this field, so a human never fills it in and any
     # value at all is a reliable bot signal.
     website: str | None = Field(default=None, max_length=200)
@@ -68,6 +70,8 @@ class LeadOut(BaseModel):
     follow_up_on: date | None = None
     # Set when a project was started from this enquiry.
     project_id: UUID | None = None
+    # The portfolio item they asked about, from its page.
+    portfolio_item_id: UUID | None = None
 
 
 class LeadNoteOut(BaseModel):

@@ -28,10 +28,12 @@ from kleelab.routers.chat import router as chat_router
 from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.library import router as library_router
 from kleelab.routers.care import router as care_router
+from kleelab.routers.portfolio import public_router as portfolio_public_router
+from kleelab.routers.portfolio import router as portfolio_router
 from kleelab.routers.payments import router as payments_router
 from kleelab.routers.projects import router as projects_router
 from kleelab.routers.proposals import router as proposals_router, team_router as proposals_team_router
-from kleelab.services import billing, llm, retention
+from kleelab.services import billing, llm, portfolio, retention
 
 
 configure_logging()
@@ -79,9 +81,12 @@ async def lifespan(_: FastAPI):
     task = asyncio.create_task(retention.run_daily())
     # Reminds clients about unpaid invoices around their due date.
     reminders = asyncio.create_task(billing.run_daily())
+    # Checks the portfolio's demo links still open.
+    demos = asyncio.create_task(portfolio.run_daily())
     yield
     task.cancel()
     reminders.cancel()
+    demos.cancel()
 
 
 app = FastAPI(title="KleeLab API", version="1.0.0", lifespan=lifespan)
@@ -117,6 +122,8 @@ app.include_router(calls_team_router)
 app.include_router(team_router)
 app.include_router(library_router)
 app.include_router(care_router)
+app.include_router(portfolio_public_router)
+app.include_router(portfolio_router)
 app.include_router(gdpr_router)
 app.include_router(payments_router)
 

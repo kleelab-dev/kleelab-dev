@@ -519,6 +519,8 @@ export interface Lead {
   /** `YYYY-MM-DD`: the day to chase this enquiry next. */
   follow_up_on: string | null;
   project_id: string | null;
+  /** Sent from a portfolio item's page. */
+  portfolio_item_id: string | null;
 }
 
 export interface LeadNote {
@@ -698,4 +700,83 @@ export interface ProposalInput {
   stages?: ProposalStage[];
   terms?: string | null;
   valid_until?: string | null;
+}
+
+// --- Portfolio ---------------------------------------------------------------------
+
+export type PortfolioKind = 'work' | 'for_sale';
+export type PortfolioStatus = 'draft' | 'published' | 'sold' | 'archived';
+
+export interface PortfolioImage {
+  url: string;
+  /** Describes the screenshot for people who cannot see it, and for search engines. */
+  alt: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface PortfolioItem {
+  id: string;
+  kind: PortfolioKind;
+  slug: string;
+  title: string;
+  summary: string;
+  body: string | null;
+  sector: string | null;
+  tags: string[];
+  demo_url: string | null;
+  /** The first is the cover. */
+  images: PortfolioImage[];
+  client_name: string | null;
+  client_permission: boolean;
+  project_id: string | null;
+  project_reference: string | null;
+  price_cents: number | null;
+  currency: Currency;
+  /** One line each. */
+  includes: string | null;
+  customisable: string | null;
+  delivery_days: number | null;
+  exclusive: boolean;
+  template_id: string | null;
+  template_name: string | null;
+  status: PortfolioStatus;
+  featured: boolean;
+  position: number;
+  preview_token: string;
+  public_url: string;
+  preview_url: string;
+  view_count: number;
+  demo_clicks: number;
+  enquiries: number;
+  demo_status: 'ok' | 'broken' | null;
+  demo_error: string | null;
+  demo_checked_at: string | null;
+  published_at: string | null;
+  updated_at: string;
+  /** What still stops it going on the site, in words. */
+  missing: string[];
+}
+
+export interface PortfolioItemInput {
+  kind: PortfolioKind;
+  title: string;
+  slug: string | null;
+  summary: string;
+  body: string | null;
+  sector: string | null;
+  tags: string[];
+  demo_url: string | null;
+  images: Pick<PortfolioImage, 'url' | 'alt'>[];
+  client_name: string | null;
+  client_permission: boolean;
+  price_cents: number | null;
+  currency: Currency;
+  includes: string | null;
+  customisable: string | null;
+  delivery_days: number | null;
+  exclusive: boolean;
+  template_id: string | null;
+  status: PortfolioStatus;
+  featured: boolean;
 }

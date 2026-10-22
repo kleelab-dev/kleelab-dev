@@ -37,6 +37,7 @@ const NAV = [
   { href: '/clients', label: 'Clients' },
   { href: '/money', label: 'Money' },
   { href: '/time', label: 'Time' },
+  { href: '/portfolio', label: 'Portfolio' },
   { href: '/library', label: 'Library' },
 ];
 

@@ -50,6 +50,12 @@ class AgencyLead(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     # The day someone on the team means to chase this enquiry next.
     follow_up_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The ready-made site or piece of work they asked about, from its page.
+    portfolio_item_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("portfolio_items.id", ondelete="SET NULL"), nullable=True
+    )
+
+    portfolio_item = relationship("PortfolioItem")
 
     notes = relationship(
         "LeadNote", back_populates="lead", cascade="all, delete-orphan", order_by="LeadNote.created_at"

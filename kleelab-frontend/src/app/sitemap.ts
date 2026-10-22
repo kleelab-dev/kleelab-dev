@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { getPortfolio } from '@/lib/portfolio';
 
 const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kleelab.com').replace(/\/$/, '');
 
@@ -9,6 +10,7 @@ const PAGES: [path: string, priority: number][] = [
   ['/care', 0.8],
   ['/contact', 0.8],
   ['/book', 0.8],
+  ['/portfolio', 0.8],
   ['/work', 0.7],
   ['/about', 0.6],
   ['/privacy', 0.3],
@@ -16,12 +18,20 @@ const PAGES: [path: string, priority: number][] = [
   ['/cookies', 0.3],
 ];
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
-  return PAGES.map(([path, priority]) => ({
+  const pages: MetadataRoute.Sitemap = PAGES.map(([path, priority]) => ({
     url: `${BASE}${path === '/' ? '/' : path}`,
     lastModified,
     changeFrequency: 'monthly',
     priority,
   }));
+  const items: MetadataRoute.Sitemap = (await getPortfolio()).map((item) => ({
+    url: `${BASE}/portfolio/${item.slug}`,
+    lastModified: new Date(item.updated_at),
+    changeFrequency: 'monthly',
+    priority: 0.6,
+    images: item.images.slice(0, 1).map((image) => image.url),
+  }));
+  return [...pages, ...items];
 }

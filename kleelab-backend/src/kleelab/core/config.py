@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     CLOUDINARY_FOLDER: str = "kleelab"
     # Upload guard rails for site media.
     MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
+    # Shared with the client site (its REVALIDATE_SECRET), so portfolio changes
+    # show there at once. Unset, the site picks them up within five minutes.
+    REVALIDATE_SECRET: str | None = None
 
     # --- AI site builder -------------------------------------------------------
     # Fails closed. Everything AI-related is refused with a clear 503 until this
