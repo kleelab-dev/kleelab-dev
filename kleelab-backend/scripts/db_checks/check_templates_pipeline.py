@@ -148,7 +148,7 @@ async def main():
             # Booking a call moves an open enquiry to "call booked".
             r = await c.get('/api/calls/slots')
             slot = r.json()['slots'][-1]
-            r = await c.post('/api/calls', json={'name': 'Lead Two', 'email': emails[2], 'starts_at': slot})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Lead Two', 'email': emails[2], 'starts_at': slot})
             async with AsyncSessionLocal() as db:
                 lead2 = await db.get(AgencyLead, uuid.UUID(lead_ids[2]))
                 calls_for = list(await db.scalars(select(CallBooking).where(CallBooking.lead_id == lead2.id)))
@@ -167,7 +167,7 @@ async def main():
                 await db.execute(delete(CallBooking).where(CallBooking.lead_id == uuid.UUID(lead_ids[2])))
                 await db.commit()
             slot2 = (await c.get('/api/calls/slots')).json()['slots'][-2]
-            r = await c.post('/api/calls', json={'name': 'Lead Two', 'email': emails[2], 'starts_at': slot2})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Lead Two', 'email': emails[2], 'starts_at': slot2})
             r2 = await c.get(f'/api/admin/leads/{lead_ids[2]}', headers=h)
             check('a call from someone with a proposal out keeps it at proposal sent',
                   r.status_code == 201 and r2.json()['status'] == 'proposal')

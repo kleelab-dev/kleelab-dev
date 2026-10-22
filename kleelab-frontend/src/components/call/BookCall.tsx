@@ -50,7 +50,8 @@ export function BookCall() {
     if (!slot) return setError('Pick a time first.');
     if (!name.trim()) return setError('Add your name so we know who we are talking to.');
     if (!email.trim()) return setError('Add an email address for the confirmation.');
-    if (!phoneLooksRight(phone)) return setError('That phone number looks too short or too long. Check it, or leave it empty.');
+    if (!phone.number) return setError('Add a phone number, in case we need to reach you about the call.');
+    if (!phoneLooksRight(phone)) return setError('That phone number looks too short or too long. Check it and try again.');
     setSending(true);
     setError(null);
     try {
@@ -131,7 +132,7 @@ export function BookCall() {
           <label htmlFor="b-company" className="label">Organisation</label>
           <input id="b-company" className="field" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" maxLength={150} />
         </div>
-        <PhoneField id="b-phone" label="Phone (optional)" value={phone} onChange={setPhone} />
+        <PhoneField id="b-phone" label="Phone *" value={phone} onChange={setPhone} />
         <div>
           <label htmlFor="b-notes" className="label">What would you like to talk about?</label>
           <textarea

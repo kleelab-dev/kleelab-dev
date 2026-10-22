@@ -329,7 +329,7 @@ export const apiService = {
     email: string;
     company?: string | null;
     /** International form: +2348031234567. */
-    phone?: string | null;
+    phone: string | null;
     notes?: string | null;
     starts_at: string;
     website?: string;

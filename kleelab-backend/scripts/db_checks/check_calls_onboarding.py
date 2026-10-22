@@ -77,23 +77,30 @@ async def main():
 
             # --- Booking -----------------------------------------------------------------
             first, second, third = slots[0], slots[1], slots[2]
-            r = await c.post('/api/calls', json={'name': 'Caller Zero', 'email': callers[0].upper(), 'company': 'Zero Ltd',
+            r = await c.post('/api/calls', json={'name': 'No Phone', 'email': callers[0], 'starts_at': iso(first)})
+            check('phone needed', r.status_code == 422)
+            r = await c.post('/api/calls', json={'phone': '08031234567', 'name': 'Local Phone', 'email': callers[0], 'starts_at': iso(first)})
+            check('phone needs its country code', r.status_code == 422)
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Caller Zero', 'email': callers[0].upper(), 'company': 'Zero Ltd',
                                                  'notes': 'A booking site for my salon', 'starts_at': iso(first)})
             booked = r.json()
             token = booked.get('token')
             check('book a call', r.status_code == 201 and token and parse(booked['starts_at']) == first
                   and booked['status'] == 'booked' and 'calendar.google.com' in booked['calendar_url'])
             check('booker and team told', sent['confirm'][-1][0] == callers[0] and sent['team'][-1][0].startswith('Call booked'))
+            async with AsyncSessionLocal() as db:
+                saved = await db.scalar(select(CallBooking.phone).where(CallBooking.email == callers[0]))
+            check('phone saved', saved == '+2348031234567')
             r = await c.get('/api/calls/slots')
             check('booked time no longer offered', iso(first).replace('+00:00', 'Z') not in r.json()['slots']
                   and first not in [parse(s) for s in r.json()['slots']])
-            r = await c.post('/api/calls', json={'name': 'Caller One', 'email': callers[1], 'starts_at': iso(first)})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Caller One', 'email': callers[1], 'starts_at': iso(first)})
             check('same time refused', r.status_code == 409)
-            r = await c.post('/api/calls', json={'name': 'Caller Zero', 'email': callers[0], 'starts_at': iso(second)})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Caller Zero', 'email': callers[0], 'starts_at': iso(second)})
             check('one booked call per person', r.status_code == 409 and 'already have a call' in r.json()['error']['message'])
-            r = await c.post('/api/calls', json={'name': 'Night', 'email': callers[1], 'starts_at': iso(first.replace(hour=2))})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Night', 'email': callers[1], 'starts_at': iso(first.replace(hour=2))})
             check('time outside opening hours refused', r.status_code == 409)
-            r = await c.post('/api/calls', json={'name': 'Bot', 'email': callers[2], 'starts_at': iso(third), 'website': 'spam.example'})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Bot', 'email': callers[2], 'starts_at': iso(third), 'website': 'spam.example'})
             async with AsyncSessionLocal() as db:
                 bot = await db.scalar(select(CallBooking).where(CallBooking.email == callers[2]))
                 lead = await db.scalar(select(AgencyLead).where(AgencyLead.email == callers[0]))
@@ -101,7 +108,7 @@ async def main():
             check('booking makes an enquiry', lead and lead.source == 'call' and lead.status == 'call' and lead.company == 'Zero Ltd'
                   and lead.message == 'A booking site for my salon')
 
-            r = await c.post('/api/calls', json={'name': 'Existing', 'email': callers[3], 'starts_at': iso(third)})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Existing', 'email': callers[3], 'starts_at': iso(third)})
             third_token = r.json()['token']
             async with AsyncSessionLocal() as db:
                 leads = list(await db.scalars(select(AgencyLead).where(AgencyLead.email == callers[3])))
@@ -127,7 +134,7 @@ async def main():
             check('cannot cancel twice', r.status_code == 409)
             r = await c.post(f'/api/calls/{token}/reschedule', json={'starts_at': iso(first)})
             check('cannot move a cancelled call', r.status_code == 409)
-            r = await c.post('/api/calls', json={'name': 'Caller Zero', 'email': callers[0], 'starts_at': iso(second)})
+            r = await c.post('/api/calls', json={'phone': '+2348031234567', 'name': 'Caller Zero', 'email': callers[0], 'starts_at': iso(second)})
             check('book again after cancelling', r.status_code == 201)
 
             # --- The team's side -----------------------------------------------------------

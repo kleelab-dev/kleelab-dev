@@ -148,7 +148,7 @@ async def book_call(payload: CallBook, request: Request, db: AsyncSession = Depe
     _tell_team(booking, f"Call booked: {name}, {svc.when(booking)}", [
         f"{name} ({email}){f' from {company}' if company else ''} booked a {booking.duration_minutes}-minute call "
         f"for {svc.when(booking)}.",
-        *([f"Phone: {payload.phone}"] if payload.phone else []),
+        f"Phone: {payload.phone}",
         f"They want to talk about: {notes}" if notes else "They did not say what about.",
     ])
     return svc.booked(booking)

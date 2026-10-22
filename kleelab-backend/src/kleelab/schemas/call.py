@@ -19,8 +19,8 @@ class CallBook(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     company: str | None = Field(default=None, max_length=150)
-    # Optional. The country code and the number, digits only: +2348031234567.
-    phone: str | None = Field(default=None, pattern=r"^\+[1-9]\d{6,14}$")
+    # The country code and the number, digits only: +2348031234567.
+    phone: str = Field(pattern=r"^\+[1-9]\d{6,14}$")
     notes: str | None = Field(default=None, max_length=2000)
     starts_at: datetime
     # Honeypot, as on the contact form: hidden, so only a bot fills it in.
