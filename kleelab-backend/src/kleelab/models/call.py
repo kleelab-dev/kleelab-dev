@@ -32,6 +32,8 @@ class CallBooking(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     company: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Optional, in international form: +2348031234567.
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # What they want to talk about.
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Naive UTC, like every other timestamp.

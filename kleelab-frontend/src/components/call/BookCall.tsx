@@ -6,6 +6,7 @@ import { CalendarDaysIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { ApiError, apiService } from '@/services/api';
 import { Button, buttonClass } from '@/components/ui/Button';
 import { Bone, Loading } from '@/components/ui/States';
+import { PhoneField, fullPhone, phoneLooksRight, type Phone } from '@/components/ui/PhoneField';
 import { errorText } from '@/components/project/format';
 import { SlotPicker, callWhen, sameClockAsTeam, teamTime } from '@/components/call/SlotPicker';
 import type { CallBooked, CallSlots } from '@/types/api';
@@ -18,6 +19,7 @@ export function BookCall() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [phone, setPhone] = useState<Phone>({ iso: 'NG', number: '' });
   const [notes, setNotes] = useState('');
   // Honeypot, as on the contact form.
   const [website, setWebsite] = useState('');
@@ -48,6 +50,7 @@ export function BookCall() {
     if (!slot) return setError('Pick a time first.');
     if (!name.trim()) return setError('Add your name so we know who we are talking to.');
     if (!email.trim()) return setError('Add an email address for the confirmation.');
+    if (!phoneLooksRight(phone)) return setError('That phone number looks too short or too long. Check it, or leave it empty.');
     setSending(true);
     setError(null);
     try {
@@ -56,6 +59,7 @@ export function BookCall() {
           name: name.trim(),
           email: email.trim(),
           company: company.trim() || null,
+          phone: fullPhone(phone),
           notes: notes.trim() || null,
           starts_at: slot,
           website,
@@ -127,6 +131,7 @@ export function BookCall() {
           <label htmlFor="b-company" className="label">Organisation</label>
           <input id="b-company" className="field" value={company} onChange={(e) => setCompany(e.target.value)} autoComplete="organization" maxLength={150} />
         </div>
+        <PhoneField id="b-phone" label="Phone (optional)" value={phone} onChange={setPhone} />
         <div>
           <label htmlFor="b-notes" className="label">What would you like to talk about?</label>
           <textarea

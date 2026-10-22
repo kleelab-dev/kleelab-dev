@@ -128,7 +128,7 @@ async def book_call(payload: CallBook, request: Request, db: AsyncSession = Depe
         # Further along already (a proposal is out) stays where it is.
         lead.status = "call"
     booking = CallBooking(
-        lead_id=lead.id, name=name, email=email, company=company, notes=notes,
+        lead_id=lead.id, name=name, email=email, company=company, phone=payload.phone, notes=notes,
         starts_at=starts_at, duration_minutes=settings.CALL_MINUTES, status="booked", token=svc.new_token(),
     )
     db.add(booking)
@@ -148,6 +148,7 @@ async def book_call(payload: CallBook, request: Request, db: AsyncSession = Depe
     _tell_team(booking, f"Call booked: {name}, {svc.when(booking)}", [
         f"{name} ({email}){f' from {company}' if company else ''} booked a {booking.duration_minutes}-minute call "
         f"for {svc.when(booking)}.",
+        *([f"Phone: {payload.phone}"] if payload.phone else []),
         f"They want to talk about: {notes}" if notes else "They did not say what about.",
     ])
     return svc.booked(booking)

@@ -84,7 +84,15 @@ export function CallCard({
           </div>
         </>
       )}
-      {call.notes && <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink-soft">{call.notes}</p>}
+      {call.phone && (
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm text-muted">
+          <a href={`tel:${call.phone}`} className="font-mono text-ink no-underline hover:text-cobalt">{call.phone}</a>
+          <a href={`https://wa.me/${call.phone.slice(1)}`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-cobalt">
+            WhatsApp
+          </a>
+        </p>
+      )}
+      {call.notes &&<p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink-soft">{call.notes}</p>}
       {call.status === 'cancelled' && call.cancel_reason && (
         <p className="mt-3 rounded-lg bg-paper px-3 py-2 text-sm text-muted">Reason: {call.cancel_reason}</p>
       )}

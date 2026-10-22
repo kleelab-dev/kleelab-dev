@@ -146,6 +146,7 @@ def team(booking: CallBooking) -> TeamCallOut:
         name=booking.name,
         email=booking.email,
         company=booking.company,
+        phone=booking.phone,
         notes=booking.notes,
         starts_at=aware(booking.starts_at),
         duration_minutes=booking.duration_minutes,

@@ -548,6 +548,7 @@ export interface TeamCall {
   name: string;
   email: string;
   company: string | null;
+  phone: string | null;
   notes: string | null;
   starts_at: string;
   duration_minutes: number;

@@ -328,6 +328,8 @@ export const apiService = {
     name: string;
     email: string;
     company?: string | null;
+    /** International form: +2348031234567. */
+    phone?: string | null;
     notes?: string | null;
     starts_at: string;
     website?: string;
