@@ -412,15 +412,20 @@ def post_to_slack(text: str, link: str | None = None) -> bool:
 
 
 def send_team_notice(
-    subject: str, lines: list[str], project_id: str | None = None, also_to: list[str] | None = None
+    subject: str,
+    lines: list[str],
+    project_id: str | None = None,
+    also_to: list[str] | None = None,
+    path: str | None = None,
 ) -> bool:
     """Tell the KleeLab team something happened that needs a person.
 
     Goes to the team inbox, to `also_to` (the person in charge of the project),
-    and to Slack when it is set up, with a link straight to the project.
+    and to Slack when it is set up, with a link straight to the project, or to
+    `path` in the team dashboard for anything that is not a project.
     """
 
-    link = _admin_link(f"projects/{project_id}") if project_id else None
+    link = _admin_link(f"projects/{project_id}") if project_id else _admin_link(path) if path else None
     body = _layout(
         label="for the team",
         heading=subject,
@@ -528,6 +533,76 @@ def send_proposal_email(
                 + "Questions or changes? Reply to this email and we will update it."
             ),
             footer="You are getting this because you asked KleeLab for a proposal.",
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )
+
+
+# --- Calls ---------------------------------------------------------------------
+
+
+def send_call_confirmation(
+    email: str,
+    name: str,
+    when: str,
+    minutes: int,
+    manage_url: str,
+    calendar_url: str,
+    meeting_url: str | None,
+    moved: bool = False,
+) -> bool:
+    """Confirm a booked (or moved) call, with the joining link and a way to change it."""
+
+    join = (
+        _p(f'Join here at that time: <a href="{escape(meeting_url, quote=True)}" style="color:{COBALT}">'
+           f"{escape(meeting_url)}</a>")
+        if meeting_url
+        else _p("We will email you the video link before the call.")
+    )
+    return _send(
+        email,
+        f"{'Moved' if moved else 'Booked'}: your call with KleeLab, {when}",
+        _layout(
+            label="call moved" if moved else "call booked",
+            heading=when,
+            preheader=f"Your {minutes}-minute call with KleeLab is {'now ' if moved else ''}on {when}.",
+            body=_p(f"Hi {escape(name)},")
+            + _p(f"Your free {minutes}-minute call is {'now ' if moved else ''}booked for "
+                 f"<strong style=\"color:{INK}\">{escape(when)}</strong>.")
+            + join
+            + _p("Bring whatever helps: a site you like, a rough idea, a budget. "
+                 "We will listen first, then tell you honestly what we would build and roughly what it costs.")
+            + _p(f'<a href="{escape(calendar_url, quote=True)}" style="color:{COBALT}">Add it to Google Calendar</a>'),
+            button=("Move or cancel the call", manage_url),
+            footer="You are getting this because you booked a call with KleeLab.",
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )
+
+
+def send_call_cancelled(
+    email: str, name: str, when: str, book_url: str, by_team: bool, reason: str | None = None
+) -> bool:
+    """Confirm a cancelled call, or tell the booker we had to cancel it."""
+
+    if by_team:
+        lead = _p(f"We are sorry: we have had to cancel your call on {escape(when)}.")
+        if reason:
+            lead += _p(escape(reason))
+        again = _p("Please pick another time that suits you. It only takes a minute.")
+    else:
+        lead = _p(f"Your call on {escape(when)} is cancelled. Nothing else to do.")
+        again = _p("If you would like to talk another time, book again whenever suits you.")
+    return _send(
+        email,
+        f"Cancelled: your call with KleeLab, {when}",
+        _layout(
+            label="call cancelled",
+            heading="Your call is cancelled",
+            preheader=f"The call on {when} is cancelled.",
+            body=_p(f"Hi {escape(name)},") + lead + again,
+            button=("Book another time", book_url),
+            footer="You are getting this because you booked a call with KleeLab.",
         ),
         reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
     )

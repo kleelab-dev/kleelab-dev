@@ -15,7 +15,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from kleelab.core.database import Base
@@ -80,6 +80,15 @@ class Project(Base):
         uselist=False,
         viewonly=True,
     )
+    # What we need from the client to get going: their logo, their words, access.
+    checklist = relationship(
+        "ProjectChecklistItem",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="ProjectChecklistItem.position",
+    )
+    # Everything the client needs once it is theirs, written up at the end.
+    handover = relationship("ProjectHandover", back_populates="project", cascade="all, delete-orphan", uselist=False)
 
 
 class ProjectStage(Base):
@@ -271,3 +280,56 @@ class InvoicePayment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     invoice = relationship("ProjectInvoice")
+
+
+class ProjectChecklistItem(Base):
+    """One thing we need from the client before the work can get going.
+
+    The client ticks it off on their project page; the team can tick it too
+    when it arrived some other way, by email or on a call.
+    """
+
+    __tablename__ = "project_checklist_items"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    done_by_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # Left by whoever ticked it: "sent by email", "Ada signs off".
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    project = relationship("Project", back_populates="checklist")
+    done_by = relationship("User")
+
+
+class ProjectHandover(Base):
+    """The hand-over pack: where everything lives and how to look after it.
+
+    The team writes it while finishing the project and publishes it when it is
+    ready; the client sees nothing until then. Items are labelled links and
+    facts (the live address, the registrar, where the code is). Passwords never
+    go here: they are shared by a password manager or in person.
+    """
+
+    __tablename__ = "project_handovers"
+
+    id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # [{"label": str, "value": str | None, "url": str | None}]
+    items: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    project = relationship("Project", back_populates="handover")

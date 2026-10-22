@@ -163,6 +163,33 @@ export interface ProjectDetail {
   owner_id: string | null;
   owner_name: string | null;
   lead_id: string | null;
+  /** Getting started: what the team needs from the client to begin. */
+  checklist: ChecklistItem[];
+  /** Only once the team has published it. */
+  handover: Handover | null;
+}
+
+export interface ChecklistItem {
+  id: string;
+  position: number;
+  title: string;
+  description: string | null;
+  done_at: string | null;
+  note: string | null;
+  done_by_name: string | null;
+}
+
+export interface HandoverItem {
+  label: string;
+  value: string | null;
+  url: string | null;
+}
+
+export interface Handover {
+  notes: string | null;
+  items: HandoverItem[];
+  published_at: string | null;
+  updated_at: string;
 }
 
 export type AttentionKind =
@@ -227,4 +254,37 @@ export interface ProposalAccepted {
   /** False when that email did not go out, so they set a password through "forgot password". */
   invite_sent: boolean;
   email: string;
+}
+
+// --- Free first calls ----------------------------------------------------------
+
+export interface CallSlots {
+  duration_minutes: number;
+  /** The team's time zone, e.g. "Lagos time (WAT)". */
+  timezone_label: string;
+  utc_offset_minutes: number;
+  /** Free start times in UTC, soonest first. */
+  slots: string[];
+}
+
+/** A booked call, as the booker sees it from their link. */
+export interface PublicCall {
+  name: string;
+  company: string | null;
+  notes: string | null;
+  starts_at: string;
+  duration_minutes: number;
+  status: 'booked' | 'cancelled';
+  past: boolean;
+  cancelled_at: string | null;
+  cancelled_by: 'client' | 'team' | null;
+  cancel_reason: string | null;
+  meeting_url: string | null;
+  calendar_url: string;
+  timezone_label: string;
+  utc_offset_minutes: number;
+}
+
+export interface CallBooked extends PublicCall {
+  token: string;
 }

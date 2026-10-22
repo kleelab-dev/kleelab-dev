@@ -17,7 +17,7 @@ AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 Base = declarative_base()
 
 from kleelab.models import (  # noqa: E402, F401
-    agency_lead, analytics, asset, order, page, page_version, product,
+    agency_lead, analytics, asset, call, order, page, page_version, product,
     project, proposal, site, template, user,
 )
 

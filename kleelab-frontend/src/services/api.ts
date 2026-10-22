@@ -1,4 +1,6 @@
 import type {
+  CallBooked,
+  CallSlots,
   ChatReply,
   ChatTurn,
   PaymentResult,
@@ -8,6 +10,7 @@ import type {
   ProjectFile,
   ProjectSummary,
   ProposalAccepted,
+  PublicCall,
   PublicProposal,
   RequestKind,
   User,
@@ -306,6 +309,35 @@ export const apiService = {
     return post<PublicProposal>(`/api/proposals/${encodeURIComponent(token)}/decline`, { reason: reason || null, revision });
   },
 
+  // --- Free first calls (public: the link is the key) --------------------------
+
+  async getCallSlots(): Promise<CallSlots> {
+    return request<CallSlots>('/api/calls/slots');
+  },
+
+  async bookCall(payload: {
+    name: string;
+    email: string;
+    company?: string | null;
+    notes?: string | null;
+    starts_at: string;
+    website?: string;
+  }): Promise<CallBooked> {
+    return post<CallBooked>('/api/calls', payload);
+  },
+
+  async getCall(token: string): Promise<PublicCall> {
+    return request<PublicCall>(`/api/calls/${encodeURIComponent(token)}`);
+  },
+
+  async rescheduleCall(token: string, startsAt: string): Promise<PublicCall> {
+    return post<PublicCall>(`/api/calls/${encodeURIComponent(token)}/reschedule`, { starts_at: startsAt });
+  },
+
+  async cancelCall(token: string, reason: string): Promise<PublicCall> {
+    return post<PublicCall>(`/api/calls/${encodeURIComponent(token)}/cancel`, { reason: reason || null });
+  },
+
   async submitLead(payload: {
     email: string;
     name?: string | null;
@@ -329,6 +361,11 @@ export const apiService = {
   /** Clients see their own projects; the team can open any of them. */
   async getProject(projectId: string): Promise<ProjectDetail> {
     return request<ProjectDetail>(`/api/projects/${projectId}`);
+  },
+
+  /** Tick a Getting started item off (or back on), with an optional note for the team. */
+  async tickChecklist(projectId: string, itemId: string, done: boolean, note?: string | null): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/checklist/${itemId}`, { done, note: note || null });
   },
 
   async sendMessage(projectId: string, body: string, attachmentIds: string[] = []): Promise<ProjectDetail> {

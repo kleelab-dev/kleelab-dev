@@ -16,6 +16,7 @@ from kleelab.models.project import Project, ProjectFile, ProjectRequest, Project
 from kleelab.models.user import User
 from kleelab.schemas.project import (
     ApprovalDecision,
+    ChecklistTick,
     FileOut,
     MessageCreate,
     ProjectDetail,
@@ -188,6 +189,59 @@ async def decide_approval(
     )
     project = await svc.load_project(db, project_id, user)
     return svc.detail(project)
+
+
+@router.post("/{project_id}/checklist/{item_id}", response_model=ProjectDetail)
+async def tick_checklist(
+    project_id: UUID,
+    item_id: UUID,
+    payload: ChecklistTick,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProjectDetail:
+    """Tick off (or untick) something we asked for, with an optional note.
+
+    The team can tick it too, when it came by email or on a call. When a
+    client ticks off the last one, the team is told the project is ready to go.
+    """
+
+    project = await svc.load_project(db, project_id, user)
+    item = next((i for i in project.checklist if i.id == item_id), None)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found")
+    staff = svc.is_staff(user)
+    was_done = svc.checklist_done(project)
+    note = (payload.note or "").strip() or None
+    if payload.done:
+        changed = item.done_at is None
+        if changed:
+            item.done_at = svc.now()
+            item.done_by_id = user.id
+        item.note = note if "note" in payload.model_fields_set else item.note
+        if changed:
+            activity.record(
+                db, user, "checklist.done",
+                f"Ticked off {quoted(item.title)}" + (f": {quoted(note)}" if note else ""),
+                project_id=project.id, subject_type="project", subject_id=project.id,
+            )
+    elif item.done_at is not None:
+        item.done_at = None
+        item.done_by_id = None
+        item.note = None
+        activity.record(db, user, "checklist.undone", f"Unticked {quoted(item.title)}",
+                        project_id=project.id, subject_type="project", subject_id=project.id)
+    await svc.touch(db, project)
+    await db.commit()
+    project = await svc.load_project(db, project_id, user)
+    if not staff and not was_done and svc.checklist_done(project):
+        _notify_team(
+            project,
+            f"[{project.reference}] Everything is in to get started",
+            [f"{user.full_name or user.email} has ticked off everything on the Getting started list for "
+             f"{project.title}."]
+            + [f"{i.title}: {i.note}" for i in project.checklist if i.note],
+        )
+    return svc.detail(project, team=staff)
 
 
 @router.post("/{project_id}/requests", response_model=ProjectDetail, status_code=status.HTTP_201_CREATED)

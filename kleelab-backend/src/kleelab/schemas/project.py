@@ -122,6 +122,34 @@ class ProjectSummary(BaseModel):
     awaiting_reply: bool = False
 
 
+class ChecklistItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    position: int
+    title: str
+    description: str | None
+    done_at: datetime | None
+    note: str | None
+    done_by_name: str | None = None
+
+
+class HandoverItem(BaseModel):
+    """One line of the hand-over pack: a fact, a link, or both."""
+
+    label: str = Field(min_length=1, max_length=100)
+    value: str | None = Field(default=None, max_length=500)
+    url: HttpUrl | None = None
+
+
+class HandoverOut(BaseModel):
+    notes: str | None
+    items: list[HandoverItem]
+    # Null while the team is still writing it. Clients only see it once set.
+    published_at: datetime | None
+    updated_at: datetime
+
+
 class ProjectDetail(BaseModel):
     id: UUID
     reference: str
@@ -141,6 +169,10 @@ class ProjectDetail(BaseModel):
     # Still to be billed at hand-over: the rest of the accepted proposal's price.
     balance_due_cents: int | None = None
     balance_currency: str | None = None
+    # What we need from the client to get started, in order.
+    checklist: list[ChecklistItemOut] = []
+    # The hand-over pack: always for the team, for the client once published.
+    handover: HandoverOut | None = None
     client_email: str | None = None
     client_name: str | None = None
     # Team view only.
@@ -208,6 +240,26 @@ class ProjectPatch(BaseModel):
     owner_id: UUID | None = None
 
 
+class ChecklistTick(BaseModel):
+    done: bool
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ChecklistItemCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=150)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class ChecklistItemPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class HandoverSave(BaseModel):
+    notes: str | None = Field(default=None, max_length=10000)
+    items: list[HandoverItem] = Field(default_factory=list, max_length=40)
+
+
 class StagePatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     status: StageStatus | None = None
@@ -269,7 +321,8 @@ class StaffMember(BaseModel):
 class AttentionItem(BaseModel):
     """One thing across all projects that a person should look at."""
 
-    # new_enquiry | follow_up | client_message | open_request | waiting_approval | overdue_step | unpaid_invoice
+    # new_enquiry | follow_up | upcoming_call | client_message | open_request | waiting_approval
+    # | overdue_step | unpaid_invoice | checklist_waiting | handover_missing
     kind: str
     project_id: UUID | None
     reference: str | None

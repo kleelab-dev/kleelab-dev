@@ -9,6 +9,7 @@ import type {
   ClientDetail,
   ClientPatchInput,
   ClientSummary,
+  HandoverItem,
   InvoiceCreateInput,
   InvoicePatchInput,
   Lead,
@@ -27,6 +28,7 @@ import type {
   StaffMember,
   StagePatchInput,
   StaffUpdateInput,
+  TeamCall,
   TeamMember,
   TwoStepChallenge,
   TwoStepSetup,
@@ -219,6 +221,10 @@ function post<T>(path: string, body?: unknown): Promise<T> {
 
 function patch<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify(body) });
+}
+
+function put<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(body) });
 }
 
 /** Fetch a signed-in download and hand it to the browser to save. */
@@ -495,6 +501,54 @@ export const apiService = {
 
   async adminRemindInvoice(projectId: string, invoiceId: string): Promise<ProjectDetail> {
     return post<ProjectDetail>(`/api/admin/projects/${projectId}/invoices/${invoiceId}/remind`, {});
+  },
+
+  // --- Getting started checklist ----------------------------------------------
+
+  async adminAddChecklistItem(projectId: string, title: string, description?: string | null): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/checklist`, { title, description: description || null });
+  },
+
+  /** Put back any of the standard items the project is missing. */
+  async adminAddStandardChecklist(projectId: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/checklist/standard`);
+  },
+
+  async adminUpdateChecklistItem(projectId: string, itemId: string, input: { title?: string; description?: string | null }): Promise<ProjectDetail> {
+    return patch<ProjectDetail>(`/api/admin/projects/${projectId}/checklist/${itemId}`, input);
+  },
+
+  async adminDeleteChecklistItem(projectId: string, itemId: string): Promise<ProjectDetail> {
+    return request<ProjectDetail>(`/api/admin/projects/${projectId}/checklist/${itemId}`, { method: 'DELETE' });
+  },
+
+  /** Tick for the client, e.g. when the thing came by email. Same route the client uses. */
+  async tickChecklist(projectId: string, itemId: string, done: boolean, note?: string | null): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/projects/${projectId}/checklist/${itemId}`, { done, note: note || null });
+  },
+
+  // --- Hand-over pack -----------------------------------------------------------
+
+  async adminSaveHandover(projectId: string, input: { notes: string | null; items: HandoverItem[] }): Promise<ProjectDetail> {
+    return put<ProjectDetail>(`/api/admin/projects/${projectId}/handover`, input);
+  },
+
+  async adminPublishHandover(projectId: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/handover/publish`);
+  },
+
+  async adminUnpublishHandover(projectId: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/handover/unpublish`);
+  },
+
+  // --- Calls ----------------------------------------------------------------------
+
+  async adminCalls(): Promise<TeamCall[]> {
+    return request<TeamCall[]>('/api/admin/calls');
+  },
+
+  async adminCancelCall(callId: string, reason: string): Promise<TeamCall> {
+    return post<TeamCall>(`/api/admin/calls/${callId}/cancel`, { reason: reason || null });
   },
 
   async adminLeads(): Promise<Lead[]> {

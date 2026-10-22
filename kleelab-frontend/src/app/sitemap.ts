@@ -8,6 +8,7 @@ const PAGES: [path: string, priority: number][] = [
   ['/how-we-build', 0.8],
   ['/care', 0.8],
   ['/contact', 0.8],
+  ['/book', 0.8],
   ['/work', 0.7],
   ['/about', 0.6],
   ['/privacy', 0.3],

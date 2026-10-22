@@ -24,6 +24,7 @@ import {
 import { ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
 import type { LeadDetail, LeadPatchInput, LeadStatus } from '@/types/api';
+import { CallCard } from '@/components/calls/CallCard';
 
 const STATUS_ACTIONS: { value: LeadStatus; label: string }[] = [
   { value: 'new', label: 'New' },
@@ -119,6 +120,27 @@ export function LeadView({ leadId }: { leadId: string }) {
               <p className="text-sm text-muted">No message was left.</p>
             )}
           </Panel>
+
+          {lead.calls.length > 0 && (
+            <section>
+              <p className="tag">free first call</p>
+              <h2 className="mt-1 font-display text-xl font-extrabold tracking-tight">{lead.calls.length === 1 ? 'Call' : 'Calls'}</h2>
+              <div className="mt-3 grid gap-3">
+                {lead.calls.map((call) => (
+                  <CallCard
+                    key={call.id}
+                    call={call}
+                    showLead={false}
+                    onChange={(next) => {
+                      setLead({ ...lead, calls: lead.calls.map((c) => (c.id === next.id ? next : c)) });
+                      setError(null);
+                      setNotice(`Call cancelled. ${lead.name || lead.email} has been emailed.`);
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <Proposals lead={lead} onError={setError} />
 

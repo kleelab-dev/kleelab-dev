@@ -3,6 +3,7 @@ import { studio } from '@/content/site';
 import { AskButton } from '@/components/site/AskButton';
 import { ContactForm } from '@/components/site/ContactForm';
 import { PageHero } from '@/components/site/Section';
+import { ButtonLink } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
   title: 'Start a project',
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 
 const NEXT_STEPS = [
   'We reply within one working day.',
-  'A free 30-minute call to understand what you need.',
+  'A free 30-minute call to understand what you need. You can book it yourself right now if you prefer.',
   'A written plan with dates and a fixed price.',
   'You approve it and the work starts.',
   'We email you a link to choose a password, and your project dashboard is ready the same day. There is nothing to sign up for.',
@@ -45,6 +46,15 @@ export default function ContactPage() {
                   </li>
                 ))}
               </ol>
+            </div>
+            <div className="rounded-2xl border-[1.5px] border-ink bg-sun-soft p-6">
+              <p className="tag">Rather talk first?</p>
+              <p className="mt-3 leading-relaxed text-muted">
+                Skip the form and pick a time for a free 30-minute call with the team.
+              </p>
+              <ButtonLink href="/book" variant="sun" className="mt-4">
+                Book a free call
+              </ButtonLink>
             </div>
             <div className="rounded-2xl border-[1.5px] border-dashed border-ink p-6">
               <p className="tag">Rather just ask?</p>

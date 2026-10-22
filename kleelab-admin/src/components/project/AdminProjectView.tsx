@@ -11,6 +11,8 @@ import type { ProjectDetail, ProjectStatus, RequestStatus, Stage, StaffMember, S
 import { FilesPanel } from './FilesPanel';
 import { errorText, staffLabel, PROJECT_STATUS, REQUEST_STATUS, STAGE_STATUS, stageLabel, toDateInput } from './format';
 import { AttachmentPicker, useAttachments } from './AttachmentPicker';
+import { ChecklistEditor } from './ChecklistEditor';
+import { HandoverEditor } from './HandoverEditor';
 import { AdminInvoices } from './Invoices';
 import { Panel } from './Pill';
 import { ProjectHeader } from './ProjectHeader';
@@ -96,6 +98,14 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
   };
   const quiet = (work: () => Promise<ProjectDetail>) => save(work).catch(() => undefined);
   const openRequests = project.requests.filter((r) => r.status === 'open').length;
+  const stillNeeded = project.checklist.filter((i) => !i.done_at).length;
+  // The pack matters once the work is nearly done; before that it sits lower down.
+  const handingOver = project.status === 'completed' || Boolean(project.handover);
+  const handover = (
+    <Panel tag="hand-over" title="Hand-over pack">
+      <HandoverEditor key={project.handover?.updated_at ?? 'new'} project={project} save={save} />
+    </Panel>
+  );
 
   return (
     <div>
@@ -105,14 +115,19 @@ export function AdminProjectView({ projectId }: { projectId: string }) {
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="grid content-start gap-6">
+          {handingOver && handover}
           <Panel tag="write" title="Post an update">
             <PostUpdate project={project} save={save} />
           </Panel>
           <Panel tag="history" title="Everything posted">
             <UpdateFeed projectId={project.id} updates={project.updates} stages={project.stages} team empty="Nothing posted yet." />
           </Panel>
+          {!handingOver && handover}
         </div>
         <aside className="grid content-start gap-6">
+          <Panel tag={stillNeeded ? `waiting on ${stillNeeded}` : 'getting started'} title="What we need from the client">
+            <ChecklistEditor project={project} save={save} />
+          </Panel>
           <Panel tag="plan" title="Steps">
             <StageTimeline
               stages={project.stages}

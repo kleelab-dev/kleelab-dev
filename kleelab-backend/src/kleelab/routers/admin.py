@@ -1,7 +1,7 @@
 """The KleeLab team's side: set projects up, post progress, answer requests."""
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -14,7 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
 from kleelab.models.agency_lead import AgencyLead, LeadNote
-from kleelab.models.project import Project, ProjectInvoice, ProjectStage, ProjectUpdate
+from kleelab.models.call import CallBooking
+from kleelab.models.project import (
+    Project,
+    ProjectChecklistItem,
+    ProjectHandover,
+    ProjectInvoice,
+    ProjectStage,
+    ProjectUpdate,
+)
 from kleelab.models.proposal import Proposal
 from kleelab.models.refresh_token import RefreshToken
 from kleelab.models.user import User
@@ -22,12 +30,15 @@ from kleelab.schemas.agency import LeadDetail, LeadNoteCreate, LeadNoteOut, Lead
 from kleelab.schemas.project import (
     AdminInvoiceOut,
     AttentionItem,
+    ChecklistItemCreate,
+    ChecklistItemPatch,
     ClientDetail,
     ClientPatch,
     ClientSummary,
     InvoiceCreate,
     InvoiceOut,
     InvoicePatch,
+    HandoverSave,
     MoneyTotal,
     ProjectCreate,
     ProjectCreated,
@@ -43,6 +54,7 @@ from kleelab.schemas.project import (
 )
 from kleelab.services import activity
 from kleelab.services import billing
+from kleelab.services import calls as call_svc
 from kleelab.services import projects as svc
 from kleelab.services import proposals as proposal_svc
 from kleelab.services import sessions
@@ -70,6 +82,10 @@ PROJECT_STATUS_WORDS = {
     "completed": "finished",
     "cancelled": "cancelled",
 }
+# Calls the overview lists ahead of time.
+CALL_SOON_DAYS = 2
+# Days a project waits on its Getting started list before the overview flags it.
+CHECKLIST_WAIT_DAYS = 5
 PROJECT_FIELD_WORDS = {
     "title": "the name",
     "summary": "the summary",
@@ -445,6 +461,180 @@ async def patch_stage(
     return await _reload(db, project_id, staff)
 
 
+# --- Getting started checklist ------------------------------------------------
+
+
+def _find_item(project: Project, item_id: UUID) -> ProjectChecklistItem:
+    item = next((i for i in project.checklist if i.id == item_id), None)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found")
+    return item
+
+
+@router.post(
+    "/projects/{project_id}/checklist", response_model=ProjectDetail, status_code=status.HTTP_201_CREATED
+)
+async def add_checklist_item(
+    project_id: UUID,
+    payload: ChecklistItemCreate,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> ProjectDetail:
+    """Ask the client for one more thing."""
+
+    project = await svc.load_project(db, project_id, staff)
+    title = payload.title.strip()
+    project.checklist.append(
+        ProjectChecklistItem(
+            position=len(project.checklist),
+            title=title,
+            description=(payload.description or "").strip() or None,
+        )
+    )
+    activity.record(db, staff, "checklist.add", f"Asked the client for {quoted(title)}",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
+    await svc.touch(db, project)
+    await db.commit()
+    return await _reload(db, project_id, staff)
+
+
+@router.post("/projects/{project_id}/checklist/standard", response_model=ProjectDetail)
+async def add_standard_checklist(
+    project_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> ProjectDetail:
+    """Add the usual list to a project that has none (or is missing some of it)."""
+
+    project = await svc.load_project(db, project_id, staff)
+    have = {item.title.strip().lower() for item in project.checklist}
+    missing = [(title, text) for title, text in svc.DEFAULT_CHECKLIST if title.lower() not in have]
+    if missing:
+        project.checklist.extend(svc.build_checklist(len(project.checklist), missing))
+        count = f"{len(missing)} item{'s' if len(missing) != 1 else ''}"
+        activity.record(db, staff, "checklist.add", f"Added the standard Getting started list ({count})",
+                        project_id=project.id, subject_type="project", subject_id=project.id)
+        await svc.touch(db, project)
+        await db.commit()
+    return await _reload(db, project_id, staff)
+
+
+@router.patch("/projects/{project_id}/checklist/{item_id}", response_model=ProjectDetail)
+async def patch_checklist_item(
+    project_id: UUID,
+    item_id: UUID,
+    payload: ChecklistItemPatch,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> ProjectDetail:
+    project = await svc.load_project(db, project_id, staff)
+    item = _find_item(project, item_id)
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("title"):
+        item.title = changes["title"].strip()
+    if "description" in changes:
+        item.description = (changes["description"] or "").strip() or None
+    await db.commit()
+    return await _reload(db, project_id, staff)
+
+
+@router.delete("/projects/{project_id}/checklist/{item_id}", response_model=ProjectDetail)
+async def delete_checklist_item(
+    project_id: UUID, item_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> ProjectDetail:
+    project = await svc.load_project(db, project_id, staff)
+    item = _find_item(project, item_id)
+    project.checklist.remove(item)
+    for index, rest in enumerate(project.checklist):
+        rest.position = index
+    activity.record(db, staff, "checklist.remove", f"Took {quoted(item.title)} off the Getting started list",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
+    await db.commit()
+    return await _reload(db, project_id, staff)
+
+
+# --- Hand-over pack -------------------------------------------------------------
+
+
+@router.put("/projects/{project_id}/handover", response_model=ProjectDetail)
+async def save_handover(
+    project_id: UUID,
+    payload: HandoverSave,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> ProjectDetail:
+    """Write or update the pack. Once published, the client sees changes straight away."""
+
+    project = await svc.load_project(db, project_id, staff)
+    pack = project.handover
+    if pack is None:
+        pack = ProjectHandover(project_id=project.id)
+        db.add(pack)
+    pack.notes = (payload.notes or "").strip() or None
+    pack.items = [
+        {
+            "label": item.label.strip(),
+            "value": (item.value or "").strip() or None,
+            "url": str(item.url) if item.url else None,
+        }
+        for item in payload.items
+    ]
+    pack.updated_at = svc.now()
+    if pack.published_at is not None:
+        activity.record(db, staff, "handover.update", "Updated the hand-over pack",
+                        project_id=project.id, subject_type="project", subject_id=project.id)
+    await db.commit()
+    return await _reload(db, project_id, staff)
+
+
+@router.post("/projects/{project_id}/handover/publish", response_model=ProjectDetail)
+async def publish_handover(
+    project_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> ProjectDetail:
+    """Show the pack to the client, post it on their timeline and email them."""
+
+    project = await svc.load_project(db, project_id, staff)
+    pack = project.handover
+    if pack is None or (not pack.notes and not pack.items):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Write the hand-over pack before publishing it")
+    if pack.published_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The hand-over pack is already published")
+    pack.published_at = svc.now()
+    headline = "Your hand-over pack is ready"
+    db.add(
+        ProjectUpdate(
+            project_id=project.id,
+            author_id=staff.id,
+            kind="progress",
+            title=headline,
+            body="Everything you need to look after your site is on your project page under Hand-over: "
+            "where it lives, how to update it, and who to call.",
+        )
+    )
+    activity.record(db, staff, "handover.publish", "Published the hand-over pack",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
+    await svc.touch(db, project)
+    await db.commit()
+    _notify_client(project, headline)
+    return await _reload(db, project_id, staff)
+
+
+@router.post("/projects/{project_id}/handover/unpublish", response_model=ProjectDetail)
+async def unpublish_handover(
+    project_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> ProjectDetail:
+    """Hide the pack from the client again, to fix something in it."""
+
+    project = await svc.load_project(db, project_id, staff)
+    pack = project.handover
+    if pack is None or pack.published_at is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The hand-over pack is not published")
+    pack.published_at = None
+    activity.record(db, staff, "handover.unpublish", "Hid the hand-over pack from the client",
+                    project_id=project.id, subject_type="project", subject_id=project.id)
+    await db.commit()
+    return await _reload(db, project_id, staff)
+
+
 # --- Updates, notes and requests -------------------------------------------
 
 
@@ -723,6 +913,44 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
             )
         )
 
+    soon = svc.now() + timedelta(days=CALL_SOON_DAYS)
+    calls = await db.scalars(
+        select(CallBooking)
+        .where(CallBooking.status == "booked", CallBooking.starts_at >= svc.now(), CallBooking.starts_at <= soon)
+        .order_by(CallBooking.starts_at)
+    )
+    for call in calls:
+        items.append(
+            AttentionItem(
+                kind="upcoming_call",
+                project_id=None,
+                reference=None,
+                project_title=None,
+                text=f"Call with {call.name}{f' ({call.company})' if call.company else ''}, {call_svc.when(call)}",
+                since=call.starts_at,
+                lead_id=call.lead_id,
+            )
+        )
+
+    finished = await db.scalars(
+        select(Project)
+        .where(Project.status == "completed")
+        .options(selectinload(Project.handover), selectinload(Project.owner))
+    )
+    for project in finished:
+        if project.handover is None or project.handover.published_at is None:
+            items.append(
+                AttentionItem(
+                    kind="handover_missing",
+                    project_id=project.id,
+                    reference=project.reference,
+                    project_title=project.title,
+                    text="Finished, but the hand-over pack is not published",
+                    since=project.updated_at,
+                    owner_name=svc.display_name(project.owner),
+                )
+            )
+
     projects = await db.scalars(
         select(Project).where(Project.status.in_(("active", "on_hold"))).options(*svc.with_everything())
     )
@@ -764,6 +992,17 @@ async def overview(db: AsyncSession = Depends(get_db)) -> list[AttentionItem]:
                 items.append(
                     AttentionItem(kind="overdue_step", text=f"{stage.name} is past its date", since=stage.due_date, **base)
                 )
+        waiting = [item for item in project.checklist if item.done_at is None]
+        if waiting and project.start_date and project.start_date <= today - timedelta(days=CHECKLIST_WAIT_DAYS):
+            things = f"{len(waiting)} thing{'s' if len(waiting) != 1 else ''}"
+            items.append(
+                AttentionItem(
+                    kind="checklist_waiting",
+                    text=f"Still waiting on {client} for {things} to get started",
+                    since=project.start_date,
+                    **base,
+                )
+            )
         for invoice in project.invoices:
             if invoice.status == "unpaid":
                 late = invoice.due_date is not None and invoice.due_date < today
@@ -859,7 +1098,15 @@ async def _lead_detail(db: AsyncSession, lead_id: UUID) -> LeadDetail:
     proposals = await db.scalars(
         select(Proposal).where(Proposal.lead_id == lead.id).order_by(Proposal.created_at.desc())
     )
-    return LeadDetail(**item.model_dump(), notes=notes, proposals=[proposal_svc.summarise(p) for p in proposals])
+    calls = await db.scalars(
+        select(CallBooking).where(CallBooking.lead_id == lead.id).order_by(CallBooking.starts_at.desc())
+    )
+    return LeadDetail(
+        **item.model_dump(),
+        notes=notes,
+        proposals=[proposal_svc.summarise(p) for p in proposals],
+        calls=[call_svc.team(c) for c in calls],
+    )
 
 
 @router.get("/leads/{lead_id}", response_model=LeadDetail)

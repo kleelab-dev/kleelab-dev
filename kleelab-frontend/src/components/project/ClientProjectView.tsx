@@ -6,7 +6,9 @@ import { Bone, ErrorState, Loading } from '@/components/ui/States';
 import { useLiveData } from '@/lib/useLiveData';
 import { ApiError, apiService } from '@/services/api';
 import type { ProjectDetail } from '@/types/api';
+import { Checklist } from './Checklist';
 import { FilesPanel } from './FilesPanel';
+import { HandoverPack } from './HandoverPack';
 import { errorText } from './format';
 import { BalanceDue, InvoiceList } from './Invoices';
 import { MessageComposer } from './MessageComposer';
@@ -60,13 +62,22 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
   const history = project.updates.filter((u) => !(u.kind === 'approval' && u.approval_status === 'pending'));
   const toPay = project.invoices.filter((i) => i.status === 'unpaid');
   const invoices = project.invoices.filter((i) => i.status !== 'cancelled');
+  const stillNeeded = project.checklist.filter((i) => !i.done_at);
+  const gettingStarted = project.checklist.length > 0 && (
+    <Panel tag="getting started" title={stillNeeded.length ? 'What we need from you' : 'Everything is in'}>
+      <Checklist
+        items={project.checklist}
+        onTick={async (itemId, done, note) => setProject(await apiService.tickChecklist(project.id, itemId, done, note))}
+      />
+    </Panel>
+  );
 
   return (
     <div>
       <ProjectHeader project={project} backHref="/dashboard" backLabel="All projects" />
       {stale && <StaleNote className="mt-4" />}
 
-      {(approvals.length > 0 || waitingStages.length > 0 || toPay.length > 0) && (
+      {(approvals.length > 0 || waitingStages.length > 0 || toPay.length > 0 || stillNeeded.length > 0) && (
         <section className="mt-8 rounded-2xl border-[1.5px] border-ink bg-sun-soft p-4 sm:mt-10 sm:p-6" aria-labelledby="needs-you">
           <p className="tag text-ink">waiting for you</p>
           <h2 id="needs-you" className="mt-1 font-display text-2xl font-extrabold tracking-tight">
@@ -88,6 +99,11 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
               />
             ))}
           </div>
+          {stillNeeded.length > 0 && (
+            <p className="mt-4 text-sm text-ink-soft">
+              To get started we still need {stillNeeded.length === 1 ? `one thing: ${stillNeeded[0].title.toLowerCase()}` : `${stillNeeded.length} things`}. See <a href="#getting-started" className="font-semibold text-cobalt">What we need from you</a>.
+            </p>
+          )}
           {toPay.length > 0 && (
             <p className="mt-4 text-sm text-ink-soft">
               You have {toPay.length === 1 ? 'an invoice' : `${toPay.length} invoices`} to pay. See <a href="#invoices" className="font-semibold text-cobalt">Invoices</a>.
@@ -98,6 +114,12 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
 
       <div className="mt-8 grid gap-6 sm:mt-10 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="grid min-w-0 content-start gap-6">
+          {project.handover && (
+            <Panel tag="hand-over" title="Looking after your site" className="border-ink bg-sun-soft">
+              <HandoverPack handover={project.handover} />
+            </Panel>
+          )}
+          {stillNeeded.length > 0 && <div id="getting-started" className="scroll-mt-24">{gettingStarted}</div>}
           {current && (
             <Panel tag="happening now" title={current.name}>
               <p className="text-sm leading-6 text-muted">
@@ -120,6 +142,7 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
           <Panel tag="the plan" title="Steps">
             <StageTimeline stages={project.stages} />
           </Panel>
+          {stillNeeded.length === 0 && gettingStarted}
           <Panel tag="shared" title="Files">
             <FilesPanel project={project} onChange={setProject} />
           </Panel>

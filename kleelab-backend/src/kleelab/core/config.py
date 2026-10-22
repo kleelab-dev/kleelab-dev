@@ -124,6 +124,22 @@ class Settings(BaseSettings):
     STOCK_IMAGE_WIDTH: int = 1400
     STOCK_IMAGE_HEIGHT: int = 1000
 
+    # Free first calls, booked from the site (services/calls.py). Times are
+    # offered in the team's own time, a fixed offset from UTC: Lagos keeps no
+    # daylight saving, so no time-zone database is needed.
+    CALL_UTC_OFFSET_MINUTES: int = 60
+    CALL_TIMEZONE_LABEL: str = "Lagos time (WAT)"
+    # Weekdays, first slot at the start hour, last one ending by the end hour.
+    CALL_DAY_START_HOUR: int = 10
+    CALL_DAY_END_HOUR: int = 16
+    CALL_MINUTES: int = 30
+    # A call can be booked this far ahead at the soonest, and at the latest.
+    CALL_MIN_NOTICE_HOURS: int = 24
+    CALL_BOOKING_DAYS: int = 21
+    # The video link every call uses, e.g. a standing Google Meet room. Without
+    # it the confirmation says we will send the link before the call.
+    MEETING_URL: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[3] / ".env",
         env_file_encoding="utf-8",

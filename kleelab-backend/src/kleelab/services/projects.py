@@ -18,10 +18,20 @@ from sqlalchemy.orm import selectinload
 
 from kleelab.core.security import create_signed_token, get_password_hash, password_fingerprint
 from kleelab.models.agency_lead import AgencyLead
-from kleelab.models.project import Project, ProjectFile, ProjectInvoice, ProjectStage, ProjectUpdate
+from kleelab.models.project import (
+    Project,
+    ProjectChecklistItem,
+    ProjectFile,
+    ProjectInvoice,
+    ProjectStage,
+    ProjectUpdate,
+)
 from kleelab.models.user import User
 from kleelab.schemas.project import (
+    ChecklistItemOut,
     FileOut,
+    HandoverItem,
+    HandoverOut,
     InvoiceOut,
     ProjectDetail,
     ProjectSummary,
@@ -44,6 +54,31 @@ DEFAULT_STAGES: list[tuple[str, str | None]] = [
     ("Hand-over", "We give you the logins and a short guide, and show you how it works. Then it is yours."),
 ]
 
+# What we ask every client for before the work gets going, worded for them.
+DEFAULT_CHECKLIST: list[tuple[str, str]] = [
+    ("Your logo and brand colours",
+     "Add your logo (the best quality you have) under Files, and tell us your colours if you have them. "
+     "No logo yet? Say so and we will talk about it."),
+    ("The words for your pages",
+     "What you want to say about your business, your services and your prices. Rough notes are fine: "
+     "we will tidy them up."),
+    ("Photos",
+     "Photos of your work, your team or your premises. Sharp phone photos are fine. "
+     "Tell us if you would rather we used stock photos."),
+    ("Your web address",
+     "If you already own a domain, tell us where it is registered (for example Whogohost or GoDaddy) so we "
+     "can connect it later. Do not put passwords here: we will arrange access safely."),
+    ("Who signs off",
+     "Tell us who on your side approves the designs and the finished site, so we know whose yes counts."),
+]
+
+
+def build_checklist(start: int = 0, pairs: list[tuple[str, str]] | None = None) -> list[ProjectChecklistItem]:
+    return [
+        ProjectChecklistItem(position=start + index, title=title, description=description)
+        for index, (title, description) in enumerate(DEFAULT_CHECKLIST if pairs is None else pairs)
+    ]
+
 
 def now() -> datetime:
     # The columns are naive DateTime, matching the rest of the schema.
@@ -62,6 +97,8 @@ def with_everything():
         selectinload(Project.files).selectinload(ProjectFile.uploader),
         selectinload(Project.invoices),
         selectinload(Project.proposal),
+        selectinload(Project.checklist).selectinload(ProjectChecklistItem.done_by),
+        selectinload(Project.handover),
         selectinload(Project.client),
         selectinload(Project.owner),
     )
@@ -215,6 +252,8 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         invoices=[InvoiceOut.model_validate(i) for i in reversed(project.invoices)],
         balance_due_cents=balance,
         balance_currency=project.proposal.currency if balance else None,
+        checklist=[_checklist_out(item) for item in project.checklist],
+        handover=handover_out(project, team),
         client_email=project.client.email if team and project.client else None,
         client_name=project.client.full_name if team and project.client else None,
         client_id=project.client_id if team else None,
@@ -222,6 +261,28 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         owner_name=display_name(project.owner) if team else None,
         lead_id=project.lead_id if team else None,
     )
+
+
+def _checklist_out(item: ProjectChecklistItem) -> ChecklistItemOut:
+    out = ChecklistItemOut.model_validate(item)
+    out.done_by_name = display_name(item.done_by) if item.done_at else None
+    return out
+
+
+def handover_out(project: Project, team: bool) -> HandoverOut | None:
+    pack = project.handover
+    if pack is None or (not team and pack.published_at is None):
+        return None
+    return HandoverOut(
+        notes=pack.notes,
+        items=[HandoverItem(**item) for item in pack.items or []],
+        published_at=pack.published_at,
+        updated_at=pack.updated_at,
+    )
+
+
+def checklist_done(project: Project) -> bool:
+    return bool(project.checklist) and all(item.done_at for item in project.checklist)
 
 
 def balance_owed(project: Project) -> int | None:
@@ -389,6 +450,7 @@ async def start_project(
         target_date=target_date,
         status="active",
         stages=stages,
+        checklist=build_checklist(),
     )
     db.add(project)
     if lead is not None:
@@ -402,7 +464,8 @@ async def start_project(
             kind="progress",
             title="Your project has started",
             body="Welcome. This page shows every step of your project. "
-            "You can message us here, share files, and approve work when it is ready.",
+            "You can message us here, share files, and approve work when it is ready. "
+            "First, have a look at Getting started: it lists what we need from you to begin.",
         )
     )
     return project, client, invited

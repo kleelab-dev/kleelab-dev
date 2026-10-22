@@ -37,6 +37,7 @@ export const footerNav = [
     heading: 'Clients',
     links: [
       { href: '/contact', label: 'Start a project' },
+      { href: '/book', label: 'Book a free call' },
       { href: '/login', label: 'Client login' },
       { href: '/dashboard', label: 'Your dashboard' },
     ],

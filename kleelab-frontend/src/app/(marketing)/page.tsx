@@ -75,7 +75,12 @@ export default function HomePage() {
               Just curious?{' '}
               <AskButton variant="ghost" size="sm" className="!px-1 text-cobalt underline underline-offset-4">
                 Ask the assistant
-              </AskButton>
+              </AskButton>{' '}
+              or{' '}
+              <Link href="/book" className="font-semibold text-cobalt underline underline-offset-4">
+                book a free call
+              </Link>
+              .
             </p>
           </div>
           <ProjectPreview className="lg:ml-6" />

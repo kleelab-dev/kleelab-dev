@@ -345,6 +345,10 @@ ALERT_ACTIONS = (
     "proposal.viewed",
     "proposal.accepted",
     "proposal.declined",
+    "call.booked",
+    "call.moved",
+    "call.cancelled",
+    "checklist.done",
 )
 
 

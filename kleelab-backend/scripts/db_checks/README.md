@@ -41,3 +41,4 @@ No email or Slack messages are sent.
 | `check_client_account.py` | A client's Account page: name, password change, signing out other devices |
 | `check_proposals.py` | Proposals from an enquiry: drafts, sending, versions, the client's accept or decline, and the project and deposit invoice it creates |
 | `check_payment_plan.py` | Paying the deposit or everything when accepting, the balance invoice raised at hand-over (once), scheduled and manual payment reminders |
+| `check_calls_onboarding.py` | Booking a free call: open times, clashes, moving and cancelling by link, the team's list; the Getting started checklist; the hand-over pack and its publishing |

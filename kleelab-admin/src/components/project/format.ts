@@ -150,6 +150,9 @@ export const ATTENTION: Record<AttentionKind, { label: string; tone: string }> =
   waiting_approval: { label: 'Waiting on client', tone: 'bg-line text-ink' },
   overdue_step: { label: 'Late', tone: 'bg-danger-soft text-danger' },
   unpaid_invoice: { label: 'Not paid', tone: 'bg-sun-soft text-ink' },
+  upcoming_call: { label: 'Call soon', tone: 'bg-cobalt-soft text-cobalt-dark' },
+  checklist_waiting: { label: 'Waiting to start', tone: 'bg-line text-ink' },
+  handover_missing: { label: 'Hand-over', tone: 'bg-sun-soft text-ink' },
 };
 
 export function attentionHref(item: AttentionItem): string {
@@ -160,6 +163,7 @@ export function attentionHref(item: AttentionItem): string {
 export function leadSource(source: string): string {
   if (source === 'chat') return 'From the chat';
   if (source === 'marketing') return 'From the contact form';
+  if (source === 'call') return 'Booked a call';
   return `From ${source.replace(/_/g, ' ')}`;
 }
 

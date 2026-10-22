@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from kleelab.schemas.call import TeamCallOut
 from kleelab.schemas.proposal import ProposalSummary
 
 # What the enquirer is actually after. A free-text "project type" cannot be
@@ -85,6 +86,8 @@ class LeadDetail(LeadOut):
     notes: list[LeadNoteOut] = []
     # Newest first.
     proposals: list[ProposalSummary] = []
+    # Calls booked, newest first.
+    calls: list[TeamCallOut] = []
 
 
 class LeadNoteCreate(BaseModel):

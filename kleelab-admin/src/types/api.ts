@@ -248,6 +248,33 @@ export interface ProjectDetail {
   owner_id: string | null;
   owner_name: string | null;
   lead_id: string | null;
+  /** Getting started: what the team needs from the client to begin. */
+  checklist: ChecklistItem[];
+  /** The team sees drafts too; published_at says whether the client can. */
+  handover: Handover | null;
+}
+
+export interface ChecklistItem {
+  id: string;
+  position: number;
+  title: string;
+  description: string | null;
+  done_at: string | null;
+  note: string | null;
+  done_by_name: string | null;
+}
+
+export interface HandoverItem {
+  label: string;
+  value: string | null;
+  url: string | null;
+}
+
+export interface Handover {
+  notes: string | null;
+  items: HandoverItem[];
+  published_at: string | null;
+  updated_at: string;
 }
 
 export interface ProjectCreateInput {
@@ -317,7 +344,10 @@ export type AttentionKind =
   | 'open_request'
   | 'waiting_approval'
   | 'overdue_step'
-  | 'unpaid_invoice';
+  | 'unpaid_invoice'
+  | 'upcoming_call'
+  | 'checklist_waiting'
+  | 'handover_missing';
 
 export interface AttentionItem {
   kind: AttentionKind;
@@ -363,6 +393,25 @@ export interface LeadDetail extends Lead {
   /** Newest first. */
   proposals: ProposalSummary[];
   notes: LeadNote[];
+  /** Calls this person booked, soonest first. */
+  calls: TeamCall[];
+}
+
+/** A free first call booked from the site. Times are UTC with a zone. */
+export interface TeamCall {
+  id: string;
+  lead_id: string;
+  name: string;
+  email: string;
+  company: string | null;
+  notes: string | null;
+  starts_at: string;
+  duration_minutes: number;
+  status: 'booked' | 'cancelled';
+  cancelled_at: string | null;
+  cancelled_by: 'client' | 'team' | null;
+  cancel_reason: string | null;
+  created_at: string;
 }
 
 export interface LeadPatchInput {
