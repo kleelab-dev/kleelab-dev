@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import { buttonClass } from '@/components/ui/Button';
 import { apiService } from '@/services/api';
-import type { Invoice, PaymentsConfig } from '@/types/api';
+import type { Invoice, PaymentsConfig, ProjectDetail } from '@/types/api';
 import { errorText, formatDate, formatMoney, INVOICE_STATUS } from './format';
 import { Pill } from './Pill';
 
@@ -148,5 +148,19 @@ function PdfButton({ projectId, invoice }: { projectId: string; invoice: Invoice
       <ArrowDownTrayIcon className="h-3.5 w-3.5" aria-hidden />
       {state === 'busy' ? 'Preparing…' : state === 'failed' ? 'Try again' : 'PDF'}
     </button>
+  );
+}
+
+/** What is left of the accepted proposal's price, billed when the project is handed over. */
+export function BalanceDue({ project }: { project: ProjectDetail }) {
+  if (!project.balance_due_cents || !project.balance_currency) return null;
+  return (
+    <p className="rounded-xl border-[1.5px] border-dashed border-line bg-paper p-3.5 text-sm">
+      <span className="font-mono text-[10px] uppercase tracking-label text-muted">at hand-over</span>
+      <span className="mt-0.5 block">
+        <strong className="font-display text-lg font-extrabold">{formatMoney(project.balance_due_cents, project.balance_currency)}</strong>
+        {' '}is billed when the project is handed over.
+      </span>
+    </p>
   );
 }

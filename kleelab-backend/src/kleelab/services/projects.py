@@ -61,6 +61,7 @@ def with_everything():
         selectinload(Project.requests),
         selectinload(Project.files).selectinload(ProjectFile.uploader),
         selectinload(Project.invoices),
+        selectinload(Project.proposal),
         selectinload(Project.client),
         selectinload(Project.owner),
     )
@@ -195,6 +196,7 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         updates.append(out)
     # Newest first: a client opens the dashboard to see what changed.
     updates.reverse()
+    balance = balance_owed(project) if project.status != "cancelled" else None
     return ProjectDetail(
         id=project.id,
         reference=project.reference,
@@ -211,6 +213,8 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         requests=[RequestOut.model_validate(r) for r in reversed(project.requests)],
         files=[_file_out(f) for f in reversed(shared)],
         invoices=[InvoiceOut.model_validate(i) for i in reversed(project.invoices)],
+        balance_due_cents=balance,
+        balance_currency=project.proposal.currency if balance else None,
         client_email=project.client.email if team and project.client else None,
         client_name=project.client.full_name if team and project.client else None,
         client_id=project.client_id if team else None,
@@ -218,6 +222,28 @@ def detail(project: Project, team: bool = False) -> ProjectDetail:
         owner_name=display_name(project.owner) if team else None,
         lead_id=project.lead_id if team else None,
     )
+
+
+def balance_owed(project: Project) -> int | None:
+    """What is left of the accepted proposal's price to bill at hand-over, if anything.
+
+    The proposal's total less what was billed up front (the deposit, or the
+    whole price when the client chose to pay it all at once). None once the
+    balance invoice exists (a cancelled one counts: the team waived it), when the
+    client paid in full, or for a project that did not start from a proposal.
+    Needs `Project.proposal` loaded.
+    """
+
+    proposal = project.__dict__.get("proposal")
+    if proposal is None or proposal.payment_choice == "full":
+        return None
+    if any(i.kind == "balance" for i in project.invoices):
+        return None
+    live = [i for i in project.invoices if i.status != "cancelled"]
+    total = sum(int(item.get("amount_cents", 0)) for item in proposal.items or [])
+    upfront = sum(i.amount_cents for i in live if i.kind in ("deposit", "full"))
+    rest = total - upfront
+    return rest if rest > 0 else None
 
 
 def claim_attachments(project: Project, user: User, ids: list[UUID]) -> list[ProjectFile]:

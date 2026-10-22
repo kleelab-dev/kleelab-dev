@@ -89,6 +89,10 @@ class InvoiceOut(BaseModel):
     # "paystack" when it was paid online by card; null when marked paid by hand.
     paid_via: str | None = None
     payment_reference: str | None = None
+    # deposit | balance | full when raised from an accepted proposal; null otherwise.
+    kind: str | None = None
+    reminders_sent: int = 0
+    last_reminded_at: datetime | None = None
     created_at: datetime
 
 
@@ -134,6 +138,9 @@ class ProjectDetail(BaseModel):
     requests: list[RequestOut]
     files: list[FileOut] = []
     invoices: list[InvoiceOut] = []
+    # Still to be billed at hand-over: the rest of the accepted proposal's price.
+    balance_due_cents: int | None = None
+    balance_currency: str | None = None
     client_email: str | None = None
     client_name: str | None = None
     # Team view only.

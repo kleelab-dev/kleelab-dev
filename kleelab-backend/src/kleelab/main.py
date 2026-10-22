@@ -28,7 +28,7 @@ from kleelab.routers.gdpr import router as gdpr_router
 from kleelab.routers.payments import router as payments_router
 from kleelab.routers.projects import router as projects_router
 from kleelab.routers.proposals import router as proposals_router, team_router as proposals_team_router
-from kleelab.services import llm, retention
+from kleelab.services import billing, llm, retention
 
 
 configure_logging()
@@ -74,8 +74,11 @@ if settings.AUTO_VERIFY_EMAILS:
 async def lifespan(_: FastAPI):
     # Deletes old enquiries and invoices, as the privacy page promises.
     task = asyncio.create_task(retention.run_daily())
+    # Reminds clients about unpaid invoices around their due date.
+    reminders = asyncio.create_task(billing.run_daily())
     yield
     task.cancel()
+    reminders.cancel()
 
 
 app = FastAPI(title="KleeLab API", version="1.0.0", lifespan=lifespan)

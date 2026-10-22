@@ -8,7 +8,7 @@ import { ApiError, apiService } from '@/services/api';
 import type { ProjectDetail } from '@/types/api';
 import { FilesPanel } from './FilesPanel';
 import { errorText } from './format';
-import { InvoiceList } from './Invoices';
+import { BalanceDue, InvoiceList } from './Invoices';
 import { MessageComposer } from './MessageComposer';
 import { Panel } from './Pill';
 import { ProjectHeader } from './ProjectHeader';
@@ -123,10 +123,13 @@ export function ClientProjectView({ projectId }: { projectId: string }) {
           <Panel tag="shared" title="Files">
             <FilesPanel project={project} onChange={setProject} />
           </Panel>
-          {invoices.length > 0 && (
+          {(invoices.length > 0 || !!project.balance_due_cents) && (
             <div id="invoices" className="scroll-mt-24">
               <Panel tag="payments" title="Invoices">
-                <InvoiceList invoices={invoices} projectId={project.id} />
+                <div className="grid gap-2">
+                  {invoices.length > 0 && <InvoiceList invoices={invoices} projectId={project.id} />}
+                  <BalanceDue project={project} />
+                </div>
                 <p className="mt-3 text-xs text-muted">Pay now opens a secure payment page. Questions about an invoice? Send us a message.</p>
               </Panel>
             </div>

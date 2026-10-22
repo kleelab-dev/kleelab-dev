@@ -72,6 +72,14 @@ class Project(Base):
         passive_deletes=True,
         order_by="ProjectInvoice.created_at",
     )
+    # The proposal the client accepted to start it, if it started that way. Its
+    # price says what is still owed at hand-over.
+    proposal = relationship(
+        "Proposal",
+        primaryjoin="and_(Project.id == foreign(Proposal.project_id), Proposal.status == 'accepted')",
+        uselist=False,
+        viewonly=True,
+    )
 
 
 class ProjectStage(Base):
@@ -220,6 +228,12 @@ class ProjectInvoice(Base):
     paid_via: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # The provider's reference for that payment, for finding it in their dashboard.
     payment_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Which part of an accepted proposal's price this is: deposit | balance | full.
+    # Null for an invoice the team wrote by hand.
+    kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Automatic payment reminders sent so far (see services/billing.py).
+    reminders_sent: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

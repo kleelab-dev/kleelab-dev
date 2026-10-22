@@ -133,10 +133,10 @@ export function ProposalView({ token }: { token: string }) {
                 </tr>
               </tfoot>
             </table>
-            {p.deposit_cents > 0 && (
+            {p.deposit_cents > 0 && balance > 0 && (
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <Money label={`Deposit (${p.deposit_percent}%) to start`} value={formatMoney(p.deposit_cents, p.currency)} strong />
-                <Money label="The rest, as the work goes" value={formatMoney(balance, p.currency)} />
+                <Money label="The rest, at hand-over" value={formatMoney(balance, p.currency)} />
               </div>
             )}
           </Part>
@@ -236,6 +236,12 @@ function Answer({
 }) {
   const [name, setName] = useState('');
   const [agree, setAgree] = useState(false);
+  // Paying it all at once is offered whenever the deposit is less than the whole price.
+  const rest = proposal.total_cents - proposal.deposit_cents;
+  const canChoose = rest > 0 && proposal.total_cents > 0;
+  const [payment, setPayment] = useState<'deposit' | 'full'>('deposit');
+  const full = !canChoose || payment === 'full';
+  const firstInvoice = full ? proposal.total_cents : proposal.deposit_cents;
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -255,7 +261,7 @@ function Answer({
     setBusy(true);
     setError(null);
     try {
-      onAccepted(await apiService.acceptProposal(token, name.trim(), proposal.revision));
+      onAccepted(await apiService.acceptProposal(token, name.trim(), proposal.revision, full ? 'full' : 'deposit'));
     } catch (reasonValue) {
       fail(reasonValue);
       setBusy(false);
@@ -280,8 +286,8 @@ function Answer({
       <h2 id="answer-title" className="font-display text-3xl font-extrabold tracking-tight">Happy to go ahead?</h2>
       <p className="mt-2 text-sm leading-6 text-muted">
         Accepting sets up your project on your KleeLab dashboard
-        {proposal.deposit_cents > 0 && <> and sends the deposit invoice for <strong className="text-ink">{formatMoney(proposal.deposit_cents, proposal.currency)}</strong></>}.
-        We start once the deposit is paid.
+        {firstInvoice > 0 && <> and sends your first invoice, for <strong className="text-ink">{formatMoney(firstInvoice, proposal.currency)}</strong></>}.
+        {firstInvoice > 0 ? ' We start once it is paid.' : ' Nothing is due until hand-over.'}
       </p>
 
       {error && (
@@ -295,6 +301,27 @@ function Answer({
 
       {!declining ? (
         <form className="mt-6 grid gap-4" onSubmit={accept} noValidate>
+          {canChoose && (
+            <fieldset>
+              <legend className="label">How would you like to pay?</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PayOption
+                  checked={payment === 'deposit'}
+                  onChange={() => setPayment('deposit')}
+                  title={proposal.deposit_cents > 0 ? `Deposit now (${proposal.deposit_percent}%)` : 'Pay at hand-over'}
+                  detail={proposal.deposit_cents > 0
+                    ? `${formatMoney(proposal.deposit_cents, proposal.currency)} now, ${formatMoney(rest, proposal.currency)} at hand-over`
+                    : `${formatMoney(rest, proposal.currency)} when we hand it over`}
+                />
+                <PayOption
+                  checked={payment === 'full'}
+                  onChange={() => setPayment('full')}
+                  title="Everything now"
+                  detail={`${formatMoney(proposal.total_cents, proposal.currency)} now, nothing at hand-over`}
+                />
+              </div>
+            </fieldset>
+          )}
           <div>
             <label htmlFor="sign_name" className="label">Your full name</label>
             <input id="sign_name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoComplete="name" className="field font-display text-lg" placeholder={proposal.client_name ?? ''} />
@@ -329,8 +356,25 @@ function Answer({
   );
 }
 
+function PayOption({ checked, onChange, title, detail }: { checked: boolean; onChange: () => void; title: string; detail: string }) {
+  return (
+    <label className={clsx('flex cursor-pointer items-start gap-3 rounded-xl border-[1.5px] p-4 text-sm transition-colors',
+      checked ? 'border-ink bg-sun-soft' : 'border-line bg-paper hover:border-ink')}>
+      <input type="radio" name="payment" checked={checked} onChange={onChange} className="mt-1 h-4 w-4 accent-cobalt" />
+      <span>
+        <span className="block font-semibold">{title}</span>
+        <span className="mt-0.5 block text-muted">{detail}</span>
+      </span>
+    </label>
+  );
+}
+
 function AcceptedScreen({ result }: { result: ProposalAccepted }) {
   const signedIn = hasSession();
+  const p = result.proposal;
+  const full = p.payment_choice === 'full';
+  const first = full ? p.total_cents : p.deposit_cents;
+  const rest = full ? 0 : p.total_cents - p.deposit_cents;
   return (
     <Shell>
       <section className="card p-7 shadow-block sm:p-8">
@@ -341,7 +385,8 @@ function AcceptedScreen({ result }: { result: ProposalAccepted }) {
         <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight">Thank you. We are on it.</h1>
         <p className="mt-3 text-sm leading-6 text-muted">
           Your project is set up
-          {result.proposal.deposit_cents > 0 && <> and the deposit invoice for {formatMoney(result.proposal.deposit_cents, result.proposal.currency)} is waiting on your dashboard</>}.
+          {first > 0 && <> and {full ? 'your invoice' : 'the deposit invoice'} for {formatMoney(first, p.currency)} is waiting on your dashboard</>}.
+          {rest > 0 && <> The rest, {formatMoney(rest, p.currency)}, is billed when we hand the project over.</>}
         </p>
         {result.invited && result.invite_sent ? (
           <p className="mt-4 rounded-xl bg-sun-soft p-4 text-sm leading-6">

@@ -87,6 +87,8 @@ class ProposalDetail(ProposalSummary):
     stages: list[ProposalStage]
     terms: str | None
     accepted_name: str | None
+    # How the client chose to pay: "deposit" (the rest at hand-over) or "full".
+    payment_choice: str | None = None
     decline_reason: str | None
     author_name: str | None
     # The client's link. Only set once it is sent: a draft has no public page.
@@ -115,6 +117,7 @@ class PublicProposal(BaseModel):
     sent_at: datetime | None
     accepted_at: datetime | None
     accepted_name: str | None
+    payment_choice: str | None = None
     declined_at: datetime | None
     prepared_by: str | None
 
@@ -124,6 +127,8 @@ class ProposalAccept(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     agree: Literal[True]
     revision: int
+    # Pay the deposit now and the rest at hand-over, or everything now.
+    payment: Literal["deposit", "full"] = "deposit"
 
 
 class ProposalDecline(BaseModel):

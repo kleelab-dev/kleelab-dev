@@ -435,6 +435,7 @@ function StatusDetail({ proposal }: { proposal: ProposalDetail }) {
   if (proposal.sent_at) rows.push(['Opened', proposal.viewed_at ? formatDateTime(proposal.viewed_at) : 'Not yet']);
   if (proposal.valid_until) rows.push([proposal.status === 'expired' ? 'Closed on' : 'Open until', formatDate(proposal.valid_until)]);
   if (proposal.accepted_at) rows.push(['Accepted', `${formatDateTime(proposal.accepted_at)} by ${proposal.accepted_name}`]);
+  if (proposal.payment_choice) rows.push(['Paying', proposal.payment_choice === 'full' ? 'Everything up front' : 'Deposit now, the rest at hand-over']);
   if (proposal.declined_at) rows.push(['Declined', formatDateTime(proposal.declined_at)]);
 
   return (

@@ -493,6 +493,10 @@ export const apiService = {
     return patch<ProjectDetail>(`/api/admin/projects/${projectId}/invoices/${invoiceId}`, input);
   },
 
+  async adminRemindInvoice(projectId: string, invoiceId: string): Promise<ProjectDetail> {
+    return post<ProjectDetail>(`/api/admin/projects/${projectId}/invoices/${invoiceId}/remind`, {});
+  },
+
   async adminLeads(): Promise<Lead[]> {
     return request<Lead[]>('/api/admin/leads');
   },

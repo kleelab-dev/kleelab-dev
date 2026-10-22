@@ -340,7 +340,7 @@ async def read_proposal(token: str, request: Request, db: AsyncSession = Depends
 async def accept_proposal(
     token: str, payload: ProposalAccept, request: Request, db: AsyncSession = Depends(get_db)
 ) -> ProposalAccepted:
-    """Say yes: start the project and raise the deposit invoice."""
+    """Say yes: start the project and raise the first invoice, for the deposit or the whole price."""
 
     proposal = await _by_token(db, token, lock=True)
     _check_answerable(proposal, payload.revision)
@@ -362,17 +362,21 @@ async def accept_proposal(
         target_date=today + timedelta(weeks=proposal.duration_weeks) if proposal.duration_weeks else None,
     )
 
-    deposit = svc.deposit_cents(proposal)
+    # A 100% deposit is the whole price, so there is nothing to choose.
+    full = payload.payment == "full" or proposal.deposit_percent >= 100
+    amount = svc.total_cents(proposal) if full else svc.deposit_cents(proposal)
     invoice = None
-    if deposit > 0:
+    if amount > 0:
         invoice = ProjectInvoice(
             project_id=project.id,
             number=await project_svc.next_invoice_number(db),
-            title=f"Deposit ({proposal.deposit_percent}%): {proposal.title}"[:150],
-            amount_cents=deposit,
+            title=(f"Full payment: {proposal.title}" if full
+                   else f"Deposit ({proposal.deposit_percent}%): {proposal.title}")[:150],
+            amount_cents=amount,
             currency=proposal.currency,
             due_date=today + timedelta(days=DEPOSIT_DUE_DAYS),
             status="unpaid",
+            kind="full" if full else "deposit",
             client_name=client.full_name,
             client_email=client.email,
             project_reference=project.reference,
@@ -384,6 +388,7 @@ async def accept_proposal(
     proposal.accepted_at = project_svc.now()
     proposal.accepted_name = payload.name.strip()
     proposal.accepted_ip = client_ip(request)[:64]
+    proposal.payment_choice = "full" if full else "deposit"
     proposal.project_id = project.id
 
     total = _money(proposal, svc.total_cents(proposal))
@@ -396,7 +401,7 @@ async def accept_proposal(
         await db.flush()
         activity.record(
             db, owner if owner_id else None, "invoice.create",
-            f"Billed {invoice.number}: {invoice.title}, {_money(proposal, deposit)}",
+            f"Billed {invoice.number}: {invoice.title}, {_money(proposal, amount)}",
             project_id=project.id, subject_type="invoice", subject_id=invoice.id,
             label=None if owner_id else "KleeLab",
         )
@@ -406,14 +411,18 @@ async def accept_proposal(
     if invited:
         invite_sent = project_svc.send_invite(client, project)
     else:
-        project_svc.notify_client(project, "Your project has started. The deposit invoice is ready to pay.")
+        project_svc.notify_client(
+            project,
+            "Your project has started."
+            + (f" Your {'invoice' if full else 'deposit invoice'} {invoice.number} is ready to pay." if invoice else ""),
+        )
     _team_notice(
         proposal,
         f"Proposal accepted: {proposal.title}",
         [
             f"{proposal.accepted_name} accepted {proposal.reference} for {total}.",
             f"The project {project.reference} has started"
-            + (f" and the deposit invoice {invoice.number} ({_money(proposal, deposit)}) is waiting to be paid."
+            + (f" and {'the full-payment' if full else 'the deposit'} invoice {invoice.number} ({_money(proposal, amount)}) is waiting to be paid."
                if invoice is not None else "."),
         ] + (["Their invite email did not go out. Resend it from the project page."] if invited and not invite_sent else []),
         project.id,

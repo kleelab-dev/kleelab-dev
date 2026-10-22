@@ -68,6 +68,9 @@ class Proposal(Base):
     # The name the client typed to accept, and where from: the record of who said yes.
     accepted_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     accepted_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # How the client chose to pay when accepting: "deposit" (the deposit now, the
+    # rest at hand-over) or "full" (everything now).
+    payment_choice: Mapped[str | None] = mapped_column(String(10), nullable=True)
     declined_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     decline_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 

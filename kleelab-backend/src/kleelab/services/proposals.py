@@ -24,8 +24,8 @@ DEFAULT_STAGES = [{"name": name, "description": description} for name, descripti
 
 DEFAULT_TERMS = (
     "Prices include everything listed above. Anything outside it is quoted separately before we start on it.\n\n"
-    "The deposit is due when you accept, and work starts once it is paid. The rest is invoiced as the "
-    "project goes, and the last payment is due at hand-over.\n\n"
+    "The deposit is due when you accept, and work starts once it is paid. The rest is invoiced when we "
+    "hand the project over. You can also choose to pay everything when you accept.\n\n"
     "Once the final invoice is paid, the site, its content and its code are yours."
 )
 
@@ -103,6 +103,7 @@ def detail(proposal: Proposal) -> ProposalDetail:
         stages=[ProposalStage(**stage) for stage in proposal.stages or []],
         terms=proposal.terms,
         accepted_name=proposal.accepted_name,
+        payment_choice=proposal.payment_choice,
         decline_reason=proposal.decline_reason,
         author_name=project_svc.display_name(proposal.author),
         public_url=public_url(proposal) if proposal.status != "draft" else None,
@@ -130,6 +131,7 @@ def public(proposal: Proposal) -> PublicProposal:
         sent_at=proposal.sent_at,
         accepted_at=proposal.accepted_at,
         accepted_name=proposal.accepted_name,
+        payment_choice=proposal.payment_choice,
         declined_at=proposal.declined_at,
         prepared_by=project_svc.display_name(proposal.author),
     )

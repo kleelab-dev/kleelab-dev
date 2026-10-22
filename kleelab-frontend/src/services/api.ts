@@ -298,8 +298,8 @@ export const apiService = {
     return request<PublicProposal>(`/api/proposals/${encodeURIComponent(token)}`);
   },
 
-  async acceptProposal(token: string, name: string, revision: number): Promise<ProposalAccepted> {
-    return post<ProposalAccepted>(`/api/proposals/${encodeURIComponent(token)}/accept`, { name, agree: true, revision });
+  async acceptProposal(token: string, name: string, revision: number, payment: 'deposit' | 'full'): Promise<ProposalAccepted> {
+    return post<ProposalAccepted>(`/api/proposals/${encodeURIComponent(token)}/accept`, { name, agree: true, revision, payment });
   },
 
   async declineProposal(token: string, reason: string, revision: number): Promise<PublicProposal> {

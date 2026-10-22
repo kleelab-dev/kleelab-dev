@@ -195,6 +195,10 @@ export interface Invoice {
   paid_via?: string | null;
   /** The Paystack reference for an online payment, to find it in their dashboard. */
   payment_reference?: string | null;
+  /** deposit | balance | full when raised from an accepted proposal. */
+  kind?: 'deposit' | 'balance' | 'full' | null;
+  reminders_sent?: number;
+  last_reminded_at?: string | null;
   created_at: string;
 }
 
@@ -235,6 +239,9 @@ export interface ProjectDetail {
   requests: ProjectRequest[];
   files: ProjectFile[];
   invoices: Invoice[];
+  /** Still to be billed at hand-over: the rest of the accepted proposal's price. */
+  balance_due_cents?: number | null;
+  balance_currency?: string | null;
   client_email: string | null;
   client_name: string | null;
   client_id: string | null;
@@ -479,6 +486,8 @@ export interface ProposalDetail extends ProposalSummary {
   stages: ProposalStage[];
   terms: string | null;
   accepted_name: string | null;
+  /** How the client chose to pay: the deposit first, or everything at once. */
+  payment_choice?: 'deposit' | 'full' | null;
   decline_reason: string | null;
   author_name: string | null;
   /** The client's link; null while it is a draft. */

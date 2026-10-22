@@ -93,6 +93,7 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
   const [open, setOpen] = useState(project.invoices.length === 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reminding, setReminding] = useState<string | null>(null);
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
 
   async function create(event: React.FormEvent<HTMLFormElement>) {
@@ -123,6 +124,18 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
     }
   }
 
+  async function remind(invoice: Invoice) {
+    setError(null);
+    setReminding(invoice.id);
+    try {
+      onChange(await apiService.adminRemindInvoice(project.id, invoice.id));
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setReminding(null);
+    }
+  }
+
   async function setStatus(invoice: Invoice, status: InvoiceStatus) {
     if (status === 'cancelled' && !window.confirm(`Cancel ${invoice.number}? The client will no longer see a payment button.`)) return;
     setError(null);
@@ -143,11 +156,22 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
             invoice.status === 'unpaid' ? (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => setStatus(invoice, 'paid')}>Mark as paid</Button>
+                {invoice.due_date && (
+                  <Button size="sm" variant="secondary" disabled={reminding === invoice.id} onClick={() => remind(invoice)}>
+                    {reminding === invoice.id ? 'Sending…' : 'Send reminder'}
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => setStatus(invoice, 'cancelled')}>Cancel invoice</Button>
                 {invoice.pay_url && (
                   <a href={invoice.pay_url} target="_blank" rel="noopener noreferrer" className="self-center text-xs font-semibold text-cobalt">
                     Payment link
                   </a>
+                )}
+                {(invoice.reminders_sent || invoice.last_reminded_at) && (
+                  <p className="w-full text-xs text-muted">
+                    {invoice.reminders_sent ? `${invoice.reminders_sent} automatic reminder${invoice.reminders_sent === 1 ? '' : 's'}` : 'Reminded'}
+                    {invoice.last_reminded_at && ` · last ${formatDate(invoice.last_reminded_at)}`}
+                  </p>
                 )}
               </div>
             ) : invoice.status === 'paid' ? (
@@ -158,6 +182,7 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
           }
         />
       )}
+      {project.balance_due_cents ? <div className="mt-3"><BalanceDue project={project} /></div> : null}
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
       {open ? (
         <form onSubmit={create} className={project.invoices.length ? 'mt-5 grid gap-3 border-t border-line pt-5' : 'grid gap-3'}>
@@ -197,5 +222,19 @@ export function AdminInvoices({ project, onChange }: { project: ProjectDetail; o
         <Button type="button" variant="secondary" size="sm" className="mt-4" onClick={() => setOpen(true)}>New invoice</Button>
       )}
     </div>
+  );
+}
+
+/** What is left of the accepted proposal's price, billed when the project is handed over. */
+export function BalanceDue({ project }: { project: ProjectDetail }) {
+  if (!project.balance_due_cents || !project.balance_currency) return null;
+  return (
+    <p className="rounded-xl border-[1.5px] border-dashed border-line bg-paper p-3.5 text-sm">
+      <span className="font-mono text-[10px] uppercase tracking-label text-muted">at hand-over</span>
+      <span className="mt-0.5 block">
+        <strong className="font-display text-lg font-extrabold">{formatMoney(project.balance_due_cents, project.balance_currency)}</strong>
+        {' '}is billed when the project is handed over.
+      </span>
+    </p>
   );
 }

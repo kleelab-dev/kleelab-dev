@@ -348,6 +348,48 @@ def send_client_project_notice(email: str, project_id: str, project_title: str, 
     )
 
 
+def send_invoice_reminder(
+    email: str,
+    name: str | None,
+    project_id: str,
+    project_title: str,
+    number: str,
+    title: str,
+    amount: str,
+    due: str,
+    days_left: int,
+) -> bool:
+    """Remind a client about an unpaid invoice: before it is due, on the day, or after."""
+
+    if days_left > 0:
+        headline = f"{number} is due on {due}"
+        lead = f"A reminder that invoice {escape(number)} is due on {escape(due)}."
+    elif days_left == 0:
+        headline = f"{number} is due today"
+        lead = f"Invoice {escape(number)} is due today."
+    else:
+        late = -days_left
+        headline = f"{number} is {late} day{'s' if late != 1 else ''} overdue"
+        lead = f"Invoice {escape(number)} was due on {escape(due)} and has not been paid yet."
+    return _send(
+        email,
+        f"{project_title}: {headline}",
+        _layout(
+            label="payment reminder",
+            heading=f"{amount} for {project_title}",
+            preheader=headline,
+            body=_p(f"Hi {escape(name or 'there')},")
+            + _p(lead)
+            + _p(f"<strong style=\"color:{INK}\">{escape(title)}: {escape(amount)}</strong>")
+            + _p("You can pay it by card from your project dashboard."),
+            button=("Pay on your dashboard", _dashboard_link(project_id)),
+            after=_note("Already paid, or paying by bank transfer? Reply to this email and we will mark it paid."),
+            footer="You are getting this because you have an unpaid invoice with KleeLab.",
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )
+
+
 def _admin_link(path: str) -> str:
     return f"{(settings.ADMIN_URL or settings.FRONTEND_URL).rstrip('/')}/{path.lstrip('/')}"
 

@@ -42,6 +42,7 @@ from kleelab.schemas.project import (
     StagePatch,
 )
 from kleelab.services import activity
+from kleelab.services import billing
 from kleelab.services import projects as svc
 from kleelab.services import proposals as proposal_svc
 from kleelab.services import sessions
@@ -250,10 +251,15 @@ async def patch_project(
     if described:
         activity.record(db, staff, "project.update", described, project_id=project.id,
                         subject_type="project", subject_id=project.id)
+    headline = "Your project is finished and handed over to you"
+    if finished:
+        balance = await billing.raise_balance(db, project, staff)
+        if balance is not None:
+            headline += f". {billing.balance_notice(balance)}"
     await svc.touch(db, project)
     await db.commit()
     if finished:
-        _notify_client(project, "Your project is finished and handed over to you")
+        _notify_client(project, headline)
     elif went_live:
         _notify_client(project, "Your site is live")
     return await _reload(db, project_id, staff)
@@ -413,6 +419,10 @@ async def patch_stage(
             headline = f"{stage.name} is finished. Next: {following.name}"
         elif all(s.status == "done" for s in project.stages):
             headline = f"{stage.name} is finished. That was the last step."
+            if project.status != "cancelled":
+                balance = await billing.raise_balance(db, project, staff)
+                if balance is not None:
+                    headline += f" {billing.balance_notice(balance)}."
         else:
             headline = f"{stage.name} is finished."
         db.add(
@@ -637,6 +647,36 @@ async def patch_invoice(
         _notify_client(project, svc.paid_notice(invoice))
     return await _reload(db, project_id, staff)
 
+
+
+@router.post("/projects/{project_id}/invoices/{invoice_id}/remind", response_model=ProjectDetail)
+async def remind_invoice(
+    project_id: UUID,
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    staff: User = Depends(require_staff),
+) -> ProjectDetail:
+    """Email the client a reminder about an unpaid invoice now, outside the schedule."""
+
+    project = await svc.load_project(db, project_id, staff)
+    invoice = next((i for i in project.invoices if i.id == invoice_id), None)
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    if invoice.status != "unpaid":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only an unpaid invoice can be chased")
+    if invoice.due_date is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Give the invoice a due date first")
+    if not billing.send_reminder(invoice, project, date.today()):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="The reminder email could not be sent")
+    # A reminder sent by hand stands in for today's scheduled one, not the ones still to come.
+    invoice.last_reminded_at = svc.now()
+    activity.record(
+        db, staff, "invoice.reminder",
+        f"Reminded the client about {invoice.number} ({_money(invoice.amount_cents, invoice.currency)})",
+        project_id=project.id, subject_type="invoice", subject_id=invoice.id,
+    )
+    await db.commit()
+    return await _reload(db, project_id, staff)
 
 # --- What needs attention -----------------------------------------------------
 
