@@ -1,9 +1,21 @@
+import { clsx } from 'clsx';
 import { PortfolioImage } from '@/components/site/PortfolioImage';
 import Link from 'next/link';
 import { formatPrice, type PortfolioItem } from '@/lib/portfolio';
 
-/** One item in the portfolio grid: the cover screenshot, its name and the price or client. */
-export function PortfolioCard({ item, priority = false }: { item: PortfolioItem; priority?: boolean }) {
+/**
+ * One item in the portfolio grid: the cover screenshot, its name and the price or client.
+ * Compact is for the homepage slider: a narrower image and a two-line summary.
+ */
+export function PortfolioCard({
+  item,
+  priority = false,
+  compact = false,
+}: {
+  item: PortfolioItem;
+  priority?: boolean;
+  compact?: boolean;
+}) {
   const cover = item.images[0];
   return (
     <article className="card card-lift relative flex h-full flex-col overflow-hidden">
@@ -14,7 +26,7 @@ export function PortfolioCard({ item, priority = false }: { item: PortfolioItem;
               src={cover.url}
               alt=""
               fill
-              sizes="(min-width: 768px) 50vw, 100vw"
+              sizes={compact ? '(min-width: 1024px) 400px, (min-width: 640px) 50vw, 85vw' : '(min-width: 768px) 50vw, 100vw'}
               className="object-cover object-top"
               priority={priority}
             />
@@ -32,7 +44,7 @@ export function PortfolioCard({ item, priority = false }: { item: PortfolioItem;
             {item.title}
           </Link>
         </h3>
-        <p className="mt-2 flex-1 leading-relaxed text-muted">{item.summary}</p>
+        <p className={clsx('mt-2 flex-1 leading-relaxed text-muted', compact && 'line-clamp-2 text-sm')}>{item.summary}</p>
         <p className="mt-5 font-mono text-[11px] uppercase tracking-label text-ink">
           {item.kind === 'for_sale'
             ? item.price_cents

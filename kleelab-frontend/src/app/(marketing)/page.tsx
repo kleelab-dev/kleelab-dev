@@ -9,10 +9,12 @@ import { CallToAction } from '@/components/site/CallToAction';
 import { DashboardShowcase } from '@/components/site/DashboardShowcase';
 import { ExampleShot } from '@/components/site/ExampleShot';
 import { ProcessTimeline } from '@/components/site/ProcessTimeline';
+import { PortfolioSlider } from '@/components/site/PortfolioSlider';
 import { ProjectPreview } from '@/components/site/ProjectPreview';
 import { Reveal } from '@/components/site/Reveal';
 import { Section, SectionHeading } from '@/components/site/Section';
 import { ServiceSketch } from '@/components/site/ServiceSketch';
+import { getPortfolio } from '@/lib/portfolio';
 
 /** Facts already promised elsewhere on the site, pulled out as big numbers. */
 const PROMISES = [
@@ -49,7 +51,10 @@ const FAQS = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  // The API sends featured items first, so the first eight are the ones to show.
+  const portfolio = (await getPortfolio()).slice(0, 8);
+
   return (
     <>
       <section className="px-5 pb-16 pt-12 sm:px-8 sm:pb-24 sm:pt-20">
@@ -119,6 +124,25 @@ export default function HomePage() {
           ))}
         </div>
       </Section>
+
+      {portfolio.length > 0 && (
+        <Section className="overflow-hidden">
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+            <SectionHeading
+              tag="From our portfolio"
+              title={
+                <>
+                  Real sites. <span className="mark">Some are ready</span> for you.
+                </>
+              }
+            />
+            <ButtonLink href="/portfolio" variant="secondary">
+              See the whole portfolio
+            </ButtonLink>
+          </div>
+          <PortfolioSlider items={portfolio} />
+        </Section>
+      )}
 
       <Section tone="white">
         <SectionHeading
