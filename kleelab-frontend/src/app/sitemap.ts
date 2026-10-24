@@ -1,12 +1,14 @@
 import { SITE_URL } from '@/lib/site';
 import type { MetadataRoute } from 'next';
 import { getPortfolio } from '@/lib/portfolio';
+import { services } from '@/content/services';
 
 const BASE = SITE_URL;
 
 const PAGES: [path: string, priority: number][] = [
   ['/', 1],
   ['/services', 0.9],
+  ...services.map((service): [string, number] => [`/services/${service.path}`, 0.9]),
   ['/how-we-build', 0.8],
   ['/care', 0.8],
   ['/contact', 0.8],

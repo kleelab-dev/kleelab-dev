@@ -17,7 +17,7 @@ export function SiteFooter() {
               {studio.email}
             </a>
           </div>
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             {footerNav.map((group) => (
               <div key={group.heading}>
                 <p className="font-mono text-[11px] uppercase tracking-label text-paper/50">{group.heading}</p>

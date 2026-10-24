@@ -45,6 +45,9 @@ export default function ServicesPage() {
                     <dd className="font-sans text-sm text-ink">{service.timeline}</dd>
                   </div>
                 </dl>
+                <ButtonLink href={`/services/${service.path}`} variant="secondary" className="mt-8">
+                  More about {service.name.toLowerCase()}
+                </ButtonLink>
               </Reveal>
               <Reveal delay={120} className={index % 2 === 0 ? 'card relative p-7 shadow-block' : 'card relative p-7 shadow-block-cobalt'}>
                 <div className="dim">what is included</div>

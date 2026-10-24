@@ -6,6 +6,8 @@
  * anywhere, so there is deliberately no address or phone number here.
  */
 
+import { services } from './services';
+
 export const studio = {
   name: 'KleeLab',
   tagline: 'Websites and systems, built where you can see them.',
@@ -24,6 +26,10 @@ export const primaryNav = [
 ] as const;
 
 export const footerNav = [
+  {
+    heading: 'What we build',
+    links: services.map((service) => ({ href: `/services/${service.path}`, label: service.name })),
+  },
   {
     heading: 'Studio',
     links: [

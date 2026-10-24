@@ -116,7 +116,7 @@ export default async function HomePage() {
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {services.map((service, index) => (
             <Reveal key={service.slug} delay={index * 90} className="flex">
-              <Link href={`/services#${service.slug}`} className="card card-lift group flex flex-1 flex-col p-5 no-underline">
+              <Link href={`/services/${service.path}`} className="card card-lift group flex flex-1 flex-col p-5 no-underline">
                 <ServiceSketch slug={service.slug} />
                 <span className="mt-5 font-mono text-[11px] text-cobalt">{service.code}</span>
                 <h3 className="mt-2 font-display text-2xl font-extrabold tracking-tight">{service.name}</h3>
