@@ -128,7 +128,7 @@ export default async function ServicePage({ params }: Props) {
 
       {page.examples && (
         <Section>
-          <SectionHeading tag="What we build" title="Systems we can build for you." intro="A few of the most common. If your team does it every day, it can usually be built." />
+          <SectionHeading tag="What we build" title="Systems we can build for you." intro="Some of the systems we are asked for most often." />
           <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
             {page.examples.map((example, index) => (
               <Reveal key={example.name} delay={(index % 3) * 90} className="border-t-[1.5px] border-ink pt-5">
@@ -138,6 +138,19 @@ export default async function ServicePage({ params }: Props) {
               </Reveal>
             ))}
           </div>
+          {/* The list is a starting point, not a menu: invite the one we did not name. */}
+          <Reveal className="mt-12 flex flex-col gap-5 border-t-[1.5px] border-dashed border-ink pt-8 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-display text-2xl font-extrabold tracking-tight">And many more.</p>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+                If your team does it every day, we can most likely build a system for it. Describe how the work happens
+                now and we will tell you what we would build.
+              </p>
+            </div>
+            <ButtonLink href="/contact" className="shrink-0">
+              Tell us what you need
+            </ButtonLink>
+          </Reveal>
         </Section>
       )}
 
