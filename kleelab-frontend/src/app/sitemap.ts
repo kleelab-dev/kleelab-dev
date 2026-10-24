@@ -1,7 +1,8 @@
+import { SITE_URL } from '@/lib/site';
 import type { MetadataRoute } from 'next';
 import { getPortfolio } from '@/lib/portfolio';
 
-const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kleelab.com').replace(/\/$/, '');
+const BASE = SITE_URL;
 
 const PAGES: [path: string, priority: number][] = [
   ['/', 1],

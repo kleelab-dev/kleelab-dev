@@ -9,6 +9,7 @@ import { Reveal } from '@/components/site/Reveal';
 export const metadata: Metadata = {
   title: 'Care plans',
   description: 'Deployment, managed hosting and maintenance for the sites and systems we build, or ones you already have.',
+  alternates: { canonical: '/care' },
 };
 
 const STEPS = [

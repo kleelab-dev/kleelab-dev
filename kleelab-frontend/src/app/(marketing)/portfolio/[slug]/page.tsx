@@ -1,3 +1,4 @@
+import { SITE_URL } from '@/lib/site';
 import type { Metadata } from 'next';
 import { PortfolioImage } from '@/components/site/PortfolioImage';
 import Link from 'next/link';
@@ -8,7 +9,7 @@ import { DemoButton, PortfolioEnquiry, PortfolioView } from '@/components/site/P
 import { Section } from '@/components/site/Section';
 import { formatPrice, getPortfolioItem, shareImage, type PortfolioItem } from '@/lib/portfolio';
 
-const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kleelab.com').replace(/\/$/, '');
+const BASE = SITE_URL;
 
 type Props = {
   params: Promise<{ slug: string }>;

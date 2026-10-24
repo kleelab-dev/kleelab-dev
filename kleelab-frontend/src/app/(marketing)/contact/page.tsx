@@ -8,6 +8,7 @@ import { ButtonLink } from '@/components/ui/Button';
 export const metadata: Metadata = {
   title: 'Start a project',
   description: 'Tell us what you need. We reply within one working day to set up a free first call.',
+  alternates: { canonical: '/contact' },
 };
 
 const NEXT_STEPS = [

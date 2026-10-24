@@ -5,6 +5,7 @@ import { cookies } from '@/content/legal';
 export const metadata: Metadata = {
   title: cookies.title,
   description: cookies.summary,
+  alternates: { canonical: '/cookies' },
 };
 
 export default function CookiesPage() {

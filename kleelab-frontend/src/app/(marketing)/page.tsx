@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import { addOns, services } from '@/content/services';
@@ -15,6 +16,10 @@ import { Reveal } from '@/components/site/Reveal';
 import { Section, SectionHeading } from '@/components/site/Section';
 import { ServiceSketch } from '@/components/site/ServiceSketch';
 import { getPortfolio } from '@/lib/portfolio';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 /** Facts already promised elsewhere on the site, pulled out as big numbers. */
 const PROMISES = [

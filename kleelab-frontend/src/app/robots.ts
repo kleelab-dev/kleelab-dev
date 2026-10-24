@@ -1,6 +1,7 @@
+import { SITE_URL } from '@/lib/site';
 import type { MetadataRoute } from 'next';
 
-const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kleelab.com').replace(/\/$/, '');
+const BASE = SITE_URL;
 
 /**
  * robots.txt for the product and marketing site.

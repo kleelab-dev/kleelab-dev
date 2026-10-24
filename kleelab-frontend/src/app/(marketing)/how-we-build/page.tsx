@@ -8,6 +8,7 @@ import { ScrollRail } from '@/components/site/ScrollRail';
 export const metadata: Metadata = {
   title: 'How we build',
   description: 'Six steps from the first call to hand-over, each one visible and approved on your client dashboard.',
+  alternates: { canonical: '/how-we-build' },
 };
 
 const PRINCIPLES = [

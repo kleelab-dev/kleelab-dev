@@ -8,6 +8,7 @@ import { workExamples } from '@/content/work';
 export const metadata: Metadata = {
   title: 'Work',
   description: 'The kinds of websites and systems KleeLab designs and builds.',
+  alternates: { canonical: '/work' },
 };
 
 export default function WorkPage() {

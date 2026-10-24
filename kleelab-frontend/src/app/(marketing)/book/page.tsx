@@ -6,6 +6,7 @@ import { PageHero } from '@/components/site/Section';
 export const metadata: Metadata = {
   title: 'Book a free call',
   description: 'Pick a time for a free 30-minute call about what you want to build. No obligation.',
+  alternates: { canonical: '/book' },
 };
 
 const ON_THE_CALL = [
