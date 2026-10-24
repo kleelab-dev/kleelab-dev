@@ -6,7 +6,7 @@ import { Reveal } from '@/components/site/Reveal';
 import { workExamples } from '@/content/work';
 
 export const metadata: Metadata = {
-  title: 'Work',
+  title: 'Our work: websites, shops and web apps',
   description: 'The kinds of websites and systems KleeLab designs and builds.',
   alternates: { canonical: '/work' },
 };

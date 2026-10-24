@@ -8,7 +8,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { getPortfolio } from '@/lib/portfolio';
 
 export const metadata: Metadata = {
-  title: 'Portfolio',
+  title: 'Portfolio: sites we built and ready-made sites',
   description: 'Sites KleeLab has built, and ready-made sites we change to suit your business and set up for you.',
   alternates: { canonical: '/portfolio' },
 };

@@ -6,7 +6,7 @@ import { PageHero } from '@/components/site/Section';
 import { ButtonLink } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
-  title: 'Start a project',
+  title: 'Start a website project',
   description: 'Tell us what you need. We reply within one working day to set up a free first call.',
   alternates: { canonical: '/contact' },
 };

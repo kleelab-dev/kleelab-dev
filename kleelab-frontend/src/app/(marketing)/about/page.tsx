@@ -4,7 +4,7 @@ import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 
 export const metadata: Metadata = {
-  title: 'About',
+  title: 'About KleeLab',
   description: 'KleeLab is a small, remote team that designs and builds websites and systems for organisations of every size.',
   alternates: { canonical: '/about' },
 };

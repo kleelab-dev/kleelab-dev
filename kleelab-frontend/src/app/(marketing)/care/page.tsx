@@ -7,7 +7,7 @@ import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 
 export const metadata: Metadata = {
-  title: 'Care plans',
+  title: 'Care plans: website hosting and maintenance',
   description: 'Deployment, managed hosting and maintenance for the sites and systems we build, or ones you already have.',
   alternates: { canonical: '/care' },
 };

@@ -29,8 +29,9 @@ const mono = JetBrains_Mono({
 });
 
 const TITLE = 'KleeLab: websites and systems, built where you can see them';
+// Kept under ~155 characters: search results cut longer descriptions short.
 const DESCRIPTION =
-  'KleeLab designs and builds websites, web apps and internal systems for organisations and businesses. You follow every step on your own dashboard, then we deploy, host and look after it if you want us to.';
+  'KleeLab designs and builds websites, web apps and internal systems. Follow every step on your own dashboard, then we can host and look after it.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

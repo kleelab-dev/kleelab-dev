@@ -6,7 +6,7 @@ import { Reveal } from '@/components/site/Reveal';
 import { ScrollRail } from '@/components/site/ScrollRail';
 
 export const metadata: Metadata = {
-  title: 'How we build',
+  title: 'How we build your website, step by step',
   description: 'Six steps from the first call to hand-over, each one visible and approved on your client dashboard.',
   alternates: { canonical: '/how-we-build' },
 };

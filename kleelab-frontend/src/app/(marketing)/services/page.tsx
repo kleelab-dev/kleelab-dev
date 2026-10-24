@@ -7,7 +7,7 @@ import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 
 export const metadata: Metadata = {
-  title: 'Services',
+  title: 'Website design and development services',
   description: 'Websites, online shops, web apps and internal systems, plus optional deployment, hosting and maintenance.',
   alternates: { canonical: '/services' },
 };
