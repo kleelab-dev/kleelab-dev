@@ -60,8 +60,20 @@ export default async function HomePage() {
   // The API sends featured items first, so the first eight are the ones to show.
   const portfolio = (await getPortfolio()).slice(0, 8);
 
+  // The questions answered on this page, so search and AI answer engines can quote them.
+  const faqData = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQS.map((faq) => ({
+      '@type': 'Question',
+      name: faq.q,
+      acceptedAnswer: { '@type': 'Answer', text: faq.a },
+    })),
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqData).replace(/</g, '\\u003c') }} />
       {/* The approval stamp lands oversized; clip it sideways so phones never scroll horizontally. */}
       <section className="overflow-x-clip px-5 pb-16 pt-12 sm:px-8 sm:pb-24 sm:pt-20">
         <div className="mx-auto grid max-w-content items-center gap-14 lg:grid-cols-[1.15fr_1fr]">

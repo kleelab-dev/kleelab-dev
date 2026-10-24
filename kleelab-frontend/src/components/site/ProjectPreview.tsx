@@ -137,7 +137,7 @@ export function ProjectPreview({ className }: { className?: string }) {
         className="kl-pop ml-auto mt-4 max-w-[85%] rounded-2xl rounded-br-md bg-cobalt px-4 py-3 text-sm text-white shadow-block-sm sm:-mr-4"
       >
         {message.body}
-        <span className="mt-1 block font-mono text-[10px] text-white/70">{message.meta}</span>
+        <span className="mt-1 block font-mono text-[10px] text-white/80">{message.meta}</span>
       </div>
     </figure>
   );

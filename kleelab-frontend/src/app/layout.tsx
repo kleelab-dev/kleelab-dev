@@ -28,10 +28,11 @@ const mono = JetBrains_Mono({
   weight: ['400', '500', '600'],
 });
 
-const TITLE = 'KleeLab: websites and systems, built where you can see them';
+// Leads with the words people type into a search box; the brand line lives in the homepage heading.
+const TITLE = 'Website design and web app development · KleeLab';
 // Kept under ~155 characters: search results cut longer descriptions short.
 const DESCRIPTION =
-  'KleeLab designs and builds websites, web apps and internal systems. Follow every step on your own dashboard, then we can host and look after it.';
+  'Website design, online shops, web apps and custom internal systems for businesses. Fixed price, and you follow every step on your own dashboard.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
