@@ -5,6 +5,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
+import { ServiceSketch } from '@/components/site/ServiceSketch';
 
 export const metadata: Metadata = {
   title: 'Website design and development services',
@@ -26,9 +27,14 @@ export default function ServicesPage() {
       />
 
       <Section tone="white">
-        <div className="grid gap-16">
-          {services.map((service, index) => (
-            <article id={service.slug} key={service.slug} className="grid scroll-mt-24 gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+        {/* Open rows split by a rule, not a stack of boxed cards: the page read as four cages. */}
+        <div className="grid">
+          {services.map((service) => (
+            <article
+              id={service.slug}
+              key={service.slug}
+              className="grid scroll-mt-24 gap-10 border-t-[1.5px] border-line py-14 first:border-t-0 first:pt-0 last:pb-0 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16"
+            >
               <Reveal>
                 <span className="font-mono text-xs text-cobalt">
                   {service.code} / {String(services.length).padStart(2, '0')}
@@ -49,18 +55,19 @@ export default function ServicesPage() {
                   More about {service.name.toLowerCase()}
                 </ButtonLink>
               </Reveal>
-              <Reveal delay={120} className={index % 2 === 0 ? 'card relative p-7 shadow-block' : 'card relative p-7 shadow-block-cobalt'}>
-                <div className="dim">what is included</div>
-                <ul className="grid gap-4">
+              <Reveal delay={120}>
+                <ServiceSketch slug={service.slug} className="max-w-md" />
+                <p className="mt-8 font-mono text-[11px] uppercase tracking-label text-muted">What is included</p>
+                <ul className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
                   {service.includes.map((item) => (
-                    <li key={item} className="flex gap-3">
+                    <li key={item} className="flex gap-3 text-sm leading-relaxed">
                       <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sun">
                         <CheckIcon className="h-3.5 w-3.5" aria-hidden />
                       </span>
                       {item}
                     </li>
                   ))}
-                  <li className="flex gap-3 text-cobalt">
+                  <li className="flex gap-3 text-sm leading-relaxed text-cobalt">
                     <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-cobalt text-white">
                       <CheckIcon className="h-3.5 w-3.5" aria-hidden />
                     </span>

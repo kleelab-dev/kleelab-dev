@@ -38,6 +38,8 @@ export default async function ServicePage({ params }: Props) {
   const { page } = service;
   const url = `${SITE_URL}/services/${service.path}`;
   const others = services.filter((s) => s.slug !== service.slug);
+  // The bands alternate paper and white; an extra examples band shifts every one after it.
+  const shift = Boolean(page.examples);
 
   // What search engines read: the service, where it sits in the site, and its common questions.
   const structuredData = {
@@ -124,7 +126,22 @@ export default async function ServicePage({ params }: Props) {
         </div>
       </Section>
 
-      <Section>
+      {page.examples && (
+        <Section>
+          <SectionHeading tag="What we build" title="Systems we can build for you." intro="A few of the most common. If your team does it every day, it can usually be built." />
+          <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+            {page.examples.map((example, index) => (
+              <Reveal key={example.name} delay={(index % 3) * 90} className="border-t-[1.5px] border-ink pt-5">
+                <span className="font-mono text-[11px] text-cobalt">{String(index + 1).padStart(2, '0')}</span>
+                <h3 className="mt-2 font-display text-xl font-extrabold tracking-tight">{example.name}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{example.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <Section tone={shift ? 'white' : 'graph'}>
         <SectionHeading tag="What changes" title="Once it is built." />
         <div className="mt-12 grid gap-5 md:grid-cols-3">
           {page.outcomes.map((outcome, index) => (
@@ -139,7 +156,7 @@ export default async function ServicePage({ params }: Props) {
         </div>
       </Section>
 
-      <Section tone="white">
+      <Section tone={shift ? 'graph' : 'white'}>
         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
           <Reveal>
             <SectionHeading tag="Included" title="What you get." intro={service.summary} />
@@ -165,7 +182,7 @@ export default async function ServicePage({ params }: Props) {
         </div>
       </Section>
 
-      <Section>
+      <Section tone={shift ? 'white' : 'graph'}>
         <SectionHeading tag="Questions" title="Asked often." />
         <div className="mt-10 grid max-w-3xl gap-3">
           {page.faqs.map((faq) => (
@@ -182,7 +199,7 @@ export default async function ServicePage({ params }: Props) {
         </div>
       </Section>
 
-      <Section tone="white">
+      <Section tone={shift ? 'graph' : 'white'}>
         <SectionHeading tag="Also" title="Other things we build." />
         <div className="mt-10 grid gap-5 sm:grid-cols-3">
           {others.map((other) => (

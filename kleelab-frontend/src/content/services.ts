@@ -29,6 +29,8 @@ export type ServicePage = {
   signs: string[];
   /** What changes once it is built. */
   outcomes: { heading: string; body: string }[];
+  /** Named kinds of thing we build under this service, so a visitor can spot theirs. */
+  examples?: { name: string; body: string }[];
   faqs: { question: string; answer: string }[];
 };
 
@@ -158,36 +160,49 @@ export const services: Service[] = [
     slug: 'systems',
     code: 'SVC-04',
     name: 'Internal systems',
-    summary: 'The spreadsheet that runs the business, turned into a proper tool your team will like.',
+    summary: 'Custom systems that run the work behind the scenes for businesses and organisations: stock, staff, clients, members, jobs and reports.',
     includes: [
-      'Writing down how the work really gets done',
-      'Data moved over from what you use now',
-      'Reports and exports',
+      'Mapping how the work really gets done',
+      'Your data moved over from what you use now',
+      'Connections to the tools you already pay for',
+      'Reports, dashboards and exports',
       'Training and handover documentation',
     ],
-    bestFor: 'Teams running a process on spreadsheets, email threads and good intentions.',
+    bestFor: 'Businesses, charities, schools and other organisations juggling several tools, paperwork or workarounds.',
     timeline: 'Six weeks and up, depending on what you need.',
     path: 'internal-systems',
     page: {
-      title: 'Custom internal systems and business tools',
+      title: 'Custom internal systems for businesses and organisations',
       description:
-        'The spreadsheet that runs your business, turned into a proper tool: your data moved over, reports built in, and your team trained at handover.',
-      heading: 'Retire the spreadsheet.',
+        'Custom systems for businesses and organisations: stock, staff, clients, members, donors and approvals, built around how your team works.',
+      heading: 'The tools your team runs on.',
       intro:
-        'Many teams run their most important work on a spreadsheet only one person really understands, held together by email. We write down how the work really happens, build a tool around it, move your data across and train everyone to use it.',
+        'Off-the-shelf software fits most businesses and organisations about seventy per cent. The rest gets patched with paperwork, copy and paste and workarounds. We build the system your work actually needs, connect it to what you already use and train your team to run it.',
       signs: [
-        'One spreadsheet runs the business and you are nervous when it is open in two places',
-        'Reports take a day of copying and pasting at the end of every month',
-        'Nobody is sure which version of a file is the latest one',
-        'New staff take weeks to learn how things are done',
+        'Your team switches between several apps, files and chats to finish one task',
+        'Approvals, requests or job updates get lost in email and messages',
+        'Reports take hours of copying numbers from one place to another',
+        'You pay for software that only half fits, and work around the rest',
       ],
       outcomes: [
-        { heading: 'One version of the truth', body: 'Everyone works in the same place, with the latest information, and a record of who changed what.' },
-        { heading: 'Reports in a click', body: 'The numbers you put together by hand each month are ready whenever you need them.' },
-        { heading: 'Easy to hand on', body: 'The process lives in the tool, not in one person\'s head, with written guides from handover.' },
+        { heading: 'One place for the work', body: 'Stock, clients, members, jobs or staff live in one system, with the latest information and a record of who changed what.' },
+        { heading: 'Less done by hand', body: 'Reminders, approvals, invoices and reports happen by themselves instead of someone remembering to do them.' },
+        { heading: 'Easy to hand on', body: 'The process lives in the system, not in one person\'s head, with written guides from handover.' },
+      ],
+      examples: [
+        { name: 'Inventory and stock control', body: 'Know what you have, where it is and when to reorder, across one shop or several sites.' },
+        { name: 'Client, case and member management', body: 'Every client, member or beneficiary, with their history and follow-ups, in one place.' },
+        { name: 'Staff, volunteers and rotas', body: 'Shifts, leave, timesheets and records for staff and volunteers, without the group chat.' },
+        { name: 'Jobs and field teams', body: 'Assign jobs, track them from a phone, and capture photos and signatures on site.' },
+        { name: 'Requests and approvals', body: 'Purchases, expenses and sign-offs go to the right person, with a record of every decision.' },
+        { name: 'Quotes, invoices and payments', body: 'From quote to invoice to paid, with reminders that go out by themselves.' },
+        { name: 'Donors, grants and programmes', body: 'Donations, grant deadlines and programme results tracked, with funder reports ready when they are due.' },
+        { name: 'Contracts and compliance', body: 'Certificates, contracts and renewals tracked, with a warning before anything expires.' },
+        { name: 'Management dashboards', body: 'The numbers that matter, live, instead of a report someone builds by hand each month.' },
       ],
       faqs: [
-        { question: 'Do we lose our existing data?', answer: 'No. Moving your data across from spreadsheets or old tools is part of the project, and we check it with you before you switch over.' },
+        { question: 'Do we lose our existing data?', answer: 'No. Moving your data across from your current software, files or spreadsheets is part of the project, and we check it with you before you switch over.' },
+        { question: 'What kind of systems do you build?', answer: 'Inventory and stock control, client and member records, staff and volunteer rotas, job tracking for field teams, approval workflows, invoicing, donor and grant tracking, and management dashboards. If your team does it every day, it can usually be built.' },
         { question: 'How long does an internal system take?', answer: 'Six weeks and up. We start with the part of the work that costs you the most time and build out from there.' },
         { question: 'Will my team actually use it?', answer: 'We design it with the people who will use it every day, and finish with training and short written guides.' },
         { question: 'Is our data kept private?', answer: 'Yes. Everyone logs in, each person sees only what their role allows, and the data is backed up every day.' },
