@@ -10,7 +10,7 @@ export function SiteFooter() {
           <div>
             <Logo inverted className="text-3xl" />
             <p className="mt-4 max-w-sm leading-relaxed text-paper/70">
-              We design and build websites and systems for organisations and businesses, and you watch every step
+              We design and build websites and systems for organisations and businesses around the world, and you watch every step
               from your own dashboard.
             </p>
             <a href={`mailto:${studio.email}`} className="mt-6 inline-block font-mono text-sm text-sun no-underline hover:underline">

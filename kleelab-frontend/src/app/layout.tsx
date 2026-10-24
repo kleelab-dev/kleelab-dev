@@ -64,6 +64,8 @@ const ORGANIZATION = {
       url: `${SITE_URL}/`,
       logo: `${SITE_URL}/icon.svg`,
       description: DESCRIPTION,
+      // We work remotely, so search engines should not tie us to one country.
+      areaServed: 'Worldwide',
     },
     {
       '@type': 'WebSite',

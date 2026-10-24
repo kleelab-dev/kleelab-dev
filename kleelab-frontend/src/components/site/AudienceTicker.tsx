@@ -19,7 +19,7 @@ function Copy({ n }: { n: 1 | 2 }) {
 export function AudienceTicker() {
   return (
     <div className="flex items-center overflow-hidden border-y-[1.5px] border-ink bg-ink py-4 font-mono text-xs uppercase tracking-label text-paper">
-      <span className="relative z-10 shrink-0 bg-ink pl-5 pr-6 text-sun sm:pl-8">Built for</span>
+      <span className="relative z-10 shrink-0 bg-ink pl-5 pr-6 text-sun sm:pl-8">Built for teams worldwide</span>
       <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_6%,#000_94%,transparent)]">
         <div className="marquee flex w-max">
           <Copy n={1} />
