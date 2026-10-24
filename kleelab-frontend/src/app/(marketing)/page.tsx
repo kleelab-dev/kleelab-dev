@@ -62,7 +62,8 @@ export default async function HomePage() {
 
   return (
     <>
-      <section className="px-5 pb-16 pt-12 sm:px-8 sm:pb-24 sm:pt-20">
+      {/* The approval stamp lands oversized; clip it sideways so phones never scroll horizontally. */}
+      <section className="overflow-x-clip px-5 pb-16 pt-12 sm:px-8 sm:pb-24 sm:pt-20">
         <div className="mx-auto grid max-w-content items-center gap-14 lg:grid-cols-[1.15fr_1fr]">
           <div>
             <p className="tag">Websites · shops · apps · systems</p>
