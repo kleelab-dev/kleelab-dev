@@ -35,11 +35,44 @@ jobs:
         # is a phishing tool wearing our domain.
         run: npm run check:auth
 
+      - name: Client project page panels
+        # The client's project page is six panels in a fixed order, with every
+        # action still on it. Rendered with a fixed project: no API, no sign-in.
+        run: npm run check:dashboard
+
+      - name: Dashboard and verify-email redirects
+        # One project opens straight away, two show the list, and old
+        # verification links land on sign-in.
+        run: npm run check:dashboard-redirect
+
+      - name: Marketing visuals in the source
+        # No hex colours in the new drawings, one shared step list on /contact and
+        # /book, no new motion, and no "Built with" strip.
+        run: npm run check:marketing-source
+
       - name: Build
         run: npm run build
         env:
           # Only used by the /api/* rewrite target; no backend is needed to build.
           API_URL: http://localhost:8000
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Public pages in a browser
+        # The new visuals are present, nothing scrolls sideways at 375, 768 and 1280px,
+        # drawings are hidden from screen readers, reduced motion stops everything, and
+        # a service's share image is a 1200x630 PNG. Needs Node 22 for WebSocket and
+        # the Chrome that ubuntu-latest ships with. The API is not running; the pages
+        # cope with that.
+        run: |
+          npm run start -- -p 3000 > /tmp/site.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/ > /dev/null && break; sleep 1; done
+          npm run check:marketing
+        env:
+          API_URL: http://localhost:8000
+          REQUIRE_BROWSER: "1"
 
   backend:
     name: Backend (import + compile)
@@ -76,33 +109,21 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
           SECRET_KEY: ci-placeholder-secret-key-not-for-production
 
-      - name: Design library data
-        # The vendored dataset is committed verbatim, and the library the app loads
-        # is compiled from it. This fails if the two have drifted apart, or if the
-        # data changed shape upstream in a way nothing has been updated for.
-        run: python scripts/compile_design_library.py --check
-
-      - name: Design library behaviour
-        # Which design a business is given: whether the trade is recognised, whether
-        # the palette's text pairs are readable, whether the same business always
-        # gets the same design, and whether two businesses in one trade get two.
-        run: python scripts/check_design_library.py
-
-      - name: Publishing addresses and origins
-        # The address an owner is given for their site, and the CORS pattern that
-        # decides whether a published site may call this API. Both fail silently in
-        # a browser, so neither can be left to inspection.
-        run: python scripts/check_publishing.py
-        env:
-          PYTHONPATH: src
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
-          SECRET_KEY: ci-placeholder-secret-key-not-for-production
-
       - name: Provider routing and fallback
         # Which model answers which pass, and what happens when one key is missing,
         # one host is down, or both are. Runs with no key and no network, because a
         # check that needs a provider is a check nobody runs.
         run: python scripts/check_providers.py
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production
+
+      - name: Allowed origins and public form limits
+        # Production allows only the listed origins, never localhost or lookalikes;
+        # the public forms get the strict per-minute budget; removed sign-up paths
+        # stay removed. No key, no network, no database.
+        run: python scripts/check_cors_and_limits.py
         env:
           PYTHONPATH: src
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab

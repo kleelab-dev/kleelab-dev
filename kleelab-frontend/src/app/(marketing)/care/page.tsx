@@ -5,6 +5,8 @@ import { AskButton } from '@/components/site/AskButton';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
+import { CareReportMock } from '@/components/site/CareReportMock';
+import { ServiceSketch } from '@/components/site/ServiceSketch';
 
 export const metadata: Metadata = {
   title: 'Care plans: website hosting and maintenance',
@@ -43,7 +45,8 @@ export default function CarePage() {
           {addOns.map((addOn, index) => (
             <Reveal key={addOn.slug} delay={index * 90}>
               <article className={index === 1 ? 'card card-lift relative h-full bg-sun p-8 shadow-block' : 'card card-lift relative h-full p-8'}>
-                {index === 1 && <span className="stamp kl-stamp-in absolute -top-3 right-5 bg-white">Most asked for</span>}
+                {index === 1 && <span className="stamp kl-stamp-in absolute -top-3 right-5 z-10 bg-white">Most asked for</span>}
+                <ServiceSketch slug={addOn.slug} className="mb-6" />
                 <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
                 <h2 className="mt-4 font-display text-3xl font-extrabold tracking-tight">{addOn.name}</h2>
                 <p className="mt-3 leading-relaxed text-ink/75">{addOn.summary}</p>
@@ -66,19 +69,24 @@ export default function CarePage() {
 
       <Section>
         <SectionHeading tag="How it works" title="Four steps, then nothing to think about." />
-        <ol className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((step, index) => (
-            <Reveal as="li" key={step.title} delay={index * 90}>
-              <div className="card card-lift h-full p-6">
-                <span className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-ink bg-sun font-mono text-xs">
-                  {index + 1}
-                </span>
-                <h3 className="mt-4 font-display text-xl font-bold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{step.body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </ol>
+        <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-start">
+          <ol className="grid gap-5 sm:grid-cols-2">
+            {STEPS.map((step, index) => (
+              <Reveal as="li" key={step.title} delay={index * 90}>
+                <div className="card card-lift h-full p-6">
+                  <span className="grid h-9 w-9 place-items-center rounded-full border-[1.5px] border-ink bg-sun font-mono text-xs">
+                    {index + 1}
+                  </span>
+                  <h3 className="mt-4 font-display text-xl font-bold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{step.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </ol>
+          <Reveal delay={120}>
+            <CareReportMock />
+          </Reveal>
+        </div>
       </Section>
 
       <CallToAction title="Need a hand with a site you already have?" body="Tell us what it runs on and what is bothering you. We will take a look and suggest the smallest plan that fixes it." />

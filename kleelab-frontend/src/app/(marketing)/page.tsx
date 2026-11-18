@@ -245,6 +245,7 @@ export default async function HomePage() {
           {addOns.map((addOn, index) => (
             <Reveal key={addOn.slug} delay={index * 90} className="flex">
               <div className={index === 1 ? 'card card-lift flex-1 bg-sun p-7 shadow-block' : 'card card-lift flex-1 p-7'}>
+                <ServiceSketch slug={addOn.slug} className="mb-6" />
                 <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
                 <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink/75">{addOn.summary}</p>

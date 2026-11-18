@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BookCall } from '@/components/call/BookCall';
 import { PageHero } from '@/components/site/Section';
+import { StepRail } from '@/components/site/StepRail';
 
 export const metadata: Metadata = {
   title: 'Book a free call',
@@ -34,16 +35,7 @@ export default function BookPage() {
           <aside className="grid content-start gap-8">
             <div>
               <p className="tag">What we cover</p>
-              <ol className="mt-5 grid gap-4">
-                {ON_THE_CALL.map((step, index) => (
-                  <li key={step} className="flex gap-4">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] border-ink bg-white font-mono text-xs">
-                      {index + 1}
-                    </span>
-                    <span className="pt-1 leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
+              <StepRail steps={ON_THE_CALL} stamp="In writing" className="mt-5" />
             </div>
             <div className="rounded-2xl border-[1.5px] border-dashed border-ink p-6">
               <p className="tag">Rather write it down?</p>

@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
+import { BeforeAfter } from '@/components/site/BeforeAfter';
+import { ExampleShot } from '@/components/site/ExampleShot';
+import { INK, SUN, pen } from '@/components/site/ServiceSketch';
 
 export const metadata: Metadata = {
   title: 'About KleeLab',
@@ -34,6 +37,28 @@ const TURN_DOWN = [
   'Anything that needs an answer faster than it can be done properly.',
 ];
 
+/** The hero drawing: a laptop on a desk of graph paper, a pencil and an approval stamp. Decorative only. */
+function Desk() {
+  return (
+    <div aria-hidden className="bg-graph relative rounded-3xl border-[1.5px] border-ink px-6 pb-10 pt-10 sm:px-10">
+      <div className="mx-auto max-w-md">
+        <ExampleShot shot="site" size="lg" url="your-new-site.com" />
+        {/* The laptop's base: a thin deck wider than the screen. */}
+        <div className="-mx-[6%] h-3 rounded-b-xl border-[1.5px] border-t-0 border-ink bg-white" />
+        <div className="mx-auto h-1 w-1/4 rounded-b-md border-[1.5px] border-t-0 border-ink bg-paper" />
+      </div>
+      <svg viewBox="0 0 160 24" className="absolute bottom-3 left-4 w-32 rotate-[-6deg] sm:left-8 sm:w-40">
+        <rect x="18" y="5" width="118" height="14" rx="2" fill={SUN} stroke={INK} strokeWidth={1.4} />
+        <path d="M18 5 L 4 12 L 18 19 Z" fill="white" stroke={INK} strokeWidth={1.4} strokeLinejoin="round" />
+        <path d="M4 12 L 9 9.5 L 9 14.5 Z" fill={INK} />
+        <rect x="136" y="5" width="14" height="14" rx="2" {...pen} />
+        <line x1="24" y1="12" x2="130" y2="12" stroke={INK} strokeWidth={0.8} />
+      </svg>
+      <span className="stamp absolute right-5 top-4 bg-white text-xs sm:right-8">Approved</span>
+    </div>
+  );
+}
+
 export default function AboutPage() {
   return (
     <>
@@ -45,6 +70,7 @@ export default function AboutPage() {
           </>
         }
         intro="We design and build websites, web apps and internal systems for start-ups, charities, clinics, schools, shops and everyone in between. We work remotely with clients wherever they are, and we show our work as we go."
+        aside={<Desk />}
       />
 
       <Section tone="white">
@@ -62,13 +88,18 @@ export default function AboutPage() {
         </div>
       </Section>
 
-      <Section>
-        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-          <SectionHeading
-            tag="Why the dashboard"
-            title="Because waiting in the dark is the worst part."
-            intro="Most people who have had a website built remember the silence: weeks between emails, then a big reveal that was not quite right. Our client dashboard exists so that never happens. You see the work while it can still change."
-          />
+      <Section className="overflow-x-clip">
+        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+          <div className="min-w-0">
+            <SectionHeading
+              tag="Why the dashboard"
+              title="Because waiting in the dark is the worst part."
+              intro="Most people who have had a website built remember the silence: weeks between emails, then a big reveal that was not quite right. Our client dashboard exists so that never happens. You see the work while it can still change."
+            />
+            <Reveal className="mt-12">
+              <BeforeAfter />
+            </Reveal>
+          </div>
           <Reveal className="card relative p-7 shadow-block">
             <div className="dim">what we turn down</div>
             <ul className="grid gap-4">

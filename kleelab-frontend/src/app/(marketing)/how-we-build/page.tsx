@@ -4,6 +4,7 @@ import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 import { ScrollRail } from '@/components/site/ScrollRail';
+import { StageSketch } from '@/components/site/StageSketch';
 
 export const metadata: Metadata = {
   title: 'How we build your website, step by step',
@@ -44,9 +45,12 @@ export default function HowWeBuildPage() {
                 <p className="mt-3 text-lg font-medium">{stage.short}</p>
                 <p className="mt-3 max-w-measure leading-relaxed text-muted">{stage.detail}</p>
               </div>
-              <div className="card-lift self-start rounded-2xl border-[1.5px] border-dashed border-cobalt bg-cobalt-soft p-5">
-                <p className="font-mono text-[11px] uppercase tracking-label text-cobalt">Your part</p>
-                <p className="mt-2 text-sm leading-relaxed">{stage.youDo}</p>
+              <div className="grid content-start gap-4">
+                <StageSketch stage={stage.name} className="max-w-sm" />
+                <div className="card-lift rounded-2xl border-[1.5px] border-dashed border-cobalt bg-cobalt-soft p-5">
+                  <p className="font-mono text-[11px] uppercase tracking-label text-cobalt">Your part</p>
+                  <p className="mt-2 text-sm leading-relaxed">{stage.youDo}</p>
+                </div>
               </div>
             </Reveal>
           ))}

@@ -6,6 +6,7 @@ import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 import { ServiceSketch } from '@/components/site/ServiceSketch';
+import { QuoteMock } from '@/components/site/QuoteMock';
 
 export const metadata: Metadata = {
   title: 'Website design and development services',
@@ -90,6 +91,7 @@ export default function ServicesPage() {
           {addOns.map((addOn, index) => (
             <Reveal key={addOn.slug} delay={index * 90}>
               <div className="card card-lift h-full p-7">
+                <ServiceSketch slug={addOn.slug} className="mb-6" />
                 <span className="font-mono text-[11px] text-cobalt">{addOn.code}</span>
                 <h3 className="mt-4 font-display text-2xl font-extrabold tracking-tight">{addOn.name}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-muted">{addOn.summary}</p>
@@ -110,18 +112,23 @@ export default function ServicesPage() {
         </ButtonLink>
       </Section>
 
-      <Section tone="white">
+      <Section tone="white" className="overflow-x-clip">
         <SectionHeading tag="Pricing" title="Clear numbers, agreed up front." />
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {pricingModel.map((item, index) => (
-            <Reveal key={item.heading} delay={index * 90}>
-              <div className="card-lift h-full rounded-2xl border-[1.5px] border-dashed border-ink bg-paper p-6">
-                <span className="font-mono text-xs text-cobalt">{String(index + 1).padStart(2, '0')}</span>
-                <h3 className="mt-3 font-display text-xl font-bold">{item.heading}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
-              </div>
-            </Reveal>
-          ))}
+        <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-start lg:gap-14">
+          <div className="grid gap-5">
+            {pricingModel.map((item, index) => (
+              <Reveal key={item.heading} delay={index * 90}>
+                <div className="card-lift h-full rounded-2xl border-[1.5px] border-dashed border-ink bg-paper p-6">
+                  <span className="font-mono text-xs text-cobalt">{String(index + 1).padStart(2, '0')}</span>
+                  <h3 className="mt-3 font-display text-xl font-bold">{item.heading}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">{item.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal delay={120}>
+            <QuoteMock />
+          </Reveal>
         </div>
       </Section>
 

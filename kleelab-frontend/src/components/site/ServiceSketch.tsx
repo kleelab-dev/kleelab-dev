@@ -1,11 +1,12 @@
 import { clsx } from 'clsx';
 
-const INK = '#0e1530';
-const COBALT = '#2340e8';
-const SUN = '#ffd23f';
+/** The Blueprint palette for SVG strokes and fills; the same values as the Tailwind tokens. */
+export const INK = '#0e1530';
+export const COBALT = '#2340e8';
+export const SUN = '#ffd23f';
 
 /** Shared stroke settings so every drawing has the same pen. */
-const pen = { fill: 'none', stroke: COBALT, strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+export const pen = { fill: 'none', stroke: COBALT, strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 
 function Website() {
   return (
@@ -94,11 +95,80 @@ function System() {
   );
 }
 
+function Deployment() {
+  return (
+    <>
+      <line x1="16" y1="96" x2="184" y2="96" {...pen} strokeDasharray="4 5" />
+      <path d="M40 92 C 80 88, 120 60, 150 26" {...pen} strokeDasharray="3 5" />
+      {[52, 70, 88].map((x) => (
+        <line key={x} x1={x} y1="96" x2={x} y2="102" {...pen} />
+      ))}
+      <g transform="rotate(40 150 40)">
+        <path d="M150 14 C 160 24, 162 44, 158 58 L 142 58 C 138 44, 140 24, 150 14 Z" {...pen} />
+        <circle cx="150" cy="34" r="5" {...pen} />
+        <path d="M142 48 L 132 62 L 142 58" {...pen} />
+        <path d="M158 48 L 168 62 L 158 58" {...pen} />
+        <g className="sketch-accent">
+          <path d="M144 60 L 150 76 L 156 60 Z" fill={SUN} stroke={INK} strokeWidth={1.2} strokeLinejoin="round" />
+        </g>
+      </g>
+      <rect x="24" y="20" width="44" height="14" rx="7" {...pen} />
+      <line x1="32" y1="27" x2="60" y2="27" {...pen} />
+    </>
+  );
+}
+
+function Hosting() {
+  return (
+    <>
+      {[16, 42, 68].map((y, i) => (
+        <g key={y}>
+          <rect x="30" y={y} width="76" height="22" rx="3" {...pen} />
+          <line x1="40" y1={y + 11} x2="70" y2={y + 11} {...pen} />
+          <circle cx="94" cy={y + 11} r="2.5" {...(i === 0 ? { fill: COBALT, stroke: COBALT } : pen)} />
+        </g>
+      ))}
+      <line x1="118" y1="56" x2="184" y2="56" stroke={COBALT} strokeWidth={0.8} strokeDasharray="2 4" />
+      <polyline points="118,56 134,56 140,40 148,72 156,48 162,56 184,56" {...pen} />
+      <g className="sketch-accent">
+        <circle cx="172" cy="28" r="9" fill={SUN} stroke={INK} strokeWidth={1.2} />
+        <path d="M168 28l3 3 5-6" fill="none" stroke={INK} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </>
+  );
+}
+
+function Maintenance() {
+  return (
+    <>
+      <rect x="28" y="12" width="84" height="88" rx="5" {...pen} />
+      <line x1="40" y1="24" x2="80" y2="24" {...pen} strokeWidth={3} />
+      {[40, 56, 72, 88].map((y, i) => (
+        <g key={y}>
+          <rect x="40" y={y - 5} width="10" height="10" rx="2" {...pen} />
+          {i < 3 && <path d={`M42 ${y}l2.5 2.5 4-5`} {...pen} />}
+          <line x1="58" y1={y} x2={i % 2 ? 90 : 100} y2={y} {...pen} />
+        </g>
+      ))}
+      {/* An open-ended wrench: jaw at the top, handle down to the left. */}
+      <g className="sketch-accent">
+        <g transform="translate(152 44) rotate(35)">
+          <path d="M-6 -10.4 A 12 12 0 1 0 6 -10.4 L 3 -2 L -3 -2 Z" fill="white" stroke={INK} strokeWidth={1.4} strokeLinejoin="round" />
+          <rect x="-4.5" y="10" width="9" height="46" rx="4.5" fill={SUN} stroke={INK} strokeWidth={1.2} />
+        </g>
+      </g>
+    </>
+  );
+}
+
 const DRAWINGS: Record<string, () => React.ReactElement> = {
   websites: Website,
   shops: Shop,
   apps: App,
   systems: System,
+  deployment: Deployment,
+  hosting: Hosting,
+  maintenance: Maintenance,
 };
 
 /** A small line drawing of each service, drawn on graph paper. */

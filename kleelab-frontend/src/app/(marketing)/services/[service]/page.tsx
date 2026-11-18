@@ -2,13 +2,40 @@ import { SITE_URL } from '@/lib/site';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeftIcon, CheckIcon } from '@heroicons/react/24/outline';
-import { services } from '@/content/services';
+import {
+  ArchiveBoxIcon,
+  ArrowLeftIcon,
+  BanknotesIcon,
+  CalendarDaysIcon,
+  ChartBarIcon,
+  CheckBadgeIcon,
+  CheckIcon,
+  HeartIcon,
+  ShieldCheckIcon,
+  UserGroupIcon,
+  WrenchScrewdriverIcon,
+} from '@heroicons/react/24/outline';
+import { services, type ExampleIcon } from '@/content/services';
 import { ButtonLink } from '@/components/ui/Button';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
 import { ServiceSketch } from '@/components/site/ServiceSketch';
+import { ServiceHero } from '@/components/site/ServiceHero';
+import { PortfolioCard } from '@/components/site/PortfolioCard';
+import { getPortfolio } from '@/lib/portfolio';
+
+const ICONS: Record<ExampleIcon, typeof CheckIcon> = {
+  ArchiveBoxIcon,
+  UserGroupIcon,
+  CalendarDaysIcon,
+  WrenchScrewdriverIcon,
+  CheckBadgeIcon,
+  BanknotesIcon,
+  HeartIcon,
+  ShieldCheckIcon,
+  ChartBarIcon,
+};
 
 type Props = { params: Promise<{ service: string }> };
 
@@ -38,6 +65,8 @@ export default async function ServicePage({ params }: Props) {
   const { page } = service;
   const url = `${SITE_URL}/services/${service.path}`;
   const others = services.filter((s) => s.slug !== service.slug);
+  // Real work that staff tagged with this service in admin. Empty, or the API down, hides the band.
+  const work = (await getPortfolio()).filter((item) => item.tags.includes(service.slug)).slice(0, 3);
   // The bands alternate paper and white; an extra examples band shifts every one after it.
   const shift = Boolean(page.examples);
 
@@ -79,6 +108,7 @@ export default async function ServicePage({ params }: Props) {
         tag={`${service.code} · ${service.name}`}
         title={page.heading}
         intro={page.intro}
+        aside={<ServiceHero service={service} />}
       >
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <ButtonLink href="/contact" size="lg">
@@ -130,13 +160,19 @@ export default async function ServicePage({ params }: Props) {
         <Section>
           <SectionHeading tag="What we build" title="Systems we can build for you." intro="Some of the systems we are asked for most often." />
           <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-            {page.examples.map((example, index) => (
+            {page.examples.map((example, index) => {
+              const Icon = ICONS[example.icon];
+              return (
               <Reveal key={example.name} delay={(index % 3) * 90} className="border-t-[1.5px] border-ink pt-5">
-                <span className="font-mono text-[11px] text-cobalt">{String(index + 1).padStart(2, '0')}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[11px] text-cobalt">{String(index + 1).padStart(2, '0')}</span>
+                  <Icon className="h-6 w-6 text-cobalt" aria-hidden />
+                </div>
                 <h3 className="mt-2 font-display text-xl font-extrabold tracking-tight">{example.name}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted">{example.body}</p>
               </Reveal>
-            ))}
+              );
+            })}
           </div>
           {/* The list is a starting point, not a menu: invite the one we did not name. */}
           <Reveal className="mt-12 flex flex-col gap-5 border-t-[1.5px] border-dashed border-ink pt-8 sm:flex-row sm:items-center sm:justify-between">
@@ -225,6 +261,19 @@ export default async function ServicePage({ params }: Props) {
           ))}
         </div>
       </Section>
+
+      {work.length > 0 && (
+        <Section tone={shift ? 'white' : 'graph'}>
+          <SectionHeading tag="Our work" title={`${service.name} we have built.`} intro="Projects from our portfolio." />
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {work.map((item, index) => (
+              <Reveal key={item.slug} delay={index * 90}>
+                <PortfolioCard item={item} compact />
+              </Reveal>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <CallToAction />
     </>

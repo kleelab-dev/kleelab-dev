@@ -1,5 +1,6 @@
 import { clsx } from 'clsx';
 import type { WorkExample } from '@/content/work';
+import { BrowserFrame } from '@/components/site/BrowserFrame';
 
 /** Grey bars standing in for copy. */
 function Lines({ widths, className }: { widths: string[]; className?: string }) {
@@ -17,7 +18,7 @@ function Booking() {
     <div className="grid h-full grid-cols-[1fr_1.3fr] gap-3 p-3">
       <div className="grid content-start gap-2">
         <span className="block h-2.5 w-3/4 rounded-full bg-ink" />
-        {['Dr Ade', 'Dr Bello', 'Nurse Kemi'].map((name, i) => (
+        {['Alex', 'Sam', 'Jo'].map((name, i) => (
           <span key={name} className={clsx('flex items-center gap-1.5 rounded-md border px-1.5 py-1 text-[8px]', i === 0 ? 'border-cobalt bg-cobalt-soft' : 'border-line')}>
             <span className="h-3 w-3 rounded-full bg-grid" /> {name}
           </span>
@@ -90,23 +91,55 @@ function Tracker() {
   );
 }
 
-const SHOTS = { booking: Booking, portal: Portal, shop: Shop, tracker: Tracker } as const;
+function Site() {
+  return (
+    <div className="grid h-full grid-rows-[auto_1fr_auto] gap-2 p-3">
+      <div className="grid grid-cols-[1.2fr_1fr] items-center gap-3 rounded-md bg-paper p-2">
+        <div className="grid gap-1.5">
+          <span className="block h-2.5 w-4/5 rounded-full bg-ink" />
+          <Lines widths={['90%', '70%']} />
+          <span className="mt-0.5 block h-3 w-1/2 rounded-full bg-cobalt" />
+        </div>
+        <span className="block aspect-[4/3] rounded-sm border border-ink bg-sun" />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="grid content-start gap-1 rounded-sm border border-line p-1.5">
+            <span className="block h-2 w-2 rounded-full bg-cobalt" />
+            <Lines widths={['80%', '55%']} />
+          </span>
+        ))}
+      </div>
+      <span className="block h-2 rounded-sm bg-ink" />
+    </div>
+  );
+}
 
-/** A tiny browser window showing the shape of an example project. */
-export function ExampleShot({ shot, className }: { shot: WorkExample['shot']; className?: string }) {
+const SHOTS = { booking: Booking, portal: Portal, shop: Shop, tracker: Tracker, site: Site } as const;
+
+/**
+ * A tiny browser window showing the shape of an example project.
+ * `lg` drops the graph-paper margin so the window can fill a hero column.
+ */
+export function ExampleShot({
+  shot,
+  className,
+  size = 'sm',
+  url,
+}: {
+  shot: WorkExample['shot'];
+  className?: string;
+  size?: 'sm' | 'lg';
+  url?: string;
+}) {
   const Shot = SHOTS[shot];
   return (
-    <div aria-hidden className={clsx('bg-graph rounded-xl border-[1.5px] border-ink p-4 sm:p-5', className)}>
-      <div className="overflow-hidden rounded-lg border-[1.5px] border-ink bg-white shadow-block-sm">
-        <div className="flex items-center gap-1 border-b border-ink bg-paper px-2 py-1.5">
-          <span className="h-1.5 w-1.5 rounded-full border border-ink" />
-          <span className="h-1.5 w-1.5 rounded-full border border-ink" />
-          <span className="h-1.5 w-1.5 rounded-full border border-ink" />
-        </div>
+    <div aria-hidden className={clsx(size === 'sm' && 'bg-graph rounded-xl border-[1.5px] border-ink p-4 sm:p-5', className)}>
+      <BrowserFrame url={url}>
         <div className="aspect-[16/9]">
           <Shot />
         </div>
-      </div>
+      </BrowserFrame>
     </div>
   );
 }

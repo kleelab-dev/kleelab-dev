@@ -18,6 +18,18 @@ export type Service = {
   page: ServicePage;
 };
 
+/** A heroicon (24px outline) name, drawn beside an example. The page maps the name to the component. */
+export type ExampleIcon =
+  | 'ArchiveBoxIcon'
+  | 'UserGroupIcon'
+  | 'CalendarDaysIcon'
+  | 'WrenchScrewdriverIcon'
+  | 'CheckBadgeIcon'
+  | 'BanknotesIcon'
+  | 'HeartIcon'
+  | 'ShieldCheckIcon'
+  | 'ChartBarIcon';
+
 export type ServicePage = {
   /** The search-result title; the layout adds " · KleeLab". */
   title: string;
@@ -30,7 +42,7 @@ export type ServicePage = {
   /** What changes once it is built. */
   outcomes: { heading: string; body: string }[];
   /** Named kinds of thing we build under this service, so a visitor can spot theirs. */
-  examples?: { name: string; body: string }[];
+  examples?: { name: string; body: string; icon: ExampleIcon }[];
   faqs: { question: string; answer: string }[];
 };
 
@@ -190,15 +202,15 @@ export const services: Service[] = [
         { heading: 'Easy to hand on', body: 'The process lives in the system, not in one person\'s head, with written guides from handover.' },
       ],
       examples: [
-        { name: 'Inventory and stock control', body: 'Know what you have, where it is and when to reorder, across one shop or several sites.' },
-        { name: 'Client, case and member management', body: 'Every client, member or beneficiary, with their history and follow-ups, in one place.' },
-        { name: 'Staff, volunteers and rotas', body: 'Shifts, leave, timesheets and records for staff and volunteers, without the group chat.' },
-        { name: 'Jobs and field teams', body: 'Assign jobs, track them from a phone, and capture photos and signatures on site.' },
-        { name: 'Requests and approvals', body: 'Purchases, expenses and sign-offs go to the right person, with a record of every decision.' },
-        { name: 'Quotes, invoices and payments', body: 'From quote to invoice to paid, with reminders that go out by themselves.' },
-        { name: 'Donors, grants and programmes', body: 'Donations, grant deadlines and programme results tracked, with funder reports ready when they are due.' },
-        { name: 'Contracts and compliance', body: 'Certificates, contracts and renewals tracked, with a warning before anything expires.' },
-        { name: 'Management dashboards', body: 'The numbers that matter, live, instead of a report someone builds by hand each month.' },
+        { name: 'Inventory and stock control', icon: 'ArchiveBoxIcon', body: 'Know what you have, where it is and when to reorder, across one shop or several sites.' },
+        { name: 'Client, case and member management', icon: 'UserGroupIcon', body: 'Every client, member or beneficiary, with their history and follow-ups, in one place.' },
+        { name: 'Staff, volunteers and rotas', icon: 'CalendarDaysIcon', body: 'Shifts, leave, timesheets and records for staff and volunteers, without the group chat.' },
+        { name: 'Jobs and field teams', icon: 'WrenchScrewdriverIcon', body: 'Assign jobs, track them from a phone, and capture photos and signatures on site.' },
+        { name: 'Requests and approvals', icon: 'CheckBadgeIcon', body: 'Purchases, expenses and sign-offs go to the right person, with a record of every decision.' },
+        { name: 'Quotes, invoices and payments', icon: 'BanknotesIcon', body: 'From quote to invoice to paid, with reminders that go out by themselves.' },
+        { name: 'Donors, grants and programmes', icon: 'HeartIcon', body: 'Donations, grant deadlines and programme results tracked, with funder reports ready when they are due.' },
+        { name: 'Contracts and compliance', icon: 'ShieldCheckIcon', body: 'Certificates, contracts and renewals tracked, with a warning before anything expires.' },
+        { name: 'Management dashboards', icon: 'ChartBarIcon', body: 'The numbers that matter, live, instead of a report someone builds by hand each month.' },
       ],
       faqs: [
         { question: 'Do we lose our existing data?', answer: 'No. Moving your data across from your current software, files or spreadsheets is part of the project, and we check it with you before you switch over.' },

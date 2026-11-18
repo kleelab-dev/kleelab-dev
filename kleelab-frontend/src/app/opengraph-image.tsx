@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og';
+import { bricolage, OG_COLORS, OG_SIZE } from '@/lib/og';
 
 /**
  * The picture shown when a page is shared on LinkedIn, WhatsApp, X and the
@@ -6,28 +7,10 @@ import { ImageResponse } from 'next/og';
  * cobalt label. Portfolio items replace it with their own cover screenshot.
  */
 export const alt = 'KleeLab: websites and systems, built where you can see them';
-export const size = { width: 1200, height: 630 };
+export const size = OG_SIZE;
 export const contentType = 'image/png';
 
-const INK = 'rgb(14 21 48)';
-const PAPER = 'rgb(243 246 252)';
-const GRID = 'rgb(223 230 246)';
-const COBALT = 'rgb(35 64 232)';
-const SUN = 'rgb(255 210 63)';
-
-/**
- * The display face, fetched as TrueType because ImageResponse cannot read the
- * woff2 files next/font serves. Without it the card falls back to a plain sans.
- */
-async function bricolage(): Promise<ArrayBuffer | null> {
-  try {
-    const css = await fetch('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800').then((r) => r.text());
-    const url = css.match(/src: url\((.+?)\) format\('truetype'\)/)?.[1];
-    return url ? await fetch(url).then((r) => r.arrayBuffer()) : null;
-  } catch {
-    return null;
-  }
-}
+const { ink: INK, paper: PAPER, grid: GRID, cobalt: COBALT, sun: SUN } = OG_COLORS;
 
 export default async function Image() {
   const display = await bricolage();

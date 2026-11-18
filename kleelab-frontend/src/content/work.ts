@@ -12,7 +12,7 @@ export type WorkExample = {
   body: string;
   stack: string[];
   /** Which drawing ExampleShot shows. */
-  shot: 'booking' | 'portal' | 'shop' | 'tracker';
+  shot: 'booking' | 'portal' | 'shop' | 'tracker' | 'site';
 };
 
 export const workExamples: WorkExample[] = [

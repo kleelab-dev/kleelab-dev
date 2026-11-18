@@ -3,6 +3,8 @@ import { studio } from '@/content/site';
 import { AskButton } from '@/components/site/AskButton';
 import { ContactForm } from '@/components/site/ContactForm';
 import { PageHero } from '@/components/site/Section';
+import { QuoteMock } from '@/components/site/QuoteMock';
+import { StepRail } from '@/components/site/StepRail';
 import { ButtonLink } from '@/components/ui/Button';
 
 export const metadata: Metadata = {
@@ -37,16 +39,10 @@ export default function ContactPage() {
           <aside className="grid content-start gap-8">
             <div>
               <p className="tag">What happens next</p>
-              <ol className="mt-5 grid gap-4">
-                {NEXT_STEPS.map((step, index) => (
-                  <li key={step} className="flex gap-4">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] border-ink bg-white font-mono text-xs">
-                      {index + 1}
-                    </span>
-                    <span className="pt-1 leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
+              <StepRail steps={NEXT_STEPS} stamp="Dashboard ready" className="mt-5" />
+            </div>
+            <div className="overflow-x-clip px-1 pb-2 pt-4">
+              <QuoteMock size="sm" />
             </div>
             <div className="rounded-2xl border-[1.5px] border-ink bg-sun-soft p-6">
               <p className="tag">Rather talk first?</p>

@@ -4,6 +4,7 @@ import { CallToAction } from '@/components/site/CallToAction';
 import { PortfolioCard } from '@/components/site/PortfolioCard';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
 import { Reveal } from '@/components/site/Reveal';
+import { ExampleShot } from '@/components/site/ExampleShot';
 import { ButtonLink } from '@/components/ui/Button';
 import { getPortfolio } from '@/lib/portfolio';
 
@@ -38,7 +39,17 @@ export default async function PortfolioPage() {
       </PageHero>
 
       {items.length === 0 && (
-        <Section tone="white">
+        <Section tone="white" className="overflow-x-clip">
+          <div className="mb-12 grid gap-6 sm:grid-cols-3">
+            {(['site', 'shop', 'tracker'] as const).map((shot, index) => (
+              <Reveal key={shot} delay={index * 90} className="relative">
+                <ExampleShot shot={shot} />
+                <span aria-hidden className="stamp absolute -top-3 right-4 bg-white">
+                  Example
+                </span>
+              </Reveal>
+            ))}
+          </div>
           <p className="max-w-xl text-lg text-muted">
             New pieces are on their way. In the meantime, see <Link href="/work" className="font-semibold text-cobalt underline">the kind of thing we build</Link>.
           </p>

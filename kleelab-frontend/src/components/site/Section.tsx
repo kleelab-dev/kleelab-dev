@@ -56,38 +56,58 @@ export function SectionHeading({
   );
 }
 
-/** Page-top hero for inner pages. */
+/** Page-top hero for inner pages. With `aside`, the text sits left and the aside right from `lg`, below on phones. */
 export function PageHero({
   tag,
   title,
   intro,
   children,
+  aside,
 }: {
   tag: string;
   title: React.ReactNode;
   intro?: React.ReactNode;
   children?: React.ReactNode;
+  aside?: React.ReactNode;
 }) {
-  return (
-    <section className="px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20">
-      <div className="mx-auto max-w-content">
-        {/* Rises in line by line on arrival, like the home page's opening. */}
-        <p className="tag kl-hero-in">{tag}</p>
-        <h1
-          className="kl-hero-in mt-5 max-w-4xl font-display text-5xl font-extrabold leading-[0.98] tracking-tightest sm:text-6xl lg:text-7xl"
-          style={{ animationDelay: '80ms' }}
-        >
-          {title}
-        </h1>
-        {intro && (
-          <p className="kl-hero-in mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl" style={{ animationDelay: '180ms' }}>
-            {intro}
-          </p>
+  const text = (
+    <>
+      {/* Rises in line by line on arrival, like the home page's opening. */}
+      <p className="tag kl-hero-in">{tag}</p>
+      <h1
+        className={clsx(
+          'kl-hero-in mt-5 max-w-4xl font-display text-5xl font-extrabold leading-[0.98] tracking-tightest sm:text-6xl',
+          aside ? 'lg:text-6xl xl:text-7xl' : 'lg:text-7xl',
         )}
-        {children && (
-          <div className="kl-hero-in" style={{ animationDelay: '260ms' }}>
-            {children}
+        style={{ animationDelay: '80ms' }}
+      >
+        {title}
+      </h1>
+      {intro && (
+        <p className="kl-hero-in mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl" style={{ animationDelay: '180ms' }}>
+          {intro}
+        </p>
+      )}
+      {children && (
+        <div className="kl-hero-in" style={{ animationDelay: '260ms' }}>
+          {children}
+        </div>
+      )}
+    </>
+  );
+  return (
+    // Asides carry rotated stamps and dimension lines; clip them sideways so phones never scroll.
+    <section className={clsx('px-5 pb-16 pt-14 sm:px-8 sm:pb-20 sm:pt-20', aside && 'overflow-x-clip')}>
+      <div className="mx-auto max-w-content">
+        {aside ? (
+          <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14">
+            <div className="min-w-0">{text}</div>
+            <div className="kl-hero-in min-w-0" style={{ animationDelay: '320ms' }}>
+              {aside}
+            </div>
           </div>
+        ) : (
+          text
         )}
       </div>
     </section>
