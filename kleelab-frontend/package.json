@@ -8,12 +8,16 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check:auth": "tsx scripts/check-auth.ts"
+    "check:auth": "tsx scripts/check-auth.ts",
+    "check:dashboard": "tsx scripts/check-project-panels.tsx",
+    "check:dashboard-redirect": "tsx scripts/check-dashboard-redirect.tsx",
+    "check:marketing-source": "tsx scripts/check-marketing-source.ts",
+    "check:marketing": "node scripts/check-marketing-pages.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "clsx": "^2.1.1",
-    "next": "^16.3.5",
+    "next": "^16.4.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tailwind-merge": "^2.6.1",
@@ -26,7 +30,7 @@
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.17",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.5",
+    "eslint-config-next": "^16.4.6",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
