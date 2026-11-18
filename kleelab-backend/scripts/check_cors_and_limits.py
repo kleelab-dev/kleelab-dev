@@ -118,10 +118,13 @@ async def request_checks() -> None:
 
 def ip_checks() -> None:
     class Fake:
-        def __init__(self, xff: str | None, host: str = "10.9.9.9") -> None:
+        def __init__(self, xff: str | None, host: str = "10.9.9.9", cf: str | None = None) -> None:
             from starlette.datastructures import Headers
 
-            self.headers = Headers(raw=[(b"x-forwarded-for", xff.encode())] if xff is not None else [])
+            raw = [(b"x-forwarded-for", xff.encode())] if xff is not None else []
+            if cf is not None:
+                raw.append((b"cf-connecting-ip", cf.encode()))
+            self.headers = Headers(raw=raw)
             self.client = type("C", (), {"host": host})()
 
     cases = [
@@ -139,6 +142,23 @@ def ip_checks() -> None:
     for xff, want, label in cases:
         got = rate_limiter.client_ip(Fake(xff))
         check(f"client address: {label} (got {got})", got == want)
+    settings = rate_limiter.settings
+    check("CLIENT_IP_HEADER is off by default", Settings.model_fields["CLIENT_IP_HEADER"].default == "")
+    got = rate_limiter.client_ip(Fake("6.6.6.6, 1.1.1.1, 104.22.17.40", cf="9.9.9.9"))
+    check(f"with CLIENT_IP_HEADER off a sent CF-Connecting-IP is ignored (got {got})", got == "1.1.1.1")
+    settings.CLIENT_IP_HEADER = "cf-connecting-ip"
+    try:
+        header_cases = [
+            (("6.6.6.6, 1.1.1.1, 104.22.17.40, 10.0.0.7", "1.1.1.1"), "1.1.1.1", "the header wins over any chain layout"),
+            (("1.1.1.1, 104.22.17.40", None), "1.1.1.1", "no header falls back to the chain"),
+            (("1.1.1.1, 104.22.17.40", "not-an-ip"), "1.1.1.1", "an invalid header falls back to the chain"),
+            ((None, " 2001:db8::5 "), "2001:db8::5", "the header is trimmed and read without a chain"),
+        ]
+        for (xff, cf), want, label in header_cases:
+            got = rate_limiter.client_ip(Fake(xff, cf=cf))
+            check(f"CLIENT_IP_HEADER on: {label} (got {got})", got == want)
+    finally:
+        settings.CLIENT_IP_HEADER = ""
     check("IPv6 addresses in one /64 share a budget",
           rate_limiter.bucket_key("2001:db8:1:2::1") == rate_limiter.bucket_key("2001:db8:1:2:ffff::9"))
     check("IPv6 addresses in different /64s do not",
@@ -161,11 +181,34 @@ async def spoof_checks() -> None:
     check("another caller behind the same Cloudflare edge is not limited", r.status_code != 429)
 
 
+async def header_checks() -> None:
+    """Production layout: the proxy entries change on every call, Cloudflare's header does not."""
+
+    settings = rate_limiter.settings
+    settings.CLIENT_IP_HEADER = "cf-connecting-ip"
+    try:
+        async with client("10.4.0.1") as c:
+            codes = [
+                (await c.post("/api/calls", json={}, headers={
+                    "X-Forwarded-For": f"9.9.{i}.1, 5.5.5.7, 104.22.{i}.40, 10.0.{i}.9",
+                    "CF-Connecting-IP": "5.5.5.7",
+                })).status_code
+                for i in range(21)
+            ]
+        check(f"changing proxy entries do not reset the limit (call 21 got {codes[20]})", codes[20] == 429)
+        async with client("10.4.0.1") as c:
+            r = await c.post("/api/calls", json={}, headers={"X-Forwarded-For": "5.5.5.8, 104.22.1.40", "CF-Connecting-IP": "5.5.5.8"})
+        check("another Cloudflare caller is not limited", r.status_code != 429)
+    finally:
+        settings.CLIENT_IP_HEADER = ""
+
+
 async def main() -> None:
     pattern_checks()
     ip_checks()
     await request_checks()
     await spoof_checks()
+    await header_checks()
 
 
 asyncio.run(main())

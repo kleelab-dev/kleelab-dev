@@ -21,6 +21,7 @@ from kleelab.core.config import settings
 logger = logging.getLogger(__name__)
 # Set once the proxy chain has been compared with Cloudflare's header (see below).
 _chain_checked = False
+_missing_header_warned = False
 
 
 # Endpoints that get the stricter per-minute budget.
@@ -54,57 +55,85 @@ def _valid_ip(value: str) -> str | None:
         return None
 
 
-def _check_chain_once(request: Request, chain: list[str], chosen: str) -> None:
-    """Log once per process whether the hop count matches Cloudflare's own header.
+def _forwarded_chain(request: Request) -> list[str]:
+    # A repeated header is joined so a caller-written first line cannot win.
+    forwarded = ", ".join(request.headers.getlist("x-forwarded-for"))
+    return [part.strip() for part in forwarded.split(",") if part.strip()]
 
-    CF-Connecting-IP is the address Cloudflare saw. If the address read from the
-    chain matches it, TRUSTED_PROXY_HOPS is right. No address is logged.
+
+def _from_chain(chain: list[str]) -> str | None:
+    """The entry TRUSTED_PROXY_HOPS places from the end of X-Forwarded-For.
+
+    Each proxy adds the address it was connected from to the end and keeps
+    whatever the caller sent in front, so only the last entries are ours. A
+    shorter chain means fewer proxies than expected; proxies only add entries,
+    so the first is then the nearest one we can trust.
+    """
+
+    hops = settings.TRUSTED_PROXY_HOPS
+    if hops <= 0 or not chain:
+        return None
+    return _valid_ip(chain[-hops] if len(chain) >= hops else chain[0])
+
+
+def _log_chain_once(chain: list[str], header_ip: str) -> None:
+    """Log once per process where the trusted header's address sits in the chain.
+
+    Only positions and counts are logged, never an address.
     """
 
     global _chain_checked
-    cf = request.headers.get("cf-connecting-ip")
-    if _chain_checked or not cf:
+    if _chain_checked:
         return
     _chain_checked = True
-    if _valid_ip(cf.strip()) == chosen:
-        logger.info("client address check: OK, %d proxy entries, hops=%d", len(chain), settings.TRUSTED_PROXY_HOPS)
-    else:
-        logger.warning(
-            "client address check: MISMATCH, %d proxy entries, hops=%d; TRUSTED_PROXY_HOPS is wrong",
-            len(chain),
-            settings.TRUSTED_PROXY_HOPS,
-        )
+    position = next((n for n in range(1, len(chain) + 1) if _valid_ip(chain[-n]) == header_ip), None)
+    logger.info(
+        "client address check: %s, %d X-Forwarded-For entries, header address is %s from the end",
+        settings.CLIENT_IP_HEADER,
+        len(chain),
+        f"entry {position}" if position else "not in the chain",
+    )
 
 
 def client_ip(request: Request) -> str:
     """The caller's address, read so that the caller cannot choose it.
 
     Behind a proxy `request.client.host` is the proxy, which would put every
-    caller into one bucket, so the forwarded address is used instead. Each proxy
-    adds the address it was connected from to the end of X-Forwarded-For and
-    keeps whatever the caller sent in front of it. Only the last
-    TRUSTED_PROXY_HOPS entries were written by our own proxies, so the address
-    is read that many places from the end. The first entry, which the caller
-    controls, is never used. On Render the chain is Cloudflare then Render, so
-    the setting is 2.
+    caller into one bucket, so a forwarded address is used instead:
+
+    1. CLIENT_IP_HEADER, when set, names a header our edge proxy always
+       overwrites with the address it saw. On Render that is Cloudflare's
+       CF-Connecting-IP. It does not depend on how many proxies follow, and
+       the caller cannot set it, because Cloudflare replaces any value sent.
+       Only set it when every request passes through that proxy.
+    2. Otherwise X-Forwarded-For, read TRUSTED_PROXY_HOPS entries from the end.
+       The first entry, which the caller controls, is never used.
     """
 
     fallback = request.client.host if request.client else "unknown"
-    hops = settings.TRUSTED_PROXY_HOPS
-    if not settings.TRUST_PROXY or hops <= 0:
+    if not settings.TRUST_PROXY:
         return fallback
-    # A repeated header is joined so a caller-written first line cannot win.
-    forwarded = ", ".join(request.headers.getlist("x-forwarded-for"))
-    chain = [part.strip() for part in forwarded.split(",") if part.strip()]
-    if not chain:
-        return fallback
-    # A shorter chain means fewer proxies than expected. Proxies only add
-    # entries, so the first is then the nearest one we can trust.
-    chosen = _valid_ip(chain[-hops] if len(chain) >= hops else chain[0])
-    if chosen is None:
-        return fallback
-    _check_chain_once(request, chain, chosen)
-    return chosen
+    chain = _forwarded_chain(request)
+    if settings.CLIENT_IP_HEADER:
+        header_ip = _valid_ip((request.headers.get(settings.CLIENT_IP_HEADER) or "").strip())
+        if header_ip:
+            _log_chain_once(chain, header_ip)
+            return header_ip
+        _warn_missing_header_once()
+    return _from_chain(chain) or fallback
+
+
+def _warn_missing_header_once() -> None:
+    """The chain fallback may be a proxy address that changes per request."""
+
+    global _missing_header_warned
+    if _missing_header_warned:
+        return
+    _missing_header_warned = True
+    logger.warning(
+        "client address check: %s missing or invalid on a request; using X-Forwarded-For instead",
+        settings.CLIENT_IP_HEADER,
+    )
 
 
 def bucket_key(ip: str) -> str:

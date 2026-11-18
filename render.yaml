@@ -4,7 +4,9 @@ services:
     runtime: python
     rootDir: kleelab-backend
     buildCommand: pip install -r requirements.txt && alembic upgrade head
-    startCommand: uvicorn --app-dir src kleelab.main:app --host 0.0.0.0 --port $PORT
+    # One worker: rate limits are counted in process memory, so more workers would
+    # each keep their own count and multiply every limit.
+    startCommand: uvicorn --app-dir src kleelab.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -21,12 +23,15 @@ services:
       # HSTS is off and the SECRET_KEY placeholder guard is skipped.
       - key: ENVIRONMENT
         value: production
-      # The API sits behind Cloudflare and then Render's proxy, and each adds one
-      # entry to X-Forwarded-For. The caller's address is read 2 from the end.
-      # On the first request the API logs "client address check: OK"; a MISMATCH
-      # line means this number is wrong.
+      # The API sits behind Cloudflare, which overwrites CF-Connecting-IP with the
+      # caller's address, so that header keys the rate limits. X-Forwarded-For,
+      # read 2 entries from the end, is only the fallback when it is missing. On
+      # the first request the API logs one "client address check" line with the
+      # chain length, never an address.
       - key: TRUST_PROXY
         value: "true"
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       - key: TRUSTED_PROXY_HOPS
         value: "2"
       # Declared with `sync: false` so they are documented as required and survive

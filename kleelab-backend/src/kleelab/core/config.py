@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Render is Cloudflare then Render's proxy, so 2. Change it if a proxy is
     # added or removed, or every caller shares one rate-limit bucket.
     TRUSTED_PROXY_HOPS: int = 2
+    # A header the edge proxy always overwrites with the caller's address, used in
+    # place of X-Forwarded-For when present. Render sits behind Cloudflare, so
+    # render.yaml sets "cf-connecting-ip". Leave empty when the API can be reached
+    # without passing through that proxy, or callers could set it themselves.
+    CLIENT_IP_HEADER: str = ""
     # Login/signup requests allowed per IP per minute. Keep this generous enough that a
     # few failed attempts during development cannot lock the API out.
     AUTH_RATE_LIMIT_PER_MINUTE: int = 20
