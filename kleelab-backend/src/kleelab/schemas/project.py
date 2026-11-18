@@ -376,6 +376,41 @@ class AdminInvoiceOut(InvoiceOut):
     client_id: UUID | None = None
     client_name: str | None = None
     client_email: str | None = None
+    # The same shape as an offline invoice on the Money page. A project invoice
+    # is paid in one go: paid_cents is the amount once paid, balance_cents while unpaid.
+    source: Literal["project"] = "project"
+    paid_cents: int = 0
+    balance_cents: int = 0
+    balance_promised_on: date | None = None
+
+
+class OfflinePaymentBrief(BaseModel):
+    amount_cents: int
+    paid_on: date
+
+
+class OfflineMoneyInvoiceOut(BaseModel):
+    """An invoice for someone without an account, as a row on the Money page."""
+
+    source: Literal["offline"] = "offline"
+    id: UUID
+    number: str
+    title: str
+    amount_cents: int
+    paid_cents: int
+    balance_cents: int
+    currency: str
+    status: Literal["unpaid", "part_paid", "paid", "cancelled"]
+    due_date: date | None
+    balance_promised_on: date | None
+    paid_at: datetime | None
+    created_at: datetime
+    contact_id: UUID
+    client_name: str
+    client_email: str | None
+    client_company: str | None
+    # Payments that are not voided, oldest first.
+    payments: list[OfflinePaymentBrief]
 
 
 class ClientSummary(BaseModel):

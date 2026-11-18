@@ -41,6 +41,7 @@ from kleelab.schemas.project import (
 )
 from kleelab.services import email as email_svc
 from kleelab.services import notify
+from kleelab.services import numbering
 
 logger = logging.getLogger(__name__)
 
@@ -139,11 +140,9 @@ async def next_reference(db: AsyncSession) -> str:
 
 
 async def next_invoice_number(db: AsyncSession) -> str:
-    count = await db.scalar(select(func.count()).select_from(ProjectInvoice)) or 0
-    number = count + 1
-    while await db.scalar(select(ProjectInvoice.id).where(ProjectInvoice.number == f"INV-{number:04d}")):
-        number += 1
-    return f"INV-{number:04d}"
+    """The next INV- number, shared with offline invoices. Locks the counter until commit."""
+
+    return await numbering.next_number(db, "INV")
 
 
 def build_stages(names: list[str] | None) -> list[ProjectStage]:

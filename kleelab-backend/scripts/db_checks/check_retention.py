@@ -3,17 +3,18 @@ account, and old enquiries and old detached invoices are deleted on schedule."""
 
 import asyncio
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 from _harness import check, finish  # noqa: I001  (sets up the local test database first)
 import httpx
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from kleelab.core.database import AsyncSessionLocal
 from kleelab.core.security import create_access_token, get_password_hash
 from kleelab.core.time import utcnow
 from kleelab.main import app
 from kleelab.models.agency_lead import AgencyLead, LeadNote
+from kleelab.models.offline import OfflineContact, OfflineInvoice, OfflineInvoicePayment, OfflineReceipt
 from kleelab.models.project import InvoicePayment, Project, ProjectInvoice
 from kleelab.models.user import User
 from kleelab.services.retention import purge_expired
@@ -49,10 +50,30 @@ async def main() -> None:
         # A different client's project, still running when the clean-up comes.
         live = Project(client_id=staff.id, reference=f"L-{tag}", title="Shop", status="active", lead_id=won_lead.id)
         db.add_all([project, live])
+        # Offline money, ten years old: it must outlive the six-year purge of detached invoices.
+        ancient = now - timedelta(days=3650)
+        off_contact = OfflineContact(name=f"Retention {tag}", created_by_id=staff.id, created_at=ancient)
+        db.add(off_contact)
+        await db.flush()
+        off_invoice = OfflineInvoice(
+            number=f"INV-R{tag}", contact_id=off_contact.id, bill_to_name=f"Retention {tag}", title="Old job", lines=[],
+            amount_cents=100, currency="NGN", paid_cents=100, status="paid", created_at=ancient,
+        )
+        db.add(off_invoice)
+        await db.flush()
+        off_payment = OfflineInvoicePayment(invoice_id=off_invoice.id, amount_cents=100, method="cash", paid_on=date(2016, 1, 1))
+        db.add(off_payment)
+        await db.flush()
+        off_receipt = OfflineReceipt(
+            number=f"RCT-R{tag}", kind="payment", invoice_id=off_invoice.id, payment_id=off_payment.id, contact_id=off_contact.id,
+            bill_to_name=f"Retention {tag}", currency="NGN", amount_cents=100, method="cash", received_on=date(2016, 1, 1), created_at=ancient,
+        )
+        db.add(off_receipt)
         await db.commit()
         ids = {
             "staff": staff.id, "client": client.id, "project": project.id,
             "old": old_lead.id, "new": new_lead.id, "won": won_lead.id,
+            "off_contact": off_contact.id, "off_invoice": off_invoice.id, "off_payment": off_payment.id, "off_receipt": off_receipt.id,
         }
 
     try:
@@ -111,6 +132,15 @@ async def main() -> None:
 
         async with AsyncSessionLocal() as db:
             await purge_expired(db, now + timedelta(days=round(6 * 365.25) + 1))
+            # Offline money has no purge: it is the business's own record, kept for good.
+            async with AsyncSessionLocal() as db2:
+                counts = {
+                    "contact": await db2.scalar(select(func.count()).select_from(OfflineContact).where(OfflineContact.id == ids["off_contact"])),
+                    "invoice": await db2.scalar(select(func.count()).select_from(OfflineInvoice).where(OfflineInvoice.id == ids["off_invoice"])),
+                    "payment": await db2.scalar(select(func.count()).select_from(OfflineInvoicePayment).where(OfflineInvoicePayment.id == ids["off_payment"])),
+                    "receipt": await db2.scalar(select(func.count()).select_from(OfflineReceipt).where(OfflineReceipt.id == ids["off_receipt"])),
+                }
+            check("criterion 4: ten-year-old offline contact, invoice, payment and receipt survive the purge, even past six years", set(counts.values()) == {1})
         async with AsyncSessionLocal() as db:
             check("a detached invoice past six years is deleted", await db.get(ProjectInvoice, ids["invoice"]) is None)
             check(
@@ -119,6 +149,10 @@ async def main() -> None:
             )
     finally:
         async with AsyncSessionLocal() as db:
+            await db.execute(delete(OfflineReceipt).where(OfflineReceipt.number == f"RCT-R{tag}"))
+            await db.execute(delete(OfflineInvoicePayment).where(OfflineInvoicePayment.invoice_id.in_(select(OfflineInvoice.id).where(OfflineInvoice.number == f"INV-R{tag}"))))
+            await db.execute(delete(OfflineInvoice).where(OfflineInvoice.number == f"INV-R{tag}"))
+            await db.execute(delete(OfflineContact).where(OfflineContact.name == f"Retention {tag}"))
             await db.execute(delete(ProjectInvoice).where(ProjectInvoice.project_reference == f"R-{tag}"))
             await db.execute(delete(Project).where(Project.reference.in_([f"R-{tag}", f"L-{tag}"])))
             await db.execute(delete(AgencyLead).where(AgencyLead.email.like(f"%-{tag}@example.com")))

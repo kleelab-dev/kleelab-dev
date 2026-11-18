@@ -37,7 +37,8 @@ No email or Slack messages are sent.
 | `check_money_clients.py` | Invoices, PDF, money summary, client accounts |
 | `check_alerts_search.py` | Team alerts bell, Ctrl+K search of teammates and messages |
 | `check_paystack.py` | Paying invoices online: webhook signature, verification, replays, mismatches. Paystack is faked; no network calls |
-| `check_retention.py` | Invoices kept when an account is deleted; old enquiries and invoices deleted on schedule |
+| `check_offline_money.py` | Offline contacts, invoices, part payments, receipts, shared INV/RCT numbering, PDFs and email (faked), Money totals, and the migration up/down on a scratch database it creates and drops |
+| `check_retention.py` | Invoices kept when an account is deleted; old enquiries and invoices deleted on schedule; offline money never purged |
 | `check_client_account.py` | A client's Account page: name, password change, signing out other devices |
 | `check_proposals.py` | Proposals from an enquiry: drafts, sending, versions, the client's accept or decline, and the project and deposit invoice it creates |
 | `check_payment_plan.py` | Paying the deposit or everything when accepting, the balance invoice raised at hand-over (once), scheduled and manual payment reminders |

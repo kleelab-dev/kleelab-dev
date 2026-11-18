@@ -129,5 +129,15 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
           SECRET_KEY: ci-placeholder-secret-key-not-for-production
 
+      - name: Offline invoices and receipts
+        # Money in minor units, status and overpayment rules, overdue by promised date,
+        # invoice/receipt PDFs (online invoice PDF byte-identical), emailed PDF payload
+        # with the provider faked, and every offline route staff-guarded.
+        run: python scripts/check_offline_money.py
+        env:
+          PYTHONPATH: src
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/kleelab
+          SECRET_KEY: ci-placeholder-secret-key-not-for-production
+
       - name: Compile check
         run: python -m compileall -q src

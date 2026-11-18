@@ -2,11 +2,11 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from kleelab.core.database import get_db
 from kleelab.core.security import get_current_user
 from kleelab.models.agency_lead import LEAD_STATUS_WORDS, OPEN_LEAD_STATUSES, AgencyLead, LeadNote
 from kleelab.models.call import CallBooking
+from kleelab.models.offline import OfflineInvoice, OfflineInvoicePayment, OfflineReceipt
 from kleelab.models.project import (
     Project,
     ProjectChecklistItem,
@@ -41,6 +42,8 @@ from kleelab.schemas.project import (
     InvoicePatch,
     HandoverSave,
     MoneyTotal,
+    OfflineMoneyInvoiceOut,
+    OfflinePaymentBrief,
     ProjectCreate,
     ProjectCreated,
     ProjectDetail,
@@ -1190,7 +1193,7 @@ class AdminStats(BaseModel):
     paid_this_month: list[MoneyTotal]
 
 
-async def _money_by_currency(db: AsyncSession, *conditions) -> list[MoneyTotal]:
+async def _project_totals(db: AsyncSession, *conditions) -> list[MoneyTotal]:
     rows = await db.execute(
         select(ProjectInvoice.currency, func.sum(ProjectInvoice.amount_cents), func.count())
         # Invoices kept after their project was deleted are records, not work.
@@ -1199,6 +1202,35 @@ async def _money_by_currency(db: AsyncSession, *conditions) -> list[MoneyTotal]:
         .order_by(ProjectInvoice.currency)
     )
     return [MoneyTotal(currency=currency, cents=int(cents or 0), count=count) for currency, cents, count in rows]
+
+
+async def _offline_totals(db: AsyncSession, amount, currency, *conditions) -> list[MoneyTotal]:
+    """Sum `amount` per `currency` over the offline rows matching `conditions`."""
+
+    rows = await db.execute(
+        select(currency, func.sum(amount), func.count()).where(*conditions).group_by(currency).order_by(currency)
+    )
+    return [MoneyTotal(currency=cur, cents=int(cents or 0), count=n) for cur, cents, n in rows]
+
+
+def _merge(*lists: list[MoneyTotal]) -> list[MoneyTotal]:
+    """Add totals up per currency, in currency order."""
+
+    sums: dict[str, list[int]] = {}
+    for totals in lists:
+        for total in totals:
+            entry = sums.setdefault(total.currency, [0, 0])
+            entry[0] += total.cents
+            entry[1] += total.count
+    return [MoneyTotal(currency=c, cents=v[0], count=v[1]) for c, v in sorted(sums.items())]
+
+
+def _offline_open():
+    return OfflineInvoice.status.in_(("unpaid", "part_paid"))
+
+
+def _offline_balance():
+    return OfflineInvoice.amount_cents - OfflineInvoice.paid_cents
 
 
 @router.get("/stats", response_model=AdminStats)
@@ -1236,12 +1268,36 @@ async def stats(db: AsyncSession = Depends(get_db)) -> AdminStats:
         active_projects=int(project_counts.get("active", 0)),
         paused_projects=int(project_counts.get("on_hold", 0)),
         waiting_on_client=int(waiting or 0),
-        unpaid=await _money_by_currency(db, ProjectInvoice.status == "unpaid"),
-        overdue=await _money_by_currency(
-            db, ProjectInvoice.status == "unpaid", ProjectInvoice.due_date.is_not(None), ProjectInvoice.due_date < today
+        # Offline invoices count what is still owed. `count` is invoices.
+        unpaid=_merge(
+            await _project_totals(db, ProjectInvoice.status == "unpaid"),
+            await _offline_totals(db, _offline_balance(), OfflineInvoice.currency, _offline_open()),
         ),
-        paid_this_month=await _money_by_currency(
-            db, ProjectInvoice.status == "paid", ProjectInvoice.paid_at >= month_start
+        overdue=_merge(
+            await _project_totals(
+                db, ProjectInvoice.status == "unpaid", ProjectInvoice.due_date.is_not(None), ProjectInvoice.due_date < today
+            ),
+            # A promised date for the balance replaces the due date.
+            await _offline_totals(
+                db, _offline_balance(), OfflineInvoice.currency, _offline_open(),
+                func.coalesce(OfflineInvoice.balance_promised_on, OfflineInvoice.due_date) < today,
+            ),
+        ),
+        # Money in: `count` is payments. A paid project invoice is one payment.
+        paid_this_month=_merge(
+            await _project_totals(db, ProjectInvoice.status == "paid", ProjectInvoice.paid_at >= month_start),
+            await _offline_totals(
+                db, OfflineInvoicePayment.amount_cents, OfflineInvoice.currency,
+                OfflineInvoicePayment.invoice_id == OfflineInvoice.id,
+                OfflineInvoicePayment.voided_at.is_(None),
+                OfflineInvoicePayment.paid_on >= month_start,
+            ),
+            await _offline_totals(
+                db, OfflineReceipt.amount_cents, OfflineReceipt.currency,
+                OfflineReceipt.kind == "standalone",
+                OfflineReceipt.voided_at.is_(None),
+                OfflineReceipt.received_on >= month_start,
+            ),
         ),
     )
 
@@ -1259,12 +1315,43 @@ def _admin_invoice(invoice: ProjectInvoice, project: Project) -> AdminInvoiceOut
         client_id=client.id if client else None,
         client_name=client.full_name if client else None,
         client_email=client.email if client else None,
+        paid_cents=invoice.amount_cents if invoice.status == "paid" else 0,
+        balance_cents=invoice.amount_cents if invoice.status == "unpaid" else 0,
     )
 
 
-@router.get("/invoices", response_model=list[AdminInvoiceOut])
-async def list_invoices(db: AsyncSession = Depends(get_db)) -> list[AdminInvoiceOut]:
-    """Every invoice on every project, newest first."""
+def _offline_money_invoice(invoice: OfflineInvoice) -> OfflineMoneyInvoiceOut:
+    return OfflineMoneyInvoiceOut(
+        id=invoice.id,
+        number=invoice.number,
+        title=invoice.title,
+        amount_cents=invoice.amount_cents,
+        paid_cents=invoice.paid_cents,
+        balance_cents=0 if invoice.status == "cancelled" else invoice.amount_cents - invoice.paid_cents,
+        currency=invoice.currency,
+        status=invoice.status,
+        due_date=invoice.due_date,
+        balance_promised_on=invoice.balance_promised_on,
+        paid_at=invoice.paid_at,
+        created_at=invoice.created_at,
+        contact_id=invoice.contact_id,
+        client_name=invoice.bill_to_name,
+        client_email=invoice.bill_to_email,
+        client_company=invoice.bill_to_company,
+        payments=[
+            OfflinePaymentBrief(amount_cents=p.amount_cents, paid_on=p.paid_on)
+            for p in sorted(invoice.payments, key=lambda p: p.paid_on)
+            if p.voided_at is None
+        ],
+    )
+
+
+MoneyInvoice = Annotated[AdminInvoiceOut | OfflineMoneyInvoiceOut, Field(discriminator="source")]
+
+
+@router.get("/invoices", response_model=list[MoneyInvoice])
+async def list_invoices(db: AsyncSession = Depends(get_db)) -> list[AdminInvoiceOut | OfflineMoneyInvoiceOut]:
+    """Every invoice on every project, and every offline invoice, newest first. `source` tells them apart."""
 
     result = await db.scalars(
         select(ProjectInvoice)
@@ -1272,7 +1359,13 @@ async def list_invoices(db: AsyncSession = Depends(get_db)) -> list[AdminInvoice
         .options(selectinload(ProjectInvoice.project).selectinload(Project.client))
         .order_by(ProjectInvoice.created_at.desc())
     )
-    return [_admin_invoice(invoice, invoice.project) for invoice in result]
+    rows: list[AdminInvoiceOut | OfflineMoneyInvoiceOut] = [_admin_invoice(i, i.project) for i in result]
+    offline = await db.scalars(
+        select(OfflineInvoice).options(selectinload(OfflineInvoice.payments)).order_by(OfflineInvoice.created_at.desc())
+    )
+    rows += [_offline_money_invoice(i) for i in offline]
+    rows.sort(key=lambda row: row.created_at, reverse=True)
+    return rows
 
 
 # --- Clients ------------------------------------------------------------------------

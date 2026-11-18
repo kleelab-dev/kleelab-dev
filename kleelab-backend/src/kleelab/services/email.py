@@ -1,3 +1,4 @@
+import base64
 import logging
 import re
 from html import escape, unescape
@@ -11,9 +12,20 @@ from kleelab.core.config import settings
 logger = logging.getLogger(__name__)
 
 MAILTRAP_SEND_URL = "https://send.api.mailtrap.io/api/send"
+# The most attachment bytes one email may carry (before base64).
+MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
+
+# (filename, content, MIME type)
+Attachment = tuple[str, bytes, str]
 
 
-def _send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
+def _send(
+    to: str,
+    subject: str,
+    html: str,
+    reply_to: str | None = None,
+    attachments: list[Attachment] | None = None,
+) -> bool:
     """Deliver an email, returning whether a provider actually accepted it.
 
     Callers need the real answer: the previous version returned None either way,
@@ -23,14 +35,19 @@ def _send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool
 
     text = _plain_text(html)
 
+    if attachments and sum(len(data) for _, data, _ in attachments) > MAX_ATTACHMENT_BYTES:
+        logger.error("Email to %s was not sent: its attachments are over 5 MB", to)
+        return False
+
     if settings.MAILTRAP_API_TOKEN:
-        return _send_mailtrap(to, subject, html, text, reply_to)
+        return _send_mailtrap(to, subject, html, text, reply_to, attachments)
 
     if not settings.RESEND_API_KEY:
         # Locally there is no provider, so print the message rather than lose it.
         # Only in development: the body contains single-use tokens.
         if settings.ENVIRONMENT == "development":
-            logger.warning("Email to %s was NOT delivered (no email provider set). Body:\n%s", to, text)
+            extra = f" with {len(attachments)} attachment(s)" if attachments else ""
+            logger.warning("Email to %s%s was NOT delivered (no email provider set). Body:\n%s", to, extra, text)
         else:
             logger.error("No email provider is configured; email to %s was dropped", to)
         return False
@@ -39,11 +56,22 @@ def _send(to: str, subject: str, html: str, reply_to: str | None = None) -> bool
     message = {"from": settings.SENDGRID_FROM_EMAIL, "to": [to], "subject": subject, "html": html, "text": text}
     if reply_to:
         message["reply_to"] = reply_to
+    if attachments:
+        message["attachments"] = [
+            {"filename": name, "content": base64.b64encode(data).decode()} for name, data, _ in attachments
+        ]
     resend.Emails.send(message)
     return True
 
 
-def _send_mailtrap(to: str, subject: str, html: str, text: str, reply_to: str | None = None) -> bool:
+def _send_mailtrap(
+    to: str,
+    subject: str,
+    html: str,
+    text: str,
+    reply_to: str | None = None,
+    attachments: list[Attachment] | None = None,
+) -> bool:
     message: dict = {
         "from": {"email": settings.SENDGRID_FROM_EMAIL, "name": "KleeLab"},
         "to": [{"email": to}],
@@ -53,6 +81,11 @@ def _send_mailtrap(to: str, subject: str, html: str, text: str, reply_to: str | 
     }
     if reply_to:
         message["headers"] = {"Reply-To": reply_to}
+    if attachments:
+        message["attachments"] = [
+            {"content": base64.b64encode(data).decode(), "filename": name, "type": mime, "disposition": "attachment"}
+            for name, data, mime in attachments
+        ]
     try:
         response = httpx.post(
             MAILTRAP_SEND_URL,
@@ -554,4 +587,97 @@ def send_call_cancelled(
             footer="You are getting this because you booked a call with KleeLab.",
         ),
         reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+    )
+
+
+# --- Offline invoices and receipts (people without an account) ---------------------
+
+OFFLINE_FOOTER = "You are getting this because you did business with KleeLab."
+
+
+def _staff_message(message: str | None) -> str:
+    """A note typed by the team: escaped, with its paragraphs and line breaks kept."""
+
+    if not message:
+        return ""
+    paragraphs = [p.strip() for p in message.replace("\r\n", "\n").split("\n\n") if p.strip()]
+    return "".join(_p(escape(p).replace(chr(10), "<br>")) for p in paragraphs)
+
+
+def send_offline_invoice_email(
+    to: str,
+    name: str | None,
+    number: str,
+    total: str,
+    balance: str | None,
+    due: str | None,
+    message: str | None,
+    pdf: bytes,
+) -> bool:
+    """An offline invoice, with its PDF attached. `balance` is None once nothing is owed."""
+
+    from kleelab.services.invoice_pdf import offline_pdf_filename
+
+    heading = f"{balance or total} due" if balance else f"Invoice {number}"
+    lines = [f"Hi {escape(name or 'there')},"]
+    if balance and balance != total:
+        lead = (f"Invoice {escape(number)} for {escape(total)} is attached. "
+                f"{escape(balance)} is still to pay")
+    elif balance:
+        lead = f"Invoice {escape(number)} for {escape(total)} is attached"
+    else:
+        lead = f"Invoice {escape(number)} for {escape(total)} is attached, and it is fully paid"
+    lead += f", by {escape(due)}." if balance and due else "."
+    body = _p(lines[0]) + _staff_message(message) + _p(lead)
+    if balance:
+        body += _p("The PDF has our bank details. Please use the invoice number as the payment reference.")
+    return _send(
+        to,
+        f"KleeLab invoice {number}",
+        _layout(
+            label=f"invoice {number}",
+            heading=heading,
+            preheader=f"Invoice {number}: {total}",
+            body=body,
+            after=_p(f'<span style="font-size:13px;color:{MUTED}">Questions? Reply to this email.</span>'),
+            footer=OFFLINE_FOOTER,
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+        attachments=[(offline_pdf_filename(number), pdf, "application/pdf")],
+    )
+
+
+def send_offline_receipt_email(
+    to: str,
+    name: str | None,
+    number: str,
+    amount: str,
+    invoice_number: str | None,
+    balance: str | None,
+    message: str | None,
+    pdf: bytes,
+) -> bool:
+    """A receipt, with its PDF attached. `balance` is what is still owed on the invoice, if anything."""
+
+    from kleelab.services.invoice_pdf import offline_pdf_filename
+
+    lead = f"Receipt {escape(number)} for {escape(amount)} is attached"
+    lead += f", against invoice {escape(invoice_number)}." if invoice_number else "."
+    body = _p(f"Hi {escape(name or 'there')},") + _staff_message(message) + _p(lead)
+    if invoice_number:
+        body += _p(f"{escape(balance)} is still to pay on {escape(invoice_number)}." if balance
+                   else f"{escape(invoice_number)} is now fully paid.")
+    return _send(
+        to,
+        f"KleeLab receipt {number}",
+        _layout(
+            label=f"receipt {number}",
+            heading=f"Thank you: we received {amount}",
+            preheader=f"Receipt {number}: {amount}",
+            body=body,
+            after=_p(f'<span style="font-size:13px;color:{MUTED}">Questions? Reply to this email.</span>'),
+            footer=OFFLINE_FOOTER,
+        ),
+        reply_to=settings.REPLY_TO_EMAIL or settings.TEAM_INBOX,
+        attachments=[(offline_pdf_filename(number), pdf, "application/pdf")],
     )

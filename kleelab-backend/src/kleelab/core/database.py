@@ -18,7 +18,7 @@ Base = declarative_base()
 
 # Every model, so Base.metadata (and `alembic revision --autogenerate`) sees every table.
 from kleelab.models import (  # noqa: E402, F401
-    activity, agency_lead, ai_generation, analytics, asset, call, care, library, order, page, page_version,
+    activity, agency_lead, ai_generation, analytics, asset, call, care, library, offline, order, page, page_version,
     portfolio, product, project, proposal, refresh_token, site, template, user,
 )
 

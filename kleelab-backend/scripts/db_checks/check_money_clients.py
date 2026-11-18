@@ -43,9 +43,19 @@ async def main():
             ctok = r.json(); ch = {'Authorization': f"Bearer {ctok['access_token']}"}
 
             r = await c.get('/api/admin/invoices', headers=sh)
-            mine = [i for i in r.json() if i['project_id'] == str(ids['project'])]
+            # The list now mixes project and offline rows; only project rows have a project_id.
+            mine = [i for i in r.json() if i.get('source') == 'project' and i['project_id'] == str(ids['project'])]
             check('admin invoices list', r.status_code == 200 and len(mine) == 3 and all(i['client_email'] == emails[1] for i in mine)
                   and mine[0]['project_reference'] == f'T-{tag}')
+
+            legacy = {'id', 'number', 'title', 'amount_cents', 'currency', 'due_date', 'status', 'pay_url', 'paid_at', 'paid_via', 'payment_reference',
+                      'kind', 'reminders_sent', 'last_reminded_at', 'created_at', 'project_id', 'project_title', 'project_reference',
+                      'client_id', 'client_name', 'client_email'}
+            check('project rows keep every earlier field and add only source, paid, balance and promise',
+                  all(set(i) == legacy | {'source', 'paid_cents', 'balance_cents', 'balance_promised_on'} and i['source'] == 'project' for i in mine))
+            check('an unpaid project invoice shows its whole amount as the balance', any(i['number'] == f'A{tag}' and i['paid_cents'] == 0 and i['balance_cents'] == 15_000_000 for i in mine))
+            check('a paid project invoice shows it all as paid, no balance', any(i['number'] == f'B{tag}' and i['paid_cents'] == 50_000 and i['balance_cents'] == 0 for i in mine))
+            check('a cancelled project invoice has no balance', any(i['number'] == f'C{tag}' and i['paid_cents'] == 0 and i['balance_cents'] == 0 for i in mine))
 
             r = await c.get('/api/admin/clients', headers=sh)
             cl = next((x for x in r.json() if x['id'] == str(ids['client'])), None)
