@@ -1,13 +1,11 @@
 """Per-client rate limiting.
 
-Uses a shared Redis store when `REDIS_URL` is configured so limits hold across
-instances. Otherwise it falls back to an in-process sliding window, which is
-correct for a single worker but should not be relied on in production.
+An in-process sliding window. The API runs as a single instance, so one
+process sees every request; running more than one would need a shared store.
 """
 
 from __future__ import annotations
 
-import logging
 import time
 from collections import defaultdict, deque
 
@@ -18,16 +16,13 @@ from starlette.responses import Response
 
 from kleelab.core.config import settings
 
-logger = logging.getLogger(__name__)
 
 # Endpoints that get the stricter per-minute budget.
 AUTH_PATHS = {
     "/api/auth/login",
-    "/api/auth/register",
     "/api/auth/refresh",
     "/api/auth/staff-login",
     "/api/auth/staff-login/two-step",
-    "/api/auth/forgot-password",
     "/api/auth/request-password-reset",
     "/api/auth/reset-password",
     "/api/auth/change-password",
@@ -35,18 +30,15 @@ AUTH_PATHS = {
     "/api/auth/two-step/enable",
     "/api/auth/two-step/disable",
     "/api/auth/two-step/recovery-codes",
+    # Public forms that need no account: enquiries and free-call bookings.
+    "/api/agency/leads",
+    "/api/calls",
 }
 # The visitor chat calls a paid model on every message and needs no account, so
 # it gets its own, much smaller hourly budget.
 CHAT_PATHS = {"/api/chat"}
 
 DEFAULT_MAX_TRACKED_CLIENTS = 10_000
-
-# A store outage must not cost a connection attempt (and a traceback) on every
-# request. After this many consecutive failures the store is skipped for the
-# cooldown, then tried again.
-REDIS_FAILURE_THRESHOLD = 3
-REDIS_COOLDOWN_SECONDS = 30.0
 
 
 def client_ip(request: Request) -> str:
@@ -96,66 +88,6 @@ class MemoryStore:
             self._hits.pop(key, None)
 
 
-class RedisStore:
-    """Fixed-window counters shared across instances."""
-
-    def __init__(self, url: str) -> None:
-        self._url = url
-        self._client = None
-        self._failures = 0
-        self._disabled_until = 0.0
-
-    def available(self) -> bool:
-        """False while backing off from a recent outage."""
-
-        return time.monotonic() >= self._disabled_until
-
-    async def _connection(self):
-        if self._client is None:
-            # Imported lazily so the dependency stays optional.
-            import redis.asyncio as redis  # type: ignore[import-not-found]
-
-            self._client = redis.from_url(self._url, decode_responses=True)
-        return self._client
-
-    def _record_failure(self) -> None:
-        self._failures += 1
-        if self._failures < REDIS_FAILURE_THRESHOLD:
-            return
-
-        self._failures = 0
-        self._disabled_until = time.monotonic() + REDIS_COOLDOWN_SECONDS
-        # Force a fresh connection when the cooldown ends.
-        self._client = None
-        logger.warning(
-            "Rate-limit store failed %d times; falling back to in-process limits for "
-            "%.0fs (set REDIS_URL to a reachable instance to restore shared limits)",
-            REDIS_FAILURE_THRESHOLD,
-            REDIS_COOLDOWN_SECONDS,
-        )
-
-    async def allow(self, key: str, limit: int, window: float) -> tuple[bool, int]:
-        try:
-            client = await self._connection()
-            bucket = int(time.time() // window)
-            redis_key = f"rl:{key}:{bucket}"
-
-            count = await client.incr(redis_key)
-            if count == 1:
-                await client.expire(redis_key, int(window) + 1)
-
-            if count > limit:
-                ttl = await client.ttl(redis_key)
-                return False, max(int(ttl), 1)
-        except Exception:
-            self._record_failure()
-            raise
-
-        # Recovered (or simply healthy); a later outage starts counting afresh.
-        self._failures = 0
-        return True, 0
-
-
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Apply a strict budget to auth traffic and a looser one everywhere else."""
 
@@ -164,16 +96,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.limit = limit if limit is not None else settings.RATE_LIMIT_PER_HOUR
         self.window_seconds = window_seconds
         self._memory = MemoryStore()
-        self._redis: RedisStore | None = (
-            RedisStore(settings.REDIS_URL) if settings.REDIS_URL else None
-        )
-        if self._redis is None:
-            logger.info(
-                "Rate limiting is in-process only; set REDIS_URL to share limits "
-                "across instances."
-            )
-        else:
-            logger.info("Rate limiting uses the shared store at %s", settings.REDIS_URL)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
@@ -187,15 +109,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         key = f"{client_ip(request)}:{bucket}"
 
-        allowed, retry_after = True, 0
-        if self._redis is not None and self._redis.available():
-            try:
-                allowed, retry_after = await self._redis.allow(key, limit, window)
-            except Exception:  # noqa: BLE001 - never fail closed on a store outage
-                logger.exception("Shared rate-limit store failed; using in-process limits")
-                allowed, retry_after = self._memory.allow(key, limit, window)
-        else:
-            allowed, retry_after = self._memory.allow(key, limit, window)
+        allowed, retry_after = self._memory.allow(key, limit, window)
 
         if not allowed:
             return JSONResponse(

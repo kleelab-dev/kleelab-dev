@@ -1,7 +1,7 @@
 """Which model answers which pass, and what happens when one of them cannot.
 
 Both providers speak the same dialect, so this is not about the wire format. It is
-about four promises the rest of the builder now relies on:
+about four promises the visitor chat relies on:
 
 * A pass names the providers it prefers, and the first choice is the one a *failed*
   generation gets attributed to. Naming a hardcoded provider there would put a
@@ -10,7 +10,7 @@ about four promises the rest of the builder now relies on:
   one that is, rather than failing with a message about a provider nobody asked for.
 * The request count is bounded at two, whichever way it goes. A retry and a
   fallback are two ways of spending the same budget rather than two budgets, because
-  the alternative is a bad minute at the provider doubling a wait the customer has
+  the alternative is a bad minute at the provider doubling a wait the visitor has
   already made.
 * Switched off and no credential are different failures with different fixes, and
   the message says which one happened.
@@ -120,7 +120,7 @@ def ask(task: str) -> object:
     return asyncio.run(llm.complete_json(system="Return json.", user="Say hello.", task=task))
 
 
-def reason(task: str = "brief") -> str:
+def reason(task: str = "chat") -> str:
     """The message from a refusal, for asserting on which failure it was."""
 
     try:
@@ -158,10 +158,10 @@ def switched_off_and_unconfigured_are_different() -> None:
 
 def one_key_is_enough() -> None:
     configure(enabled=True, deepseek=None, gemini="gmk")
-    check("one key makes the builder available", llm.available())
+    check("one key makes the chat available", llm.available())
     check("and the registry names it", llm.configured_providers() == ("gemini",))
 
-    passes = ("brief", "content", "edit", "compose", "design")
+    passes = ("chat", "default")
     check(
         "every pass can name a model with only the one key",
         all(llm.preferred_model(task) for task in passes),
@@ -169,15 +169,15 @@ def one_key_is_enough() -> None:
     )
     check(
         "including the passes that do not prefer it",
-        llm.preferred_model("compose") == settings.GEMINI_MODEL,
-        llm.preferred_model("compose"),
+        llm.preferred_model("chat") == settings.GEMINI_MODEL,
+        llm.preferred_model("chat"),
     )
 
     configure(enabled=True, deepseek="dsk", gemini=None)
     check(
         "the same holds the other way round",
-        llm.preferred_model("compose") == settings.DEEPSEEK_MODEL,
-        llm.preferred_model("compose"),
+        llm.preferred_model("chat") == settings.DEEPSEEK_MODEL,
+        llm.preferred_model("chat"),
     )
 
 
@@ -189,14 +189,14 @@ def both_keys_split_the_work() -> None:
         str(llm.configured_providers()),
     )
     check(
-        "prose passes start on the prose model",
-        llm.preferred_model("content") == settings.DEEPSEEK_MODEL,
-        llm.preferred_model("content"),
+        "the chat starts on its preferred model",
+        llm.preferred_model("chat") == settings.DEEPSEEK_MODEL,
+        llm.preferred_model("chat"),
     )
     check(
-        "whole-page passes start on the reasoning model",
-        llm.preferred_model("compose") == settings.GEMINI_MODEL,
-        llm.preferred_model("compose"),
+        "an unknown pass falls back to the default order",
+        llm.preferred_model("no-such-pass") == llm.preferred_model("default"),
+        llm.preferred_model("no-such-pass"),
     )
     check(
         "an undeclared pass behaves as it did before providers were split",
@@ -210,7 +210,7 @@ def a_bad_answer_is_retried_once() -> None:
     transport = Transport(answer("I am afraid I cannot do that"), answer({"ok": True}))
     transport.install()
 
-    result = ask("brief")
+    result = ask("chat")
     check("a malformed answer is retried rather than discarded", result.data == {"ok": True})
     check(
         "and the retry goes to the same provider, since that is the one being retried",
@@ -226,7 +226,7 @@ def a_bad_answer_is_retried_once() -> None:
     transport = Transport(answer("nope"), answer("still nope"))
     transport.install()
     try:
-        ask("brief")
+        ask("chat")
         fail("two unusable answers should refuse the turn")
     except llm.LLMRefused:
         print("PASS  two unusable answers refuse the turn")
@@ -242,14 +242,14 @@ def a_failing_provider_hands_over() -> None:
 
     transport = Transport(answer({}, status=500), answer({"ok": True}))
     transport.install()
-    result = ask("brief")
+    result = ask("chat")
     check("a server error hands the pass to the other provider", result.data == {"ok": True})
     check("and the result says which provider served it", result.provider == "gemini", result.provider)
-    check("and records the pass it served", result.task == "brief", result.task)
+    check("and records the pass it served", result.task == "chat", result.task)
 
     transport = Transport(httpx.ConnectError("unreachable"), answer({"ok": True}))
     transport.install()
-    result = ask("brief")
+    result = ask("chat")
     check("so does an unreachable host", result.provider == "gemini", result.provider)
 
 
@@ -257,13 +257,13 @@ def the_budget_is_two_whichever_way() -> None:
     """The property that makes the fallback safe to have at all."""
 
     shapes = {
-        "two providers, first fails": ("dsk", "gmk", "brief", [answer({}, 500), answer({})]),
-        "two providers, first unusable": ("dsk", "gmk", "brief", [answer("x"), answer({})]),
-        "one provider, first unusable": ("dsk", None, "brief", [answer("x"), answer({})]),
-        "two providers, compose prefers the second": (
+        "two providers, first fails": ("dsk", "gmk", "chat", [answer({}, 500), answer({})]),
+        "two providers, first unusable": ("dsk", "gmk", "chat", [answer("x"), answer({})]),
+        "one provider, first unusable": ("dsk", None, "chat", [answer("x"), answer({})]),
+        "two providers, default pass, first fails": (
             "dsk",
             "gmk",
-            "compose",
+            "default",
             [answer({}, 500), answer({})],
         ),
     }
@@ -285,7 +285,7 @@ def everyone_down_still_refuses_honestly() -> None:
     transport = Transport(answer({}, 500), answer({}, 500))
     transport.install()
     try:
-        ask("brief")
+        ask("chat")
         fail("two dead providers should not produce an answer")
     except llm.LLMError as error:
         check("two dead providers refuse with a message a customer can read", "try again" in str(error).lower())
@@ -307,14 +307,14 @@ def the_ledger_names_a_real_model() -> None:
     configure(enabled=True, deepseek="dsk", gemini=None)
     check(
         "with one key the ledger names that model, not the absent one",
-        llm.preferred_model("brief") == settings.DEEPSEEK_MODEL,
-        llm.preferred_model("brief"),
+        llm.preferred_model("chat") == settings.DEEPSEEK_MODEL,
+        llm.preferred_model("chat"),
     )
     configure(enabled=True, deepseek=None, gemini=None)
     check(
         "with no key it names nothing rather than inventing one",
-        llm.preferred_model("brief") == "",
-        llm.preferred_model("brief"),
+        llm.preferred_model("chat") == "",
+        llm.preferred_model("chat"),
     )
 
 

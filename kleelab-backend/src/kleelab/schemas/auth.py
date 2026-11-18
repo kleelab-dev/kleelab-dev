@@ -12,14 +12,6 @@ def validate_password_size(value: str) -> str:
     return value
 
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    full_name: str | None = None
-
-    _validate_password = field_validator("password")(validate_password_size)
-
-
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
@@ -148,29 +140,9 @@ class UserOut(BaseModel):
     full_name: str | None
     avatar_url: str | None
     is_verified: bool
-    plan: str
     # client | staff. The interface uses it to show the team their admin view.
     role: str = "client"
     created_at: datetime
-
-
-class PlanLimitsOut(BaseModel):
-    """What a plan includes. Mirrors `services/plans.PlanLimits`."""
-
-    sites: int
-    pages_per_site: int
-    ai_builds_per_month: int
-    ai_calls_per_day: int
-    custom_domain: bool
-    storefront: bool
-
-
-class PlanUsageOut(BaseModel):
-    """What the account has used."""
-
-    sites: int
-    ai_builds_this_month: int
-    ai_calls_today: int
 
 
 class EmailTopicOut(BaseModel):
@@ -188,17 +160,7 @@ class EmailPrefsUpdate(BaseModel):
 
 
 class AccountOut(UserOut):
-    """`/api/auth/me`.
+    """`/api/auth/me`: the account, its two-step state and its email choices."""
 
-    Carries the limits and current usage alongside the account so the interface
-    never has to hardcode a quota. Hardcoded client limits and server-enforced
-    limits disagree the first time a limit changes, and the disagreement always
-    surfaces as a confusing error at the moment a user tries to act.
-    """
-
-    plan_label: str
-    plan_blurb: str
     two_step_enabled: bool = False
     email_topics: list[EmailTopicOut] = []
-    limits: PlanLimitsOut
-    usage: PlanUsageOut

@@ -63,18 +63,6 @@ else:
         llm.preferred_model("chat"),
     )
 
-# The other switch that changes what the product will do to someone, and the more
-# dangerous one to leave on by accident: publishing normally requires a verified
-# email, and this turns that off. It exists so the publish-and-view path is usable
-# without a mail provider, which is a development need only.
-if settings.AUTO_VERIFY_EMAILS:
-    level = logger.warning if settings.ENVIRONMENT != "development" else logger.info
-    level(
-        "Email verification is OFF (AUTO_VERIFY_EMAILS=true), so any account can "
-        "publish without confirming its address. This is intended for local "
-        "development; set AUTO_VERIFY_EMAILS=false outside it.",
-    )
-
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Deletes old enquiries and invoices, as the privacy page promises.
@@ -97,8 +85,6 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    # Built from SITES_DOMAIN, because a published site's own origin cannot be
-    # listed: there is one per customer, and a shop's cart calls this API from it.
     allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
@@ -107,9 +93,6 @@ app.add_middleware(
 # Added last so it is the outermost layer, meaning headers are present even on
 # responses produced by the rate limiter or CORS preflight.
 app.add_middleware(SecurityHeadersMiddleware)
-# The self-serve site builder (sites, pages, products, orders, storefront, AI
-# builder) is retired for now: KleeLab builds for clients instead. Its routers are
-# no longer mounted, and its tables and data are left untouched.
 app.include_router(auth_router)
 app.include_router(agency_router)
 app.include_router(chat_router)

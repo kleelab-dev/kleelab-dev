@@ -16,9 +16,10 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 Base = declarative_base()
 
+# Every model, so Base.metadata (and `alembic revision --autogenerate`) sees every table.
 from kleelab.models import (  # noqa: E402, F401
-    agency_lead, analytics, asset, call, care, library, order, page, page_version, portfolio, product,
-    project, proposal, site, template, user,
+    activity, agency_lead, ai_generation, analytics, asset, call, care, library, order, page, page_version,
+    portfolio, product, project, proposal, refresh_token, site, template, user,
 )
 
 

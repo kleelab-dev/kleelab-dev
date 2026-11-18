@@ -8,7 +8,6 @@ from jose import JWTError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kleelab.core.config import settings
 from kleelab.core.database import get_db
 from kleelab.core.security import (
     create_signed_token,
@@ -31,8 +30,6 @@ from kleelab.schemas.auth import (
     PasswordConfirm,
     PasswordResetRequest,
     PasswordResetStart,
-    PlanLimitsOut,
-    PlanUsageOut,
     ProfileUpdate,
     RecoveryCodesOut,
     RefreshRequest,
@@ -43,18 +40,10 @@ from kleelab.schemas.auth import (
     TwoStepLogin,
     TwoStepSetup,
     TwoStepStatus,
-    UserCreate,
     UserLogin,
-    UserOut,
 )
 from kleelab.services import activity, notify, sessions, two_step
-from kleelab.services.email import (
-    send_password_reset_email,
-    send_security_notice,
-    send_verification_email,
-    send_welcome_email,
-)
-from kleelab.services.plans import plan_state
+from kleelab.services.email import send_password_reset_email, send_security_notice
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -68,35 +57,9 @@ def ensure_password_supported(password: str) -> None:
         )
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) -> User:
-    """Register a new user account and send a verification email."""
-
-    ensure_password_supported(user_data.password)
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-
-    user = User(
-        email=user_data.email,
-        password_hash=get_password_hash(user_data.password),
-        full_name=user_data.full_name,
-        provider="email",
-        # Locally (AUTO_VERIFY_EMAILS=true) accounts are usable immediately because
-        # email delivery is not configured. Production keeps the verification gate.
-        is_verified=settings.AUTO_VERIFY_EMAILS,
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    token = create_signed_token({"user_id": str(user.id), "purpose": "email_verification"}, timedelta(hours=24))
-    try:
-        send_verification_email(user.email, token)
-        send_welcome_email(user.email, user.full_name)
-    except Exception:
-        # Account creation must not fail when optional email delivery is unavailable.
-        pass
-    return user
+# Clients are not self-registered: the team creates their account when it opens
+# a project for them (services/projects.py), and the invite link goes through
+# /reset-password, which also marks the address verified.
 
 
 def _wrong_password() -> HTTPException:
@@ -306,89 +269,6 @@ async def logout(payload: LogoutRequest, db: AsyncSession = Depends(get_db)) -> 
     return {"status": "signed_out"}
 
 
-@router.post("/logout-all")
-async def logout_all(
-    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
-) -> dict[str, str]:
-    """Revoke every active session for the authenticated user."""
-
-    await sessions.revoke_all_for_user(current_user.id, db)
-    return {"status": "signed_out_all"}
-
-
-@router.post("/resend-verification")
-async def resend_verification(
-    current_user: User = Depends(get_current_user),
-) -> dict[str, str | bool]:
-    """Send a fresh email-verification link to the authenticated user."""
-
-    if current_user.is_verified:
-        return {"status": "already_verified", "delivered": False}
-
-    token = create_signed_token(
-        {"user_id": str(current_user.id), "purpose": "email_verification"},
-        timedelta(hours=24),
-    )
-
-    try:
-        delivered = send_verification_email(current_user.email, token)
-    except Exception as error:  # noqa: BLE001 - surfaced to the caller
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The email provider rejected the request. Please try again shortly.",
-        ) from error
-
-    if delivered:
-        return {"status": "verification_email_sent", "delivered": True}
-
-    # No provider configured. Say so instead of reporting success, and in
-    # development the message (with its link) is in the server log.
-    if settings.ENVIRONMENT == "development":
-        return {"status": "verification_email_logged", "delivered": False}
-
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Email delivery is not configured, so a verification link cannot be sent.",
-    )
-
-
-@router.post("/verify-email")
-async def verify_email(token: str, db: AsyncSession = Depends(get_db)) -> dict[str, str]:
-    """Verify an email address from a signed link.
-
-    Unauthenticated on purpose: the link is opened from an inbox, so there may be
-    no session. The signed, single-purpose token identifies the user.
-    """
-
-    try:
-        payload = decode_signed_token(token)
-    except JWTError:
-        raise HTTPException(status_code=400, detail="This link has expired. Ask for a new one.") from None
-    if payload.get("purpose") != "email_verification":
-        raise HTTPException(status_code=400, detail="Invalid verification token")
-
-    user_id = payload.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=400, detail="Invalid verification token")
-
-    user = await db.scalar(select(User).where(User.id == user_id))
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_verified = True
-    await db.commit()
-    return {"status": "verified"}
-
-
-@router.post("/forgot-password")
-async def forgot_password(
-    body: PasswordResetStart | None = None, email: str | None = None, db: AsyncSession = Depends(get_db)
-) -> dict[str, str]:
-    """Alias for /request-password-reset."""
-
-    return await request_password_reset(body, email, db)
-
-
 @router.post("/request-password-reset")
 async def request_password_reset(
     body: PasswordResetStart | None = None, email: str | None = None, db: AsyncSession = Depends(get_db)
@@ -455,35 +335,26 @@ async def reset_password(body: PasswordResetRequest, db: AsyncSession = Depends(
 
 
 @router.get("/me", response_model=AccountOut)
-async def get_me(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> AccountOut:
-    """Return the authenticated user with its plan and usage."""
+async def get_me(current_user: User = Depends(get_current_user)) -> AccountOut:
+    """Return the authenticated user's account."""
 
-    return await _account_out(current_user, db)
+    return _account_out(current_user)
 
 
-async def _account_out(current_user: User, db: AsyncSession) -> AccountOut:
-    state = await plan_state(db, current_user)
+def _account_out(current_user: User) -> AccountOut:
     return AccountOut(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
         avatar_url=current_user.avatar_url,
         is_verified=current_user.is_verified,
-        plan=state["plan"],
         role=current_user.role,
         created_at=current_user.created_at,
-        plan_label=state["label"],
-        plan_blurb=state["blurb"],
         two_step_enabled=two_step.is_enabled(current_user),
         email_topics=[
             EmailTopicOut(key=key, label=label, description=description, on=notify.wants(current_user, key))
             for key, (label, description) in notify.topics_for(current_user).items()
         ],
-        limits=PlanLimitsOut(**state["limits"]),
-        usage=PlanUsageOut(**state["usage"]),
     )
 
 
@@ -516,7 +387,7 @@ async def update_me(
         )
         await db.commit()
         await db.refresh(current_user)
-    return await _account_out(current_user, db)
+    return _account_out(current_user)
 
 
 @router.put("/me/email-prefs", response_model=AccountOut)
@@ -551,7 +422,7 @@ async def update_email_prefs(
         )
         await db.commit()
         await db.refresh(current_user)
-    return await _account_out(current_user, db)
+    return _account_out(current_user)
 
 
 async def _sign_out_others(

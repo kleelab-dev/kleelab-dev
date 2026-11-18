@@ -212,42 +212,6 @@ def _link_text(inner: str, href: str) -> str:
 # --- Accounts ----------------------------------------------------------------
 
 
-def send_welcome_email(email: str, name: str | None = None) -> bool:
-    return _send(
-        email,
-        "Welcome to KleeLab",
-        _layout(
-            label="welcome",
-            heading=f"Welcome{', ' + name if name else ''}",
-            body=_p("Thanks for joining KleeLab. Everything we build with you lives on your dashboard, "
-                    "where you can follow each step, approve work and message us."),
-            button=("Open your dashboard", f"{settings.FRONTEND_URL.rstrip('/')}/dashboard"),
-        ),
-    )
-
-
-def send_verification_email(email: str, token: str) -> bool:
-    """Send a clickable verification link.
-
-    The token was previously emailed on its own, which left the recipient with no
-    way to act on it - there was no page to enter it into either.
-    """
-
-    url = _link("verify-email", token)
-    return _send(
-        email,
-        "Verify your KleeLab email",
-        _layout(
-            label="confirm your email",
-            heading="Is this your email address?",
-            body=_p("Confirm it so we know where to send updates about your projects."),
-            button=("Confirm my email", url),
-            after=_p("This link expires in 24 hours. If you did not sign up, you can ignore this email."),
-            footer="You are getting this because someone signed up to KleeLab with this address.",
-        ),
-    )
-
-
 def send_password_reset_email(email: str, token: str, staff: bool = False) -> bool:
     # Staff reset on the team dashboard, never on the public site.
     url = _link("reset-password", token, settings.ADMIN_URL if staff else None)
@@ -262,22 +226,6 @@ def send_password_reset_email(email: str, token: str, staff: bool = False) -> bo
             after=_note("This link expires in 15 minutes and works once. If you did not ask for it, ignore this "
                         "email: your password stays as it is."),
         ),
-    )
-
-
-def send_order_confirmation(email: str, order_id: str, items: list[dict], total: float) -> None:
-    _send(
-        email,
-        f"Order {order_id} confirmed",
-        _layout(label="order", heading=f"Order {order_id} confirmed", body=_p(f"Total: {escape(str(total))}")),
-    )
-
-
-def send_subscription_confirmation(email: str, plan: str) -> None:
-    _send(
-        email,
-        "KleeLab subscription updated",
-        _layout(label="subscription", heading="Your plan has changed", body=_p(f"Your plan is now {escape(plan)}.")),
     )
 
 

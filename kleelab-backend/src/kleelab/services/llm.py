@@ -88,14 +88,6 @@ DEFAULT_TASK = "default"
 # behaves exactly as this module did before it had more than one provider.
 _TASK_PREFERENCES: dict[str, tuple[str, ...]] = {
     "default": ("deepseek", "gemini"),
-    "brief": ("deepseek", "gemini"),
-    # Whole-page judgements that benefit from reasoning: which direction, and how
-    # the page is actually put together.
-    "design": ("gemini", "deepseek"),
-    "compose": ("gemini", "deepseek"),
-    # Volume prose and small surgical edits, where DeepSeek is proven.
-    "content": ("deepseek", "gemini"),
-    "edit": ("deepseek", "gemini"),
     # The visitor chat: short answers where latency matters more than depth.
     "chat": ("deepseek", "gemini"),
 }

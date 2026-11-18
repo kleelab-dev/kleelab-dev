@@ -45,3 +45,4 @@ No email or Slack messages are sent.
 | `check_templates_pipeline.py` | Project templates (a project started from one, saving a project as one), saved replies, and the enquiry pipeline: moving between columns, calls and proposals moving an enquiry on |
 | `check_care_time_prefs.py` | Care plans (billing in advance, pausing, ending, one period per daily run, hours used), the team's time log and timesheet, and choosing which emails you get |
 | `check_portfolio.py` | The portfolio: drafts, screenshots, publishing rules (descriptions, client agreement), preview links, visitor counts, enquiries and proposals from an item, sold, demo link checks, drafts from a project |
+| `check_simplify.py` | The 2026-11 clean-up: removed sign-up paths answer 404/405, public forms get the strict rate limit, production refuses localhost and lookalike origins, the schema is untouched (no dropped table), `/me` has no plan fields |

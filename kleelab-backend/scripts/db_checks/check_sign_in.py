@@ -52,7 +52,7 @@ async def main() -> None:
             check("reset by body sends one email to the stored address", sent == [client_email])
 
             sent.clear()
-            r = await c.post("/api/auth/forgot-password", params={"email": client_email})
+            r = await c.post("/api/auth/request-password-reset", params={"email": client_email})
             check("old ?email= form still works", r.status_code == 200 and sent == [client_email])
 
             answers = []

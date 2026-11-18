@@ -1,6 +1,5 @@
 """Application settings loaded from environment variables."""
 
-import re
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -19,12 +18,6 @@ class Settings(BaseSettings):
     # point here so a staff reset never goes through the public site. Unset falls
     # back to FRONTEND_URL.
     ADMIN_URL: str | None = None
-    # The domain customer sites live under, so a published site is reachable at
-    # `{subdomain}.{SITES_DOMAIN}`. Empty means sites are served from paths on
-    # FRONTEND_URL instead, which is what local development needs — the frontend's
-    # request proxy only rewrites a subdomain host when the request has one, and
-    # `localhost:3000` never does.
-    SITES_DOMAIN: str = ""
     ALGORITHM: str = "HS256"
     # Short-lived access tokens, refreshed via rotating refresh tokens.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
@@ -37,20 +30,13 @@ class Settings(BaseSettings):
     # Honour X-Forwarded-For / X-Real-IP. Required behind a load balancer, where
     # request.client.host is the proxy and every caller would share one bucket.
     TRUST_PROXY: bool = True
-    # Optional shared rate-limit store. Without it limits are per-process.
-    REDIS_URL: str | None = None
     # Login/signup requests allowed per IP per minute. Keep this generous enough that a
     # few failed attempts during development cannot lock the API out.
     AUTH_RATE_LIMIT_PER_MINUTE: int = 20
-    # Requests allowed per IP per hour for every other route. The builder autosaves
-    # while editing, so this needs enough headroom for a real session.
+    # Requests allowed per IP per hour for every other route.
     RATE_LIMIT_PER_HOUR: int = 1000
     # Messages per IP per hour to the visitor enquiry chat.
     CHAT_RATE_LIMIT_PER_HOUR: int = 60
-    # Development convenience: mark new accounts as email-verified immediately so
-    # publishing is testable without a configured mail provider. Never enable this
-    # in production.
-    AUTO_VERIFY_EMAILS: bool = False
     SQL_ECHO: bool = False
     SENTRY_DSN: str | None = None
     # Mailtrap Email Sending API token. Used first when set; Resend is the fallback.
@@ -88,7 +74,7 @@ class Settings(BaseSettings):
     # show there at once. Unset, the site picks them up within five minutes.
     REVALIDATE_SECRET: str | None = None
 
-    # --- AI site builder -------------------------------------------------------
+    # --- AI (the visitor enquiry chat) ----------------------------------------
     # Fails closed. Everything AI-related is refused with a clear 503 until this
     # is explicitly switched on with a key present, so a missing or rotated
     # credential degrades to an honest message rather than a traceback on a
@@ -113,19 +99,6 @@ class Settings(BaseSettings):
     # for minutes.
     AI_TIMEOUT_SECONDS: float = 60.0
     AI_MAX_OUTPUT_TOKENS: int = 4000
-    # Bounds one request's cost and prompt size. The section list is supplied by
-    # the client, so it is also the main shape a malicious caller could abuse.
-    AI_MAX_SECTIONS_PER_REQUEST: int = 12
-    AI_MAX_PROMPT_CHARS: int = 2000
-    # Fills empty image slots with real photographs, because a page of empty
-    # frames is what makes a generated site look dead. These are Unsplash-sourced
-    # placeholders chosen by a stable seed and they are not necessarily about the
-    # business — see `services/stock_images.py`. Turn this off and the slots fall
-    # back to a designed placeholder instead.
-    STOCK_IMAGES_ENABLED: bool = True
-    STOCK_IMAGE_BASE_URL: str = "https://picsum.photos"
-    STOCK_IMAGE_WIDTH: int = 1400
-    STOCK_IMAGE_HEIGHT: int = 1000
 
     # Free first calls, booked from the site (services/calls.py). Times are
     # offered in the team's own time, a fixed offset from UTC: Lagos keeps no
@@ -165,32 +138,16 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_regex(self) -> str:
-        """Origins that cannot be listed, because there are unboundedly many of them.
+        """Origins allowed by pattern, on top of the `CORS_ORIGINS` list.
 
-        A published site lives at `{subdomain}.{SITES_DOMAIN}` and calls this API from
-        the browser — a shop's cart, for one. Every customer therefore has an origin no
-        static list can contain, and without a pattern here their site loads and then
-        silently fails every request it makes: CORS refuses it, and the browser console
-        says nothing an owner could act on.
-
-        Built rather than written out, so the domain is configured in one place. An
-        empty `SITES_DOMAIN` contributes nothing, which is right for local development
-        where sites are served from paths on localhost.
+        Any `*.onrender.com` host is matched, as before. Localhost on any port is
+        allowed only in development, so a page served from someone's own machine
+        cannot call a deployed API.
         """
 
-        patterns = [
-            r"https://[a-z0-9-]+\.onrender\.com",
-            r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-        ]
-
-        domain = self.SITES_DOMAIN.strip().lower().lstrip(".")
-        if domain:
-            # `[a-z0-9-]+` rather than `.*`: a subdomain cannot contain a dot, and
-            # allowing one would let a host that merely ends with the domain — or one
-            # containing it, like `kleelab.com.evil.test` — present itself as a site.
-            patterns.append(rf"https://[a-z0-9-]+\.{re.escape(domain)}")
-            patterns.append(rf"https://{re.escape(domain)}")
-
+        patterns = [r"https://[a-z0-9-]+\.onrender\.com"]
+        if self.ENVIRONMENT == "development":
+            patterns.append(r"http://(localhost|127\.0\.0\.1)(:\d+)?")
         return "|".join(patterns)
 
 

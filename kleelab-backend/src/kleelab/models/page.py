@@ -1,4 +1,4 @@
-"""Page database model."""
+"""Legacy self-serve builder table. Kept for existing data; no API reads or writes it."""
 
 import uuid
 from datetime import datetime

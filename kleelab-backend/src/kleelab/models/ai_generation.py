@@ -1,19 +1,4 @@
-"""AI generation ledger.
-
-Every outbound model call writes one row here. It exists for two reasons that
-have nothing to do with each other, which is why it is a table and not a counter
-column somewhere:
-
-1. **Quota.** A plan's monthly build allowance is counted from these rows, so the
-   allowance cannot drift out of step with what was actually generated.
-2. **Cost forensics.** Token counts and the model name make it possible to answer
-   "which account cost us money last month, and for what" without asking the
-   provider. A billed API with no local ledger is unbudgetable.
-
-The brief payload is stored here too rather than in its own table: it is
-diagnostic data belonging to one generation, and there is no query that needs it
-independently.
-"""
+"""Legacy self-serve builder table. Kept for existing data; no API reads or writes it."""
 
 import uuid
 from datetime import datetime
