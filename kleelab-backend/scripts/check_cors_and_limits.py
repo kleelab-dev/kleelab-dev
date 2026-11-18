@@ -8,6 +8,8 @@ Three promises, all from docs/specs/2026-11-18-simplify-backend-dashboard.md:
 * The public forms (`/api/agency/leads`, `/api/calls`) get the strict per-minute
   budget that sign-in has, so the 21st call in a minute is refused.
 * The self-serve sign-up paths that were removed stay removed (404 or 405).
+* The limit is keyed on the address our own proxies saw, not on anything the
+  caller writes into X-Forwarded-For, so a forged header does not reset it.
 
 Run with `python scripts/check_cors_and_limits.py`. No network, no database, no key:
 every request here is turned away (or answered 422) before anything is stored.
@@ -114,9 +116,56 @@ async def request_checks() -> None:
     check("one address using its budget does not lock out another", r.status_code != 429)
 
 
+def ip_checks() -> None:
+    class Fake:
+        def __init__(self, xff: str | None, host: str = "10.9.9.9") -> None:
+            from starlette.datastructures import Headers
+
+            self.headers = Headers(raw=[(b"x-forwarded-for", xff.encode())] if xff is not None else [])
+            self.client = type("C", (), {"host": host})()
+
+    cases = [
+        ("1.1.1.1, 104.22.17.40", "1.1.1.1", "Cloudflare then Render: the address Cloudflare saw"),
+        ("6.6.6.6, 1.1.1.1, 104.22.17.40", "1.1.1.1", "a forged first entry is ignored"),
+        ("6.6.6.6,7.7.7.7 , 1.1.1.1,104.22.17.40", "1.1.1.1", "several forged entries are ignored"),
+        ("104.22.17.40", "104.22.17.40", "a one-entry chain uses that entry"),
+        (None, "10.9.9.9", "no header falls back to the connection address"),
+        ("", "10.9.9.9", "an empty header falls back to the connection address"),
+        (" , ", "10.9.9.9", "a header of only commas falls back to the connection address"),
+        ("not-an-ip, 104.22.17.40", "10.9.9.9", "a non-address entry falls back to the connection address"),
+        ("2001:db8::1, 104.22.17.40", "2001:db8::1", "IPv6 is read as is"),
+    ]
+    check("TRUSTED_PROXY_HOPS defaults to 2", Settings.model_fields["TRUSTED_PROXY_HOPS"].default == 2)
+    for xff, want, label in cases:
+        got = rate_limiter.client_ip(Fake(xff))
+        check(f"client address: {label} (got {got})", got == want)
+    check("IPv6 addresses in one /64 share a budget",
+          rate_limiter.bucket_key("2001:db8:1:2::1") == rate_limiter.bucket_key("2001:db8:1:2:ffff::9"))
+    check("IPv6 addresses in different /64s do not",
+          rate_limiter.bucket_key("2001:db8:1:2::1") != rate_limiter.bucket_key("2001:db8:1:3::1"))
+    check("IPv4 keeps its full address", rate_limiter.bucket_key("1.2.3.4") == "1.2.3.4")
+
+
+async def spoof_checks() -> None:
+    """One caller forging a new first entry on every call is still limited."""
+
+    async with client("10.3.0.1") as c:
+        codes = [
+            (await c.post("/api/calls", json={}, headers={"X-Forwarded-For": f"9.9.{i}.1, 5.5.5.5, 104.22.17.40"})).status_code
+            for i in range(21)
+        ]
+    check(f"forged X-Forwarded-For does not reset the limit (call 21 got {codes[20]})", codes[20] == 429)
+
+    async with client("10.3.0.1") as c:
+        r = await c.post("/api/calls", json={}, headers={"X-Forwarded-For": "5.5.5.6, 104.22.17.40"})
+    check("another caller behind the same Cloudflare edge is not limited", r.status_code != 429)
+
+
 async def main() -> None:
     pattern_checks()
+    ip_checks()
     await request_checks()
+    await spoof_checks()
 
 
 asyncio.run(main())

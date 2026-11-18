@@ -27,9 +27,15 @@ class Settings(BaseSettings):
     ENQUIRY_RETENTION_DAYS: int = 730
     # Invoices outlive a deleted account for tax records, then go after this long.
     INVOICE_RETENTION_YEARS: int = 6
-    # Honour X-Forwarded-For / X-Real-IP. Required behind a load balancer, where
-    # request.client.host is the proxy and every caller would share one bucket.
+    # Read the caller's address from X-Forwarded-For. Required behind a load
+    # balancer, where request.client.host is the proxy and every caller would
+    # share one bucket.
     TRUST_PROXY: bool = True
+    # How many of our own proxies add to X-Forwarded-For. The address is read this
+    # many entries from the end, because the caller can write anything in front.
+    # Render is Cloudflare then Render's proxy, so 2. Change it if a proxy is
+    # added or removed, or every caller shares one rate-limit bucket.
+    TRUSTED_PROXY_HOPS: int = 2
     # Login/signup requests allowed per IP per minute. Keep this generous enough that a
     # few failed attempts during development cannot lock the API out.
     AUTH_RATE_LIMIT_PER_MINUTE: int = 20

@@ -21,6 +21,14 @@ services:
       # HSTS is off and the SECRET_KEY placeholder guard is skipped.
       - key: ENVIRONMENT
         value: production
+      # The API sits behind Cloudflare and then Render's proxy, and each adds one
+      # entry to X-Forwarded-For. The caller's address is read 2 from the end.
+      # On the first request the API logs "client address check: OK"; a MISMATCH
+      # line means this number is wrong.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: TRUSTED_PROXY_HOPS
+        value: "2"
       # Declared with `sync: false` so they are documented as required and survive
       # a blueprint sync. The values live in the dashboard and are never
       # committed: a key written here is a key written to git history.
