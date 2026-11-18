@@ -4,8 +4,6 @@ import type {
   AdminInvoice,
   AdminStats,
   AttentionItem,
-  ChatReply,
-  ChatTurn,
   ClientDetail,
   ClientPatchInput,
   ClientSummary,
@@ -32,7 +30,6 @@ import type {
   ProjectTemplateInput,
   ProposalDetail,
   ProposalInput,
-  RequestKind,
   RequestStatus,
   SavedReply,
   SearchResults,
@@ -95,7 +92,6 @@ const NO_REFRESH_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/staff-login',
   '/api/auth/staff-login/two-step',
-  '/api/auth/register',
   '/api/auth/refresh',
   '/api/auth/logout',
 ]);
@@ -258,10 +254,6 @@ async function saveDownload(path: string, filename: string, failure: string): Pr
 export const apiService = {
   // --- Accounts ------------------------------------------------------------
 
-  async register(data: { email: string; password: string; full_name: string }): Promise<User> {
-    return post<User>('/api/auth/register', data);
-  },
-
   /**
    * Staff-only sign-in: the backend refuses client accounts here, and staff on the public site's /login.
    * With two-step on, the right password returns a challenge instead of a session; finish with `loginWithCode`.
@@ -328,10 +320,6 @@ export const apiService = {
     return put<User>('/api/auth/me/email-prefs', { prefs });
   },
 
-  async verifyEmail(token: string): Promise<void> {
-    return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
-  },
-
   /** Always answers the same way, so it cannot be used to find out who has an account. */
   async requestPasswordReset(email: string): Promise<void> {
     await post<unknown>('/api/auth/request-password-reset', { email });
@@ -342,56 +330,11 @@ export const apiService = {
     await post<unknown>('/api/auth/reset-password', { token, new_password: newPassword });
   },
 
-  // --- Public enquiries ----------------------------------------------------
-
-  async chat(messages: ChatTurn[], page?: string): Promise<ChatReply> {
-    return post<ChatReply>('/api/chat', { messages, page });
-  },
-
-  /**
-   * Send an enquiry to the team. `source` tells the inbox whether it came from
-   * the contact page or from the chat.
-   */
-  async submitLead(payload: {
-    email: string;
-    name?: string | null;
-    company?: string | null;
-    /** A band from `budgets` in content/site, or `ngn_<amount>` for a typed figure. */
-    budget?: string;
-    message: string;
-    project_type?: string | null;
-    source?: 'marketing' | 'chat';
-    website?: string;
-  }): Promise<{ status: string }> {
-    return post<{ status: string }>('/api/agency/leads', { source: 'marketing', ...payload });
-  },
-
   // --- Client dashboard ----------------------------------------------------
-
-  async getProjects(): Promise<ProjectSummary[]> {
-    return request<ProjectSummary[]>('/api/projects');
-  },
 
   /** Clients see their own projects; the team can open any of them. */
   async getProject(projectId: string): Promise<ProjectDetail> {
     return request<ProjectDetail>(`/api/projects/${projectId}`);
-  },
-
-  async sendMessage(projectId: string, body: string): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/projects/${projectId}/messages`, { body });
-  },
-
-  async answerApproval(
-    projectId: string,
-    updateId: string,
-    decision: 'approved' | 'changes_requested',
-    note?: string,
-  ): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/projects/${projectId}/approvals/${updateId}`, { decision, note: note || null });
-  },
-
-  async requestService(projectId: string, kind: RequestKind, message?: string): Promise<ProjectDetail> {
-    return post<ProjectDetail>(`/api/projects/${projectId}/requests`, { kind, message: message || null });
   },
 
   /**

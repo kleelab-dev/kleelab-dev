@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import { Button } from '@/components/ui/Button';
 import type { ProjectRequest, RequestKind } from '@/types/api';
@@ -37,8 +37,24 @@ export function RequestList({
   );
 }
 
-/** Ask for an extra service or a change. The team replies in the messages. */
-export function RequestForm({ onRequest }: { onRequest: (kind: RequestKind, message: string) => Promise<void> }) {
+/**
+ * Ask for an extra service or a change. The team replies in the messages.
+ * `autoFocus` puts focus on the first option when the form appears; `onCancel`
+ * adds a Cancel button next to Send.
+ */
+export function RequestForm({
+  onRequest,
+  onCancel,
+  autoFocus = false,
+}: {
+  onRequest: (kind: RequestKind, message: string) => Promise<void>;
+  onCancel?: () => void;
+  autoFocus?: boolean;
+}) {
+  const firstOption = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (autoFocus) firstOption.current?.focus();
+  }, [autoFocus]);
   const [kind, setKind] = useState<RequestKind | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -67,9 +83,10 @@ export function RequestForm({ onRequest }: { onRequest: (kind: RequestKind, mess
       <fieldset>
         <legend className="label">I would like</legend>
         <div className="grid gap-2 sm:grid-cols-2">
-          {KINDS.map((option) => (
+          {KINDS.map((option, index) => (
             <button
               key={option}
+              ref={index === 0 ? firstOption : undefined}
               type="button"
               aria-pressed={kind === option}
               onClick={() => {
@@ -93,10 +110,15 @@ export function RequestForm({ onRequest }: { onRequest: (kind: RequestKind, mess
       </div>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {sent && <p role="status" className="text-sm text-ink">Sent. We will reply here with a price or any questions.</p>}
-      <div>
-        <Button type="submit" variant="secondary" size="sm" className="min-h-11 sm:min-h-0" disabled={busy}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" variant="secondary" size="sm" className="min-h-11" disabled={busy}>
           {busy ? 'Sending…' : 'Send'}
         </Button>
+        {onCancel && (
+          <Button type="button" variant="ghost" size="sm" className="min-h-11" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
       </div>
     </form>
   );

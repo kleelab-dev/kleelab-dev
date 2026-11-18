@@ -1,10 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ArrowDownTrayIcon, PaperClipIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon, LinkIcon, PaperClipIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { apiService } from '@/services/api';
-import type { ProjectDetail, ProjectFile } from '@/types/api';
+import type { ProjectDetail, ProjectFile, ProjectUpdate } from '@/types/api';
 import { errorText, formatDate, formatSize } from './format';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -12,14 +12,22 @@ const MAX_BYTES = 10 * 1024 * 1024;
 /**
  * Files shared on a project, both ways. The team can remove any file; a client
  * can remove only the ones they shared.
+ *
+ * `links` (previews and other links posted in updates) are listed first, in the
+ * same list, so there is one place to find everything shared. `empty` replaces
+ * the text shown when there is nothing at all.
  */
 export function FilesPanel({
   project,
   team = false,
+  links = [],
+  empty,
   onChange,
 }: {
   project: ProjectDetail;
   team?: boolean;
+  links?: ProjectUpdate[];
+  empty?: string;
   onChange: (project: ProjectDetail) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -67,8 +75,40 @@ export function FilesPanel({
 
   return (
     <div>
-      {files.length ? (
+      {files.length || links.length ? (
         <ul className="grid gap-2">
+          {links.map((update) =>
+            update.link_url ? (
+              <li key={`link-${update.id}`} className="flex items-center gap-2 rounded-xl border-[1.5px] border-line bg-white p-2.5 sm:gap-3 sm:p-3">
+                <LinkIcon className="h-5 w-5 shrink-0 text-muted" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={update.link_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block min-h-6 max-w-full truncate text-sm font-semibold text-cobalt hover:underline"
+                    title={update.title || update.link_label || update.link_url}
+                  >
+                    {update.title || update.link_label || 'Link'}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </a>
+                  <p className="truncate text-xs text-muted">
+                    {update.title && update.link_label ? `${update.link_label} · ` : ''}
+                    {update.from_team ? (team ? update.author_name || 'The team' : 'From KleeLab') : team ? `From ${update.author_name || 'the client'}` : 'From you'} · {formatDate(update.created_at)}
+                  </p>
+                </div>
+                <a
+                  href={update.link_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full hover:bg-ink/5"
+                  aria-label={`Open ${update.title || update.link_label || 'link'} in a new tab`}
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                </a>
+              </li>
+            ) : null,
+          )}
           {files.map((file) => (
             <li key={file.id} className="flex items-center gap-2 rounded-xl border-[1.5px] border-line bg-white p-2.5 sm:gap-3 sm:p-3">
               <PaperClipIcon className="h-5 w-5 shrink-0 text-muted" aria-hidden />
@@ -98,7 +138,7 @@ export function FilesPanel({
         </ul>
       ) : (
         <p className="text-sm text-muted">
-          {team ? 'No files yet. Share designs, documents or logins here.' : 'No files yet. Send us your logo, photos, text or anything else we need.'}
+          {empty ?? (team ? 'No files yet. Share designs, documents or logins here.' : 'No files yet. Send us your logo, photos, text or anything else we need.')}
         </p>
       )}
       {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}

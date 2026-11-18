@@ -12,6 +12,7 @@ export function StageTimeline({ stages, renderControls, team = false }: { stages
       {ordered.map((stage, index) => {
         const status = STAGE_STATUS[stage.status];
         const live = stage.status === 'in_progress' || stage.status === 'waiting_on_client';
+        const controls = renderControls?.(stage);
         return (
           <li key={stage.id} className="relative flex gap-4 pb-6 last:pb-0">
             {index < ordered.length - 1 && (
@@ -39,7 +40,7 @@ export function StageTimeline({ stages, renderControls, team = false }: { stages
                     ? `Planned for ${formatDate(stage.due_date)}`
                     : 'Date not set yet'}
               </p>
-              {renderControls && <div className="mt-3">{renderControls(stage)}</div>}
+              {controls != null && controls !== false && <div className="mt-3">{controls}</div>}
             </div>
           </li>
         );

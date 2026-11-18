@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ButtonLink } from '@/components/ui/Button';
 import { Bone, ErrorState, Loading } from '@/components/ui/States';
 import { useCurrentUser } from '@/components/app/AppShell';
@@ -13,6 +15,12 @@ import { apiService } from '@/services/api';
 export default function DashboardPage() {
   const user = useCurrentUser();
   const { data: projects, error, stale, retry } = useLiveData('projects', apiService.getProjects);
+  const router = useRouter();
+  // With exactly one project there is nothing to choose, so open it straight away.
+  const onlyProject = projects?.length === 1 ? projects[0].id : null;
+  useEffect(() => {
+    if (onlyProject) router.replace(`/dashboard/projects/${encodeURIComponent(onlyProject)}`);
+  }, [onlyProject, router]);
 
   const firstName = user.full_name?.split(' ')[0];
   const waiting = projects?.reduce((sum, p) => sum + p.pending_approvals, 0) ?? 0;
@@ -47,7 +55,7 @@ export default function DashboardPage() {
             message={`${errorText(error, 'Something went wrong on our side.')} Your projects are safe; this is only a problem showing them.`}
             onRetry={retry}
           />
-        ) : projects === null ? (
+        ) : projects === null || onlyProject ? (
           <ProjectsSkeleton />
         ) : projects.length === 0 ? (
           <NoProjects />

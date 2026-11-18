@@ -62,7 +62,6 @@ const REFRESH_KEY = 'kleelab_refresh_token';
  */
 const NO_REFRESH_PATHS = new Set([
   '/api/auth/login',
-  '/api/auth/register',
   '/api/auth/refresh',
   '/api/auth/logout',
 ]);
@@ -217,10 +216,6 @@ async function saveDownload(path: string, filename: string, failure: string): Pr
 export const apiService = {
   // --- Accounts ------------------------------------------------------------
 
-  async register(data: { email: string; password: string; full_name: string }): Promise<User> {
-    return post<User>('/api/auth/register', data);
-  },
-
   async login(email: string, password: string): Promise<void> {
     const result = await post<{ access_token: string; refresh_token?: string }>('/api/auth/login', { email, password });
     setSession(result.access_token, result.refresh_token ?? null);
@@ -278,10 +273,6 @@ export const apiService = {
     const result = await post<OtherSessionsSignedOut>('/api/auth/sign-out-others');
     if (result.tokens) setSession(result.tokens.access_token, result.tokens.refresh_token ?? null);
     return result;
-  },
-
-  async verifyEmail(token: string): Promise<void> {
-    return request<void>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { method: 'POST' });
   },
 
   /** Always answers the same way, so it cannot be used to find out who has an account. */

@@ -219,14 +219,6 @@ export interface Handover {
   updated_at: string;
 }
 
-export type AttentionKind =
-  | 'new_enquiry'
-  | 'client_message'
-  | 'open_request'
-  | 'waiting_approval'
-  | 'overdue_step'
-  | 'unpaid_invoice';
-
 export type ChatRole = 'visitor' | 'assistant';
 
 export interface ChatTurn {

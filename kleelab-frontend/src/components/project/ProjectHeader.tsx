@@ -5,15 +5,18 @@ import type { ProjectDetail } from '@/types/api';
 import { formatDate, PROJECT_STATUS } from './format';
 import { Pill, Progress } from './Pill';
 
-export function ProjectHeader({ project, backHref, backLabel }: { project: ProjectDetail; backHref: string; backLabel: string }) {
+/** `backHref` is optional: without it there is no back link (for example when there is nothing to go back to). */
+export function ProjectHeader({ project, backHref, backLabel }: { project: ProjectDetail; backHref?: string; backLabel?: string }) {
   const done = project.stages.filter((s) => s.status === 'done').length;
   const status = PROJECT_STATUS[project.status];
   return (
     <header>
-      <Link href={backHref} className="font-mono text-[11px] uppercase tracking-label text-muted no-underline hover:text-ink">
-        ← {backLabel}
-      </Link>
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-6">
+      {backHref && (
+        <Link href={backHref} className="-my-3.5 flex min-h-11 w-fit items-center font-mono text-[11px] uppercase tracking-label text-muted no-underline hover:text-ink">
+          ← {backLabel}
+        </Link>
+      )}
+      <div className={`${backHref ? 'mt-4 ' : ''}flex flex-wrap items-start justify-between gap-6`}>
         <div className="max-w-2xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] uppercase tracking-label text-cobalt">{project.reference}</span>

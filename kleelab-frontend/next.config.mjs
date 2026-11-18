@@ -28,8 +28,8 @@ const nextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
           {
             key: 'Content-Security-Policy',
-            // Published sites show images from arbitrary hosts, and Next injects
-            // inline hydration scripts; a nonce-based policy is a follow-up.
+            // Next injects inline hydration scripts; a nonce-based policy is a
+            // follow-up.
             value: [
               "default-src 'self'",
               "img-src 'self' data: blob: https:",
@@ -64,10 +64,6 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      },
       {
         // Cloudinary-hosted site media.
         protocol: 'https',

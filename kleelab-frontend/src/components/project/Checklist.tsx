@@ -67,12 +67,18 @@ function ChecklistRow({ item, onTick }: { item: ChecklistItem; onTick: (itemId: 
           aria-label={ticked ? `Mark “${item.title}” as not done` : `Mark “${item.title}” as done`}
           disabled={busy}
           onClick={() => tick(!ticked)}
-          className={clsx(
-            'mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-[1.5px] border-ink transition-colors disabled:opacity-50',
-            ticked ? 'bg-mint' : 'bg-white hover:bg-sun-soft',
-          )}
+          /* A 44px hit area around the 24px box; the negative margin keeps the row's layout unchanged. */
+          className="group -m-2.5 grid h-11 w-11 shrink-0 place-items-center rounded-lg disabled:opacity-50"
         >
-          {ticked && <CheckIcon className="h-4 w-4" />}
+          <span
+            aria-hidden
+            className={clsx(
+              'mt-0.5 grid h-6 w-6 place-items-center rounded-md border-[1.5px] border-ink transition-colors',
+              ticked ? 'bg-mint' : 'bg-white group-hover:bg-sun-soft',
+            )}
+          >
+            {ticked && <CheckIcon className="h-4 w-4" />}
+          </span>
         </button>
         <div className="min-w-0 flex-1">
           <p className={clsx('font-semibold leading-6', ticked && 'text-muted line-through decoration-1')}>{item.title}</p>
@@ -85,7 +91,7 @@ function ChecklistRow({ item, onTick }: { item: ChecklistItem; onTick: (itemId: 
           )}
           {item.note && <p className="mt-1 rounded-lg bg-sun-soft px-2.5 py-1.5 text-sm">{item.note}</p>}
           {!ticked && !noting && (
-            <button type="button" onClick={() => setNoting(true)} className="mt-1 text-sm font-semibold text-cobalt underline-offset-4 hover:underline">
+            <button type="button" onClick={() => setNoting(true)} className="-mb-2.5 -mt-1.5 inline-flex min-h-11 items-center text-sm font-semibold text-cobalt underline-offset-4 hover:underline">
               Tick with a note
             </button>
           )}
@@ -102,11 +108,11 @@ function ChecklistRow({ item, onTick }: { item: ChecklistItem; onTick: (itemId: 
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. the photos are on our Google Drive, I have shared it with you"
               />
-              <div className="flex gap-3 text-sm">
-                <button type="button" disabled={busy} onClick={() => tick(true, note)} className="rounded-full bg-cobalt px-3.5 py-1.5 font-semibold text-white hover:bg-cobalt-dark disabled:opacity-50">
+              <div className="flex items-center gap-3 text-sm">
+                <button type="button" disabled={busy} onClick={() => tick(true, note)} className="min-h-11 rounded-full bg-cobalt px-3.5 py-1.5 font-semibold text-white hover:bg-cobalt-dark disabled:opacity-50">
                   {busy ? 'Saving…' : 'Tick it off'}
                 </button>
-                <button type="button" disabled={busy} onClick={() => { setNoting(false); setNote(''); }} className="font-semibold text-muted">
+                <button type="button" disabled={busy} onClick={() => { setNoting(false); setNote(''); }} className="min-h-11 px-1 font-semibold text-muted">
                   Never mind
                 </button>
               </div>

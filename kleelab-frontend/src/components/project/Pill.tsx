@@ -22,13 +22,33 @@ export function Progress({ done, total }: { done: number; total: number }) {
   );
 }
 
-export function Panel({ tag, title, action, children, className }: { tag?: string; title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
+/**
+ * A titled card. `headingId` gives the title an id and makes it focusable from
+ * script, so focus has somewhere sensible to go when nearby content disappears.
+ */
+export function Panel({
+  tag,
+  title,
+  action,
+  children,
+  className,
+  headingId,
+}: {
+  tag?: string;
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  headingId?: string;
+}) {
   return (
-    <section className={clsx('card p-5 sm:p-6', className)}>
+    <section className={clsx('card p-5 sm:p-6', className)} aria-labelledby={headingId}>
       <div className="flex items-start justify-between gap-3">
         <div>
           {tag && <p className="tag">{tag}</p>}
-          <h2 className="mt-1 font-display text-xl font-extrabold tracking-tight">{title}</h2>
+          <h2 id={headingId} tabIndex={headingId ? -1 : undefined} className="mt-1 scroll-mt-24 font-display text-xl font-extrabold tracking-tight">
+            {title}
+          </h2>
         </div>
         {action}
       </div>

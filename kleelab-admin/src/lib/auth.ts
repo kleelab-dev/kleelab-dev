@@ -25,9 +25,8 @@ export function safeNext(value: string | string[] | undefined, fallback = '/'): 
  * Build a sign-in link that returns to a specific page.
  *
  * Kept here rather than inline at each call site so every one of them encodes the
- * nested query string correctly. The AI builder's prompt is carried this way, and
- * a lost character in that round trip silently discards what the customer typed.
+ * nested query string correctly.
  */
-export function loginHref(path: string, mode: 'login' | 'register' = 'login'): string {
-  return `/${mode}?next=${encodeURIComponent(path)}`;
+export function loginHref(path: string): string {
+  return `/login?next=${encodeURIComponent(path)}`;
 }
