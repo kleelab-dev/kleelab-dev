@@ -1,8 +1,20 @@
 import type {
   ActivityPage,
   AlertList,
-  AdminInvoice,
   AdminStats,
+  MoneyInvoice,
+  OfflineContact,
+  OfflineContactDetail,
+  OfflineContactInput,
+  OfflineContactPatch,
+  OfflineEmailInput,
+  OfflineInvoiceDetail,
+  OfflineInvoiceInput,
+  OfflineInvoicePatchInput,
+  OfflinePaymentInput,
+  OfflineReceipt,
+  ReceiptKind,
+  StandaloneReceiptInput,
   AttentionItem,
   ClientDetail,
   ClientPatchInput,
@@ -689,8 +701,96 @@ export const apiService = {
   },
 
   /** Every invoice on every project, newest first. */
-  async adminInvoices(): Promise<AdminInvoice[]> {
-    return request<AdminInvoice[]>('/api/admin/invoices');
+  async adminInvoices(): Promise<MoneyInvoice[]> {
+    return request<MoneyInvoice[]>('/api/admin/invoices');
+  },
+
+  // --- Offline invoices, part payments and receipts ---------------------------
+
+  async adminOfflineContacts(q?: string, archived = false): Promise<OfflineContact[]> {
+    const params = new URLSearchParams();
+    if (q?.trim()) params.set('q', q.trim().slice(0, 100));
+    if (archived) params.set('archived', 'true');
+    const query = params.toString();
+    return request<OfflineContact[]>(`/api/admin/offline/contacts${query ? `?${query}` : ''}`);
+  },
+
+  async adminOfflineContact(contactId: string): Promise<OfflineContactDetail> {
+    return request<OfflineContactDetail>(`/api/admin/offline/contacts/${contactId}`);
+  },
+
+  async adminCreateOfflineContact(input: OfflineContactInput): Promise<OfflineContact> {
+    return post<OfflineContact>('/api/admin/offline/contacts', input);
+  },
+
+  async adminUpdateOfflineContact(contactId: string, input: OfflineContactPatch): Promise<OfflineContact> {
+    return patch<OfflineContact>(`/api/admin/offline/contacts/${contactId}`, input);
+  },
+
+  /** Only a contact with no invoices and no receipts can go; the server answers 409 otherwise. */
+  async adminDeleteOfflineContact(contactId: string): Promise<void> {
+    await request<void>(`/api/admin/offline/contacts/${contactId}`, { method: 'DELETE' });
+  },
+
+  async adminCreateOfflineInvoice(input: OfflineInvoiceInput): Promise<OfflineInvoiceDetail> {
+    return post<OfflineInvoiceDetail>('/api/admin/offline/invoices', input);
+  },
+
+  async adminOfflineInvoice(invoiceId: string): Promise<OfflineInvoiceDetail> {
+    return request<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}`);
+  },
+
+  async adminUpdateOfflineInvoice(invoiceId: string, input: OfflineInvoicePatchInput): Promise<OfflineInvoiceDetail> {
+    return patch<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}`, input);
+  },
+
+  async adminCancelOfflineInvoice(invoiceId: string): Promise<OfflineInvoiceDetail> {
+    return post<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}/cancel`);
+  },
+
+  async adminReopenOfflineInvoice(invoiceId: string): Promise<OfflineInvoiceDetail> {
+    return post<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}/reopen`);
+  },
+
+  /** The new payment is `payments[0]` on the result, with its receipt number. */
+  async adminRecordOfflinePayment(invoiceId: string, input: OfflinePaymentInput): Promise<OfflineInvoiceDetail> {
+    return post<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}/payments`, input);
+  },
+
+  async adminVoidOfflinePayment(invoiceId: string, paymentId: string, reason: string): Promise<OfflineInvoiceDetail> {
+    return post<OfflineInvoiceDetail>(`/api/admin/offline/invoices/${invoiceId}/payments/${paymentId}/void`, { reason });
+  },
+
+  async downloadOfflineInvoicePdf(invoice: { id: string; number: string }): Promise<void> {
+    return saveDownload(`/api/admin/offline/invoices/${invoice.id}/pdf`, `KleeLab-${invoice.number}.pdf`, 'The invoice could not be downloaded.');
+  },
+
+  async emailOfflineInvoice(invoiceId: string, input: OfflineEmailInput): Promise<{ sent: boolean; to: string }> {
+    return post<{ sent: boolean; to: string }>(`/api/admin/offline/invoices/${invoiceId}/email`, input);
+  },
+
+  async adminOfflineReceipts(filter: { kind?: ReceiptKind; voided?: boolean } = {}): Promise<OfflineReceipt[]> {
+    const params = new URLSearchParams();
+    if (filter.kind) params.set('kind', filter.kind);
+    if (filter.voided !== undefined) params.set('voided', String(filter.voided));
+    const query = params.toString();
+    return request<OfflineReceipt[]>(`/api/admin/offline/receipts${query ? `?${query}` : ''}`);
+  },
+
+  async adminCreateReceipt(input: StandaloneReceiptInput): Promise<OfflineReceipt> {
+    return post<OfflineReceipt>('/api/admin/offline/receipts', input);
+  },
+
+  async adminVoidReceipt(receiptId: string, reason: string): Promise<OfflineReceipt> {
+    return post<OfflineReceipt>(`/api/admin/offline/receipts/${receiptId}/void`, { reason });
+  },
+
+  async downloadReceiptPdf(receipt: { id: string; number: string }): Promise<void> {
+    return saveDownload(`/api/admin/offline/receipts/${receipt.id}/pdf`, `KleeLab-${receipt.number}.pdf`, 'The receipt could not be downloaded.');
+  },
+
+  async emailReceipt(receiptId: string, input: OfflineEmailInput): Promise<{ sent: boolean; to: string }> {
+    return post<{ sent: boolean; to: string }>(`/api/admin/offline/receipts/${receiptId}/email`, input);
   },
 
   async adminClients(): Promise<ClientSummary[]> {

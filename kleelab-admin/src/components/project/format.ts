@@ -1,4 +1,4 @@
-import type { ApprovalStatus, AttentionItem, AttentionKind, Currency, InvoiceStatus, Lead, LeadStatus, MoneyTotal, ProjectStatus, ProposalStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
+import type { ApprovalStatus, AttentionItem, AttentionKind, Currency, Lead, LeadStatus, MoneyTotal, OfflineInvoiceStatus, PaymentMethod, ProjectStatus, ProposalStatus, RequestKind, RequestStatus, StageStatus } from '@/types/api';
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const DATE_TIME = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -86,8 +86,9 @@ export const REQUEST_STATUS: Record<RequestStatus, { label: string; teamLabel: s
   done: { label: 'Done', teamLabel: 'Done', tone: 'bg-mint text-ink' },
 };
 
-export const INVOICE_STATUS: Record<InvoiceStatus, { label: string; tone: string }> = {
+export const INVOICE_STATUS: Record<OfflineInvoiceStatus, { label: string; tone: string }> = {
   unpaid: { label: 'To pay', tone: 'bg-sun text-ink' },
+  part_paid: { label: 'Part paid', tone: 'bg-cobalt-soft text-cobalt-dark' },
   paid: { label: 'Paid', tone: 'bg-mint text-ink' },
   cancelled: { label: 'Cancelled', tone: 'bg-line text-muted' },
 };
@@ -130,10 +131,30 @@ export function followUpDue(lead: Pick<Lead, 'follow_up_on' | 'status'>): boolea
   return Boolean(lead.follow_up_on) && lead.follow_up_on! <= todayISO() && leadIsOpen(lead.status);
 }
 
-/** An unpaid invoice past its pay-by date. */
-export function isOverdue(invoice: { status: string; due_date: string | null }): boolean {
-  return invoice.status === 'unpaid' && Boolean(invoice.due_date) && invoice.due_date! < todayISO();
+/**
+ * An invoice with something still to pay, past its pay-by date. A promised date
+ * for the balance, when there is one, replaces the pay-by date.
+ */
+export function isOverdue(invoice: { status: string; due_date: string | null; balance_promised_on?: string | null }): boolean {
+  if (invoice.status !== 'unpaid' && invoice.status !== 'part_paid') return false;
+  const by = invoice.balance_promised_on ?? invoice.due_date;
+  return Boolean(by) && by! < todayISO();
 }
+
+/** A balance was promised for a day that has now passed. */
+export function promiseMissed(invoice: { status: string; balance_promised_on?: string | null }): boolean {
+  return (
+    (invoice.status === 'unpaid' || invoice.status === 'part_paid') &&
+    Boolean(invoice.balance_promised_on) &&
+    invoice.balance_promised_on! < todayISO()
+  );
+}
+
+export const PAYMENT_METHOD: Record<PaymentMethod, string> = {
+  bank_transfer: 'Bank transfer',
+  cash: 'Cash',
+  other: 'Other',
+};
 
 /** Add invoices up per currency. */
 export function sumInvoices(invoices: { amount_cents: number; currency: string }[]): MoneyTotal[] {

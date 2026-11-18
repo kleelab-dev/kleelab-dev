@@ -25,6 +25,8 @@ os.environ["MAILTRAP_API_TOKEN"] = ""
 os.environ["RESEND_API_KEY"] = ""
 os.environ["SLACK_WEBHOOK_URL"] = ""
 os.environ.setdefault("AUTH_RATE_LIMIT_PER_MINUTE", "1000")
+# The checks email offline invoices and receipts many times a minute from one address.
+os.environ.setdefault("OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE", "1000")
 
 results: list[bool] = []
 

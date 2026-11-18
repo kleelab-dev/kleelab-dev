@@ -8,28 +8,71 @@ import { Button } from '@/components/ui/Button';
 import { errorText, formatMoney, isOverdue, sumInvoices, todayISO } from '@/components/project/format';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/States';
 import { apiService } from '@/services/api';
-import type { AdminInvoice, MoneyTotal } from '@/types/api';
+import type { MoneyInvoice, MoneyTotal, OfflineReceipt } from '@/types/api';
 import { CarePlans } from './CarePlans';
 import { InvoiceRow } from './InvoiceRow';
+import { MoneyTabs } from './MoneyTabs';
+import { OfflineInvoiceRow } from './OfflineInvoiceRow';
 
-type Filter = 'unpaid' | 'overdue' | 'paid' | 'cancelled' | 'all';
+type Filter = 'unpaid' | 'part_paid' | 'overdue' | 'paid' | 'cancelled' | 'all';
+type Source = 'all' | 'project' | 'offline';
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'unpaid', label: 'Not paid' },
+  { value: 'part_paid', label: 'Part paid' },
   { value: 'overdue', label: 'Overdue' },
   { value: 'paid', label: 'Paid' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'all', label: 'All' },
 ];
 
-function matches(invoice: AdminInvoice, filter: Filter): boolean {
+const SOURCES: { value: Source; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'project', label: 'Projects' },
+  { value: 'offline', label: 'Offline' },
+];
+
+function matches(invoice: MoneyInvoice, filter: Filter): boolean {
   if (filter === 'all') return true;
+  // "Not paid" is anything with a balance still to collect, part paid included.
+  if (filter === 'unpaid') return invoice.status !== 'cancelled' && invoice.balance_cents > 0;
   if (filter === 'overdue') return isOverdue(invoice);
   return invoice.status === filter;
 }
 
-function paidIn(invoice: AdminInvoice, prefix: string): boolean {
-  return invoice.status === 'paid' && Boolean(invoice.paid_at?.startsWith(prefix));
+function fromSource(invoice: MoneyInvoice, source: Source): boolean {
+  return source === 'all' || invoice.source === source;
+}
+
+type Entry = { amount_cents: number; currency: string };
+
+/** Money that came in, one entry per payment: paid project invoices, offline payments, and receipts with no invoice. */
+function paymentsIn(invoices: MoneyInvoice[], receipts: OfflineReceipt[], prefix: string): Entry[] {
+  const entries: Entry[] = [];
+  for (const invoice of invoices) {
+    if (invoice.source === 'project') {
+      if (invoice.status === 'paid' && invoice.paid_at?.startsWith(prefix)) entries.push({ amount_cents: invoice.amount_cents, currency: invoice.currency });
+    } else {
+      for (const payment of invoice.payments) {
+        if (payment.paid_on.startsWith(prefix)) entries.push({ amount_cents: payment.amount_cents, currency: invoice.currency });
+      }
+    }
+  }
+  for (const receipt of receipts) {
+    if (!receipt.voided_at && receipt.received_on.startsWith(prefix)) entries.push({ amount_cents: receipt.amount_cents, currency: receipt.currency });
+  }
+  return entries;
+}
+
+/** What is still to collect: one entry per invoice, for its balance. */
+function balances(invoices: MoneyInvoice[]): Entry[] {
+  return invoices.map((i) => ({ amount_cents: i.balance_cents, currency: i.currency }));
+}
+
+function searchable(invoice: MoneyInvoice): (string | null | undefined)[] {
+  return invoice.source === 'offline'
+    ? [invoice.number, invoice.title, invoice.client_name, invoice.client_email, invoice.client_company]
+    : [invoice.number, invoice.title, invoice.client_name, invoice.client_email, invoice.project_title, invoice.project_reference];
 }
 
 /** Spreadsheet-safe CSV: quoted, and formula-looking cells defused. */
@@ -47,22 +90,32 @@ function toCsv(rows: (string | number | null)[][]): string {
     .join('\r\n');
 }
 
-function downloadCsv(invoices: AdminInvoice[]) {
+function downloadCsv(invoices: MoneyInvoice[]) {
+  const money = (cents: number) => (cents / 100).toFixed(2);
   const csv = toCsv([
-    ['Number', 'Title', 'Client', 'Client email', 'Project', 'Currency', 'Amount', 'Status', 'Issued', 'Due', 'Paid', 'Paystack reference'],
+    [
+      'Number', 'Title', 'Client', 'Client email', 'Project', 'Currency', 'Amount', 'Status', 'Issued', 'Due', 'Paid', 'Paystack reference',
+      // Added after the original twelve, so older spreadsheets keep working.
+      'Source', 'Amount paid', 'Balance', 'Promised by',
+    ],
     ...invoices.map((i) => [
       i.number,
       i.title,
       i.client_name,
       i.client_email,
-      `${i.project_title} (${i.project_reference})`,
+      i.source === 'project' ? `${i.project_title} (${i.project_reference})` : null,
       i.currency,
-      (i.amount_cents / 100).toFixed(2),
-      isOverdue(i) ? 'overdue' : i.status,
+      money(i.amount_cents),
+      // Overdue is only for an unpaid invoice; a part-paid one keeps its own status.
+      i.status === 'unpaid' && isOverdue(i) ? 'overdue' : i.status,
       i.created_at.slice(0, 10),
       i.due_date,
       i.paid_at ? i.paid_at.slice(0, 10) : null,
-      i.payment_reference ?? null,
+      i.source === 'project' ? (i.payment_reference ?? null) : null,
+      i.source,
+      money(i.paid_cents),
+      money(i.balance_cents),
+      i.balance_promised_on ?? null,
     ]),
   ]);
   const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -75,43 +128,67 @@ function downloadCsv(invoices: AdminInvoice[]) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Every invoice across every project: what is owed, what is late, what came in. */
+/** Keep `?show=` and `?source=` in the address, without adding history entries. */
+function rememberInUrl(filter: Filter, source: Source) {
+  const url = new URL(window.location.href);
+  if (filter === 'unpaid') url.searchParams.delete('show');
+  else url.searchParams.set('show', filter);
+  if (source === 'all') url.searchParams.delete('source');
+  else url.searchParams.set('source', source);
+  window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+}
+
+/** Every invoice, from projects and offline work: what is owed, what is late, what came in. */
 export function MoneyView() {
-  const initial = useSearchParams().get('show');
-  const [invoices, setInvoices] = useState<AdminInvoice[] | null>(null);
+  const params = useSearchParams();
+  const initial = params.get('show');
+  const initialSource = params.get('source');
+  const [invoices, setInvoices] = useState<MoneyInvoice[] | null>(null);
+  // Receipts with no invoice are money in too, so the paid totals need them.
+  const [receipts, setReceipts] = useState<OfflineReceipt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>(FILTERS.some((f) => f.value === initial) ? (initial as Filter) : 'unpaid');
+  const [source, setSource] = useState<Source>(SOURCES.some((s) => s.value === initialSource) ? (initialSource as Source) : 'all');
   const [query, setQuery] = useState('');
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-    apiService
-      .adminInvoices()
-      .then((list) => active && setInvoices(list))
+    Promise.all([apiService.adminInvoices(), apiService.adminOfflineReceipts({ kind: 'standalone', voided: false })])
+      .then(([list, direct]) => {
+        if (!active) return;
+        setInvoices(list);
+        setReceipts(direct);
+      })
       .catch((reason) => active && setError(errorText(reason)));
     return () => {
       active = false;
     };
   }, [attempt]);
 
+  function choose(nextFilter: Filter, nextSource: Source) {
+    setFilter(nextFilter);
+    setSource(nextSource);
+    rememberInUrl(nextFilter, nextSource);
+  }
+
+  const loaded = invoices !== null && receipts !== null;
   const all = invoices ?? [];
   const month = todayISO().slice(0, 7);
   const year = todayISO().slice(0, 4);
-  const outstanding = sumInvoices(all.filter((i) => i.status === 'unpaid'));
-  const overdue = sumInvoices(all.filter(isOverdue));
-  const paidMonth = sumInvoices(all.filter((i) => paidIn(i, month)));
-  const paidYear = sumInvoices(all.filter((i) => paidIn(i, year)));
+  const outstanding = sumInvoices(balances(all.filter((i) => matches(i, 'unpaid'))));
+  const overdue = sumInvoices(balances(all.filter(isOverdue)));
+  const paidMonth = sumInvoices(paymentsIn(all, receipts ?? [], month));
+  const paidYear = sumInvoices(paymentsIn(all, receipts ?? [], year));
   const count = (totals: { count: number }[]) => totals.reduce((n, t) => n + t.count, 0);
   const plural = (n: number) => `${n} ${n === 1 ? 'invoice' : 'invoices'}`;
+  const payments = (n: number) => `${n} ${n === 1 ? 'payment' : 'payments'}`;
 
   const needle = query.trim().toLowerCase();
-  const shown = all.filter(
-    (i) =>
-      matches(i, filter) &&
-      (!needle ||
-        [i.number, i.title, i.client_name, i.client_email, i.project_title, i.project_reference].some((v) => v?.toLowerCase().includes(needle))),
+  const inSource = all.filter((i) => fromSource(i, source));
+  const shown = inSource.filter(
+    (i) => matches(i, filter) && (!needle || searchable(i).some((v) => v?.toLowerCase().includes(needle))),
   );
 
   return (
@@ -120,13 +197,15 @@ export function MoneyView() {
         <div>
           <p className="tag">team</p>
           <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest sm:text-5xl">Money</h1>
-          <p className="mt-3 text-muted">Every invoice on every project. Send new ones from the project page.</p>
+          <p className="mt-3 text-muted">Every invoice, from projects and offline work.</p>
         </div>
         <Button type="button" variant="secondary" disabled={!shown.length} onClick={() => downloadCsv(shown)}>
           <ArrowDownTrayIcon className="h-4 w-4" aria-hidden />
           Download CSV
         </Button>
       </div>
+
+      <MoneyTabs />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Total label="Waiting to be paid" value={invoices && outstanding} note={invoices && plural(count(outstanding))} highlight />
@@ -137,8 +216,8 @@ export function MoneyView() {
           note={invoices && (overdue.length ? `${plural(count(overdue))} past the pay-by date` : 'Everyone is on time')}
           warning={overdue.length > 0}
         />
-        <Total label="Paid this month" value={invoices && paidMonth} note={invoices && plural(count(paidMonth))} />
-        <Total label={`Paid in ${year}`} value={invoices && paidYear} note={invoices && plural(count(paidYear))} />
+        <Total label="Paid this month" value={loaded ? paidMonth : null} note={loaded ? payments(count(paidMonth)) : null} />
+        <Total label={`Paid in ${year}`} value={loaded ? paidYear : null} note={loaded ? payments(count(paidYear)) : null} />
       </div>
 
       <div className="mt-8 flex flex-wrap items-center gap-2">
@@ -148,11 +227,24 @@ export function MoneyView() {
               key={value}
               type="button"
               aria-pressed={filter === value}
-              onClick={() => setFilter(value)}
+              onClick={() => choose(value, source)}
               className={clsx('rounded-full px-3.5 py-1.5 text-sm', filter === value ? 'bg-ink text-paper' : 'border-[1.5px] border-line bg-white hover:border-ink')}
             >
               {label}
-              {invoices && value !== 'all' && <span className="ml-1.5 opacity-60">{all.filter((i) => matches(i, value)).length}</span>}
+              {invoices && value !== 'all' && <span className="ml-1.5 opacity-60">{inSource.filter((i) => matches(i, value)).length}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Where invoices came from">
+          {SOURCES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={source === value}
+              onClick={() => choose(filter, value)}
+              className={clsx('rounded-full px-3.5 py-1.5 text-sm', source === value ? 'bg-cobalt text-white' : 'border-[1.5px] border-line bg-white hover:border-ink')}
+            >
+              {label}
             </button>
           ))}
         </div>
@@ -169,7 +261,7 @@ export function MoneyView() {
         </label>
       </div>
 
-      {error && <ErrorState message={error} onRetry={invoices === null ? () => { setError(null); setInvoices(null); setAttempt((n) => n + 1); } : undefined} className="mt-6" />}
+      {error && <ErrorState message={error} onRetry={!loaded ? () => { setError(null); setInvoices(null); setReceipts(null); setAttempt((n) => n + 1); } : undefined} className="mt-6" />}
       {notice && !error && (
         <p role="status" className="mt-6 flex items-center gap-2 rounded-xl bg-mint p-3 text-sm text-ink">
           <CheckIcon className="h-4 w-4" aria-hidden />
@@ -192,22 +284,26 @@ export function MoneyView() {
             title={needle ? 'No invoices match' : filter === 'overdue' ? 'Nothing is overdue' : all.length ? 'Nothing in this list' : 'No invoices yet'}
             className="m-4 border-line"
           >
-            {needle ? 'Try an invoice number, a client or a project.' : all.length ? 'Pick another filter above.' : 'Send an invoice from a project page; it shows here with the rest.'}
+            {needle ? 'Try an invoice number, a client or a project.' : all.length ? 'Pick another filter above.' : 'Send an invoice from a project page, or press New invoice for work outside a project.'}
           </EmptyState>
         ) : (
           <ul className="divide-y divide-line">
-            {shown.map((invoice) => (
-              <InvoiceRow
-                key={invoice.id}
-                invoice={invoice}
-                onChange={(next, message) => {
-                  setInvoices((list) => list?.map((i) => (i.id === next.id ? next : i)) ?? list);
-                  setError(null);
-                  setNotice(message);
-                }}
-                onError={setError}
-              />
-            ))}
+            {shown.map((invoice) =>
+              invoice.source === 'offline' ? (
+                <OfflineInvoiceRow key={`offline-${invoice.id}`} invoice={invoice} onError={setError} />
+              ) : (
+                <InvoiceRow
+                  key={`project-${invoice.id}`}
+                  invoice={invoice}
+                  onChange={(next, message) => {
+                    setInvoices((list) => list?.map((i) => (i.source === 'project' && i.id === next.id ? next : i)) ?? list);
+                    setError(null);
+                    setNotice(message);
+                  }}
+                  onError={setError}
+                />
+              ),
+            )}
           </ul>
         )}
       </div>

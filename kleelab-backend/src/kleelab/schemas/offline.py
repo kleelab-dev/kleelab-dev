@@ -6,7 +6,7 @@ server; an `amount_cents` sent on a line is ignored.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
 
@@ -20,6 +20,9 @@ OfflineInvoiceStatus = Literal["unpaid", "part_paid", "paid", "cancelled"]
 ReceiptKind = Literal["payment", "standalone"]
 
 EARLIEST = date(2000, 1, 1)
+# The team works in Lagos time (WAT, UTC+1, no daylight saving). The server runs
+# in UTC, so between midnight and 01:00 in Lagos its date is still yesterday.
+LAGOS = timezone(timedelta(hours=1), "WAT")
 PHONE_PATTERN = r"^[0-9+()\-\s.]*$"
 TOTAL_MESSAGE = "The total must be more than zero and at most 20,000,000.00"
 
@@ -44,10 +47,17 @@ def _check_total(lines: list[LineIn] | None) -> None:
         raise ValueError(TOTAL_MESSAGE)
 
 
+def business_today() -> date:
+    """Today's date in Lagos, whatever time zone the server runs in."""
+
+    return datetime.now(LAGOS).date()
+
+
 def _check_day(value: date | None) -> date | None:
     if value is None:
         return value
-    if value > date.today():
+    # The later of the two, so a server ahead of Lagos never refuses its own today.
+    if value > max(business_today(), date.today()):
         raise ValueError("The date cannot be in the future")
     if value < EARLIEST:
         raise ValueError("The date cannot be before 2000")
@@ -178,7 +188,7 @@ class PaymentIn(BaseModel):
     amount_cents: int = Field(ge=1, le=MAX_CENTS)
     method: PaymentMethod
     reference: str | None = Field(default=None, max_length=100)
-    # No later than today, no earlier than 2000-01-01.
+    # No later than today in Lagos, no earlier than 2000-01-01.
     paid_on: date
     note: str | None = Field(default=None, max_length=500)
 
@@ -260,6 +270,8 @@ class ReceiptOut(BaseModel):
     kind: ReceiptKind
     contact_id: UUID
     bill_to_name: str
+    # The email copied onto the receipt when it was issued; null when there was none.
+    bill_to_email: str | None
     currency: str
     amount_cents: int
     method: PaymentMethod

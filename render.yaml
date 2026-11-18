@@ -34,6 +34,9 @@ services:
         value: cf-connecting-ip
       - key: TRUSTED_PROXY_HOPS
         value: "2"
+      # Offline invoice and receipt emails (with a PDF) per caller per minute.
+      - key: OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE
+        value: "5"
       # Declared with `sync: false` so they are documented as required and survive
       # a blueprint sync. The values live in the dashboard and are never
       # committed: a key written here is a key written to git history.

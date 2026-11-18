@@ -27,7 +27,7 @@ Staff sometimes do work for someone who never used KleeLab. That person has no a
 - An invoice shows as **Not paid**, **Part paid**, **Paid** or **Cancelled**. If the customer has promised a date for paying the balance, staff save it. A promise that has passed is flagged.
 - If a payment was entered by mistake, staff void it and give a reason. The invoice goes back to the right status and the receipt is marked VOID.
 - Staff can record a receipt with no invoice, for money taken directly.
-- Offline invoices appear in the Money list with an **Offline** tag and a filter. They also count in the totals, on Today and in the CSV, which gains Paid and Balance columns.
+- Offline invoices appear in the Money list with an **Offline** tag and a filter. They also count in the totals, on Today and in the CSV, which gains Amount paid and Balance columns.
 
 ## Out of scope
 - Tax and VAT, discounts, credit notes and refunds.
@@ -359,7 +359,7 @@ Neither `_send` nor `_send_mailtrap` supports attachments today.
   - Paid this month and paid this year: project rows by `paid_at`, plus offline `payments[].paid_on`, plus standalone receipts. MoneyView fetches these through `adminOfflineReceipts({kind:'standalone'})`, and a failure there shows the usual `ErrorState`. The note text becomes "N payments".
   - The subtitle becomes "Every invoice, from projects and offline work."
   - Rows are chosen by `source`: `InvoiceRow` for project rows (its behaviour does not change) and the new `OfflineInvoiceRow`.
-- CSV (`downloadCsv`): the 12 existing columns keep their order and meaning, so existing spreadsheets still work. Four columns are added at the end: **Source** (`project`/`offline`), **Paid**, **Balance** and **Promised by**. Status can now also be `part_paid`. For offline rows, Project and Paystack reference are empty.
+- CSV (`downloadCsv`): the 12 existing columns keep their order and meaning, so existing spreadsheets still work. Four columns are added at the end: **Source** (`project`/`offline`), **Amount paid**, **Balance** and **Promised by**. Status can now also be `part_paid`; `overdue` is only exported for an unpaid invoice, never a part-paid one. For offline rows, Project and Paystack reference are empty.
 - `src/components/money/OfflineInvoiceRow.tsx` (new):
   - The same grid as `InvoiceRow`.
   - An "Offline" pill (`bg-sun-soft`/`border-ink`, existing tokens) next to the number.
@@ -485,7 +485,7 @@ Unless a criterion says otherwise, requests are made by a signed-in staff member
 36. Given a project invoice of USD 500 unpaid and an offline NGN 100,000 invoice with NGN 40,000 paid, when `GET /api/admin/stats` is called, then `unpaid` is USD 50,000 cents (count 1) and NGN 6,000,000 cents (count 1).
 37. Given offline payments this month and last month, one of them voided, plus a standalone receipt this month, when stats are read, then `paid_this_month` counts only this month's payments that are not voided plus the receipt, by `paid_on` and `received_on`.
 38. Given the Money page, when Offline is chosen, then only offline rows show. When "Part paid" is chosen, then only `part_paid` rows show. Each filter's count matches its list.
-39. Given the CSV download, then the first 12 columns are the same as today, followed by Source, Paid, Balance and Promised by. A part-paid offline row has its status as `part_paid`, an empty Project column, and Paid plus Balance equal to Amount. A cell starting with `=` is still made safe.
+39. Given the CSV download, then the first 12 columns are the same as today, followed by Source, Amount paid, Balance and Promised by. A part-paid offline row has its status as `part_paid`, an empty Project column, and Amount paid plus Balance equal to Amount. A cell starting with `=` is still made safe.
 
 **Admin screens**
 40. Given a new contact typed in the invoice form, when the invoice is saved, then the contact exists, appears in the picker next time, and the invoice opens on `/money/offline/{id}`.

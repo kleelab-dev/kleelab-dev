@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import re
 import time
 from collections import defaultdict, deque
 
@@ -44,6 +45,14 @@ AUTH_PATHS = {
 # The visitor chat calls a paid model on every message and needs no account, so
 # it gets its own, much smaller hourly budget.
 CHAT_PATHS = {"/api/chat"}
+# Staff emailing an offline invoice or receipt PDF to an address they type in.
+# The paths carry an id, so they are matched by pattern; only POST sends.
+OFFLINE_EMAIL_PATH = re.compile(r"^/api/admin/offline/(?:invoices|receipts)/[^/]+/email/?$")
+
+
+def is_offline_email(method: str, path: str) -> bool:
+    return method == "POST" and OFFLINE_EMAIL_PATH.match(path) is not None
+
 
 DEFAULT_MAX_TRACKED_CLIENTS = 10_000
 
@@ -181,7 +190,7 @@ class MemoryStore:
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Apply a strict budget to auth traffic and a looser one everywhere else."""
+    """Apply a strict budget to auth traffic, offline emails and the chat, and a looser one everywhere else."""
 
     def __init__(self, app, limit: int | None = None, window_seconds: int = 3600) -> None:
         super().__init__(app)
@@ -196,6 +205,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             limit, window, bucket = settings.AUTH_RATE_LIMIT_PER_MINUTE, 60.0, "auth"
         elif path in CHAT_PATHS:
             limit, window, bucket = settings.CHAT_RATE_LIMIT_PER_HOUR, 3600.0, "chat"
+        elif is_offline_email(request.method, path):
+            limit, window, bucket = settings.OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE, 60.0, "offline-email"
         else:
             limit, window, bucket = self.limit, float(self.window_seconds), "general"
 

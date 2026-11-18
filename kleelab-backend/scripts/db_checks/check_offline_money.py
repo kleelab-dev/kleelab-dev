@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import uuid
 import zlib
 from datetime import date, datetime, timedelta
@@ -42,6 +43,7 @@ from kleelab.models.offline import (
 )
 from kleelab.models.project import Project, ProjectInvoice
 from kleelab.models.user import User
+from kleelab.schemas import offline as offline_schemas
 from kleelab.services import email as email_svc
 from kleelab.services import numbering
 from kleelab.services.projects import next_invoice_number
@@ -54,6 +56,7 @@ PW = "Offline-" + uuid.uuid4().hex[:12]
 TODAY = date.today()
 YESTERDAY = TODAY - timedelta(days=1)
 NEXT_WEEK = TODAY + timedelta(days=7)
+MAIN_THREAD = threading.get_ident()
 MONTH_START = TODAY.replace(day=1)
 LAST_MONTH = MONTH_START - timedelta(days=1)
 
@@ -111,6 +114,8 @@ class FakeMail:
     def __init__(self, fail: bool = False) -> None:
         self.sent: list[dict] = []
         self.fail = fail
+        # Which thread each provider call ran on: never the event loop's.
+        self.on_loop_thread: list[bool] = []
 
     def __enter__(self):
         self._token = email_svc.settings.MAILTRAP_API_TOKEN
@@ -118,6 +123,7 @@ class FakeMail:
         email_svc.settings.MAILTRAP_API_TOKEN = "test-token"
 
         def post(url, headers=None, json=None, timeout=None):
+            self.on_loop_thread.append(threading.get_ident() == MAIN_THREAD)
             if self.fail:
                 raise httpx.ConnectError("provider down")
             self.sent.append(json)
@@ -347,6 +353,7 @@ async def main() -> None:
                 ("GET", "/receipts", None), ("POST", "/receipts", body_rec), ("GET", f"/receipts/{rid}", None),
                 ("POST", f"/receipts/{rid}/void", {"reason": "nope nope"}), ("GET", f"/receipts/{rid}/pdf", None),
                 ("POST", f"/receipts/{rid}/email", {"to": "x@example.com"}),
+                ("DELETE", f"/contacts/{nomail['id']}", None),
             ]
             before_counts, before_inv = await row_counts(), await get_invoice(iid)
             with FakeMail() as mail:
@@ -405,6 +412,27 @@ async def main() -> None:
             ck("patching an unknown contact is 404", r.status_code == 404)
             acts = {e.action for a in ("contact.create", "contact.update", "contact.archive") for e in await events(a)}
             ck("contact writes are in the activity log", {"contact.create", "contact.archive"} <= acts, acts)
+
+            # Review fix: a contact nothing was ever issued to can be deleted.
+            print("\n-- deleting a contact --")
+            spare = await make_contact("Spare Contact", email="spare@example.com", phone="+234 1")
+            before_ev = len(await events("contact.delete"))
+            r = await c.delete(f"{B}/contacts/{spare['id']}", headers=sh)
+            ck("DELETE /contacts/{id} with no invoices and no receipts is 204 with no body", r.status_code == 204 and r.content == b"", (r.status_code, r.text[:200]))
+            ck("and the contact is gone", (await c.get(f"{B}/contacts/{spare['id']}", headers=sh)).status_code == 404)
+            dev = await events("contact.delete")
+            ck("contact.delete is logged with the name and the contact as subject", len(dev) == before_ev + 1 and "Spare Contact" in dev[-1].summary and dev[-1].subject_type == "offline_contact" and str(dev[-1].subject_id) == spare["id"], [e.summary for e in dev[-1:]])
+            ck("and the log line has no email or phone", dev and "spare@example.com" not in dev[-1].summary and "+234" not in dev[-1].summary, dev and dev[-1].summary)
+            ck("deleting it again is 404", (await c.delete(f"{B}/contacts/{spare['id']}", headers=sh)).status_code == 404)
+            r = await c.delete(f"{B}/contacts/{cid}", headers=sh)
+            ck("a contact with an invoice is 409 and kept", r.status_code == 409 and "Archive it instead" in msg(r) and (await c.get(f"{B}/contacts/{cid}", headers=sh)).status_code == 200, (r.status_code, msg(r)))
+            r = await c.delete(f"{B}/contacts/{nomail['id']}", headers=sh)
+            ck("a contact with only a receipt is 409 and kept", r.status_code == 409 and (await c.get(f"{B}/contacts/{nomail['id']}", headers=sh)).status_code == 200, (r.status_code, msg(r)))
+            ck("deleting an unknown contact is 404", (await c.delete(f"{B}/contacts/{uuid.uuid4()}", headers=sh)).status_code == 404)
+            ck("a malformed id on delete is 404 or 422, never a 500", (await c.delete(f"{B}/contacts/not-a-uuid", headers=sh)).status_code in (404, 422))
+            spare2 = await make_contact("Archived Spare")
+            await c.patch(f"{B}/contacts/{spare2['id']}", headers=sh, json={"archived": True})
+            ck("an archived contact with no documents can be deleted too", (await c.delete(f"{B}/contacts/{spare2['id']}", headers=sh)).status_code == 204)
 
             # ---- 9, 10. Arithmetic and validation ------------------------------------------------------------------
             print("\n-- totals and validation --")
@@ -713,6 +741,34 @@ async def main() -> None:
             ck("a bad kind is 422", (await c.get(f"{B}/receipts", headers=sh, params={"kind": "other"})).status_code == 422)
             ck("an unknown receipt is 404", (await c.get(f"{B}/receipts/{uuid.uuid4()}", headers=sh)).status_code == 404)
 
+            # Review fixes: bill_to_email on every receipt, and a paged list.
+            ck("every receipt in the list has bill_to_email", lst and all("bill_to_email" in x for x in lst))
+            ck("a payment receipt carries the invoice's bill-to email", (await c.get(f"{B}/receipts/{rid}", headers=sh)).json()["bill_to_email"] == "bola@example.com")
+            ck("a receipt for a contact with no email has bill_to_email null", "bill_to_email" in nomail_receipt and nomail_receipt["bill_to_email"] is None, nomail_receipt.get("bill_to_email", "missing"))
+            det_receipts = (await c.get(f"{B}/contacts/{cid}", headers=sh)).json()["receipts"]
+            ck("contact detail receipts carry bill_to_email", det_receipts and all(x.get("bill_to_email") == "bola@example.com" for x in det_receipts), [x.get("bill_to_email") for x in det_receipts])
+            ck("the receipt list holds at most 200", len(lst) <= 200, len(lst))
+            page1 = (await c.get(f"{B}/receipts", headers=sh, params={"limit": 2})).json()
+            page2 = (await c.get(f"{B}/receipts", headers=sh, params={"limit": 2, "offset": 2})).json()
+            ck("limit=2 gives two receipts", len(page1) == 2, len(page1))
+            ck("offset=2 gives the next two, with no overlap", len(page2) == 2 and not {x["id"] for x in page1} & {x["id"] for x in page2})
+            ck("and the two pages are the first four of the full list", [x["id"] for x in page1 + page2] == [x["id"] for x in lst[:4]])
+            ck("limit and offset work with the filters", len((await c.get(f"{B}/receipts", headers=sh, params={"kind": "standalone", "limit": 1})).json()) == 1)
+            far = (await c.get(f"{B}/receipts", headers=sh, params={"offset": 1_000_000})).json()
+            ck("an offset past the end is an empty page", far == [], far[:1])
+            for bad in ({"limit": 0}, {"limit": 201}, {"offset": -1}, {"limit": "x"}, {"offset": 1_000_001}):
+                ck(f"GET /receipts with {bad} is 422", (await c.get(f"{B}/receipts", headers=sh, params=bad)).status_code == 422)
+
+            # Review fix: "today" is the Lagos date.
+            lagos_today = offline_schemas.business_today()
+            dinv = await make_invoice(cid, 1_000, title="Lagos today")
+            r = await c.post(f"{B}/invoices/{dinv['id']}/payments", headers=sh, json=pay(100, on=lagos_today))
+            ck("a payment dated today in Lagos is accepted", r.status_code == 201, (r.status_code, r.text[:200]))
+            r = await c.post(f"{B}/invoices/{dinv['id']}/payments", headers=sh, json=pay(100, on=max(lagos_today, TODAY) + timedelta(days=1)))
+            ck("a payment dated after today in Lagos is 422", r.status_code == 422, r.status_code)
+            r = await c.post(f"{B}/receipts", headers=sh, json={**body_rec, "received_on": str(lagos_today)})
+            ck("a standalone receipt dated today in Lagos is accepted", r.status_code == 201, (r.status_code, r.text[:200]))
+
             # ---- 27, 28, 29, 30. PDFs -------------------------------------------------------------------------------------------------------------
             print("\n-- PDFs --")
             pdfinv = await make_invoice(cid, 10_000_000, title="PDF invoice", notes="Pay by transfer.")
@@ -798,6 +854,34 @@ async def main() -> None:
             with FakeMail(fail=True):
                 r = await c.post(f"{B}/receipts/{rid}/email", headers=sh, json={})
             ck("a receipt email that fails is 502", r.status_code == 502)
+
+            # Review fix: the email states what is owed now; the PDF keeps the figures it was issued with.
+            binv = await make_invoice(cid, 1_000_000, title="Balance now")
+            first = (await c.post(f"{B}/invoices/{binv['id']}/payments", headers=sh, json=pay(300_000))).json()["payments"][0]
+            await c.post(f"{B}/invoices/{binv['id']}/payments", headers=sh, json=pay(200_000))
+            with FakeMail() as mail:
+                r = await c.post(f"{B}/receipts/{first['receipt_id']}/email", headers=sh, json={})
+            html = mail.sent[0]["html"] if mail.sent else ""
+            att_text = pdf_text(base64.b64decode(mail.sent[0]["attachments"][0]["content"])) if mail.sent else ""
+            ck("an older receipt's email gives the invoice's current balance", r.status_code == 200 and "NGN 5,000.00 is still to pay" in html and "7,000.00" not in html, (r.status_code, re.findall(r"NGN [\d,.]+ is still to pay", html)))
+            ck("and its PDF keeps the balance saved on the receipt", "7,000.00" in att_text and "5,000.00" not in att_text, att_text[:300])
+            ck("the provider call ran off the event loop (receipt)", mail.on_loop_thread == [False], mail.on_loop_thread)
+            await c.post(f"{B}/invoices/{binv['id']}/payments", headers=sh, json=pay(500_000))
+            with FakeMail() as mail:
+                await c.post(f"{B}/receipts/{first['receipt_id']}/email", headers=sh, json={})
+            html = mail.sent[0]["html"] if mail.sent else ""
+            ck("once the invoice is paid, the older receipt's email says it is fully paid", "is now fully paid" in html and "still to pay" not in html)
+            with FakeMail() as mail:
+                await c.post(f"{B}/invoices/{eml['id']}/email", headers=sh, json={})
+            ck("the provider call ran off the event loop (invoice)", mail.on_loop_thread == [False], mail.on_loop_thread)
+
+            # Review fix: with the contact's email cleared, the address on the receipt is used.
+            fb = await make_contact("Fallback Co", email="fallback@example.com")
+            fb_rc = (await c.post(f"{B}/receipts", headers=sh, json={**body_rec, "contact_id": fb["id"]})).json()
+            await c.patch(f"{B}/contacts/{fb['id']}", headers=sh, json={"email": None})
+            with FakeMail() as mail:
+                r = await c.post(f"{B}/receipts/{fb_rc['id']}/email", headers=sh, json={})
+            ck("a receipt whose contact has no email now goes to its bill_to_email", r.status_code == 200 and r.json()["to"] == "fallback@example.com" and fb_rc["bill_to_email"] == "fallback@example.com", (r.status_code, r.text[:200]))
 
             # ---- 35, 36, 37 and 22. Reporting ---------------------------------------------------------------------------------------------------------
             print("\n-- reporting --")
@@ -961,7 +1045,7 @@ async def main() -> None:
 
             async with AsyncSessionLocal() as db:
                 evs = list(await db.scalars(select(ActivityEvent).where(ActivityEvent.actor_id == ids["staff"])))
-            wanted = {"contact.create", "contact.update", "contact.archive", "invoice.offline_create", "invoice.offline_update", "invoice.offline_cancel",
+            wanted = {"contact.create", "contact.update", "contact.archive", "contact.delete", "invoice.offline_create", "invoice.offline_update", "invoice.offline_cancel",
                       "invoice.offline_reopen", "invoice.offline_promise", "invoice.offline_payment", "invoice.offline_payment_void", "invoice.offline_email",
                       "receipt.create", "receipt.void", "receipt.email"}
             seen = {e.action for e in evs}

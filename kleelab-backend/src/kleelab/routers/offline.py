@@ -7,6 +7,7 @@ See docs/specs/2026-11-18-offline-invoices-receipts.md for the state rules.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date
 from typing import Literal
@@ -14,6 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -52,6 +54,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/offline", tags=["admin"], dependencies=[Depends(require_staff)])
 
 CONTACT_LIST_LIMIT = 200
+RECEIPT_LIST_LIMIT = 200
+CONTACT_IN_USE = "This contact has invoices or receipts, so it cannot be deleted. Archive it instead."
 REOPEN_FIRST = "Reopen the invoice first."
 PAID_LOCKED = "A paid invoice cannot be changed. Void a payment first."
 NO_ADDRESS = "Add an email for this contact first"
@@ -164,6 +168,7 @@ def _receipt_out(receipt: OfflineReceipt) -> ReceiptOut:
         kind=receipt.kind,
         contact_id=receipt.contact_id,
         bill_to_name=receipt.bill_to_name,
+        bill_to_email=receipt.bill_to_email,
         currency=receipt.currency,
         amount_cents=receipt.amount_cents,
         method=receipt.method,
@@ -317,6 +322,32 @@ async def patch_contact(
                         subject_type="offline_contact", subject_id=contact.id)
     await db.commit()
     return await _contact_out(db, await _get_contact(db, contact_id))
+
+
+@router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def delete_contact(
+    contact_id: UUID, db: AsyncSession = Depends(get_db), staff: User = Depends(require_staff)
+) -> None:
+    """Delete a contact no document was ever issued to. 409 once any invoice or receipt names it."""
+
+    contact = await db.scalar(
+        select(OfflineContact).where(OfflineContact.id == contact_id).with_for_update()
+    )
+    if contact is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+    invoices, receipts = await _counts(db, [contact.id])
+    if invoices.get(contact.id) or receipts.get(contact.id):
+        raise _conflict(CONTACT_IN_USE)
+    # The name only: the email and phone are not copied into the log.
+    activity.record(db, staff, "contact.delete", f"Deleted the contact {contact.name}",
+                    subject_type="offline_contact", subject_id=contact.id)
+    await db.delete(contact)
+    try:
+        await db.commit()
+    except IntegrityError:
+        # A document raised for this contact committed between the count and the delete.
+        await db.rollback()
+        raise _conflict(CONTACT_IN_USE) from None
 
 
 # --- Invoices ---------------------------------------------------------------------
@@ -598,7 +629,9 @@ async def email_invoice(
     left = svc.balance(invoice)
     pdf = render_offline_invoice_pdf(invoice, list(invoice.payments))
     due = svc.effective_due(invoice)
-    sent = email_svc.send_offline_invoice_email(
+    # The provider call blocks, so it runs off the event loop.
+    sent = await asyncio.to_thread(
+        email_svc.send_offline_invoice_email,
         to,
         invoice.bill_to_name,
         invoice.number,
@@ -623,9 +656,16 @@ async def email_invoice(
 async def list_receipts(
     kind: Literal["payment", "standalone"] | None = None,
     voided: bool | None = None,
+    limit: int = Query(default=RECEIPT_LIST_LIMIT, ge=1, le=RECEIPT_LIST_LIMIT),
+    offset: int = Query(default=0, ge=0, le=1_000_000),
     db: AsyncSession = Depends(get_db),
 ) -> list[ReceiptOut]:
-    """Receipts, newest first. `voided=false` hides voided ones, `voided=true` shows only them."""
+    """Receipts, newest first, at most 200 a page.
+
+    `voided=false` hides voided ones, `voided=true` shows only them. `limit`
+    (1-200, default 200) and `offset` (default 0) page through the rest: a page
+    shorter than `limit` is the last one.
+    """
 
     query = select(OfflineReceipt).options(selectinload(OfflineReceipt.invoice))
     if kind:
@@ -635,7 +675,10 @@ async def list_receipts(
     elif voided is False:
         query = query.where(OfflineReceipt.voided_at.is_(None))
     receipts = await db.scalars(
-        query.order_by(OfflineReceipt.received_on.desc(), OfflineReceipt.created_at.desc())
+        # The id last, so pages never overlap or skip when two receipts share a time.
+        query.order_by(OfflineReceipt.received_on.desc(), OfflineReceipt.created_at.desc(), OfflineReceipt.id.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return [_receipt_out(r) for r in receipts]
 
@@ -726,18 +769,25 @@ async def email_receipt(
     if receipt.voided_at is not None:
         raise _conflict("A voided receipt cannot be emailed.")
     contact = await db.get(OfflineContact, receipt.contact_id)
-    to = payload.to or (contact.email if contact else None)
+    # The contact's current email, else the one copied onto the receipt (what the admin shows).
+    to = payload.to or (contact.email if contact else None) or receipt.bill_to_email
     if not to:
         raise _conflict(NO_ADDRESS)
-    sent = email_svc.send_offline_receipt_email(
+    invoice = receipt.invoice
+    # The email says what is owed now; the PDF keeps the figures saved when it was issued.
+    left = svc.balance(invoice) if invoice is not None else 0
+    pdf = render_receipt_pdf(receipt)
+    # The provider call blocks, so it runs off the event loop.
+    sent = await asyncio.to_thread(
+        email_svc.send_offline_receipt_email,
         to,
         receipt.bill_to_name,
         receipt.number,
         svc.money(receipt.amount_cents, receipt.currency),
-        receipt.invoice.number if receipt.invoice else None,
-        svc.money(receipt.balance_after_cents, receipt.currency) if receipt.balance_after_cents else None,
+        invoice.number if invoice else None,
+        svc.money(left, receipt.currency) if left else None,
         payload.message,
-        render_receipt_pdf(receipt),
+        pdf,
     )
     if not sent:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=SEND_FAILED)

@@ -43,11 +43,14 @@ from kleelab.models.offline import OfflineInvoice, OfflineInvoicePayment, Offlin
 from kleelab.models.project import Project, ProjectInvoice  # noqa: E402
 from kleelab.models.user import User  # noqa: E402
 from kleelab.routers.admin import require_staff  # noqa: E402
+from kleelab.core import rate_limiter  # noqa: E402
+from kleelab.schemas import offline as offline_schemas  # noqa: E402
 from kleelab.schemas.offline import (  # noqa: E402
     ContactIn,
     EmailIn,
     OfflineInvoiceCreate,
     PaymentIn,
+    ReceiptOut,
     StandaloneReceiptIn,
     VoidIn,
 )
@@ -184,6 +187,31 @@ check("a contact's name is trimmed", ContactIn(name="  Ada  ").name == "Ada")
 check("a bad email on a contact is refused", raises(lambda: ContactIn(name="Ada", email="nope"), ValidationError))
 check("a bad phone on a contact is refused", raises(lambda: ContactIn(name="Ada", phone="call me"), ValidationError))
 check("an empty email to send to becomes 'use the contact's'", EmailIn(to="  ").to is None)
+check("ReceiptOut has bill_to_email (the admin reads it to disable Email)", "bill_to_email" in ReceiptOut.model_fields)
+check("and it is optional text", ReceiptOut.model_fields["bill_to_email"].annotation == (str | None))
+
+# Review fix: "today" is the Lagos date, so 00:00-01:00 WAT is not refused by a UTC server.
+lagos_now = (datetime.now(timezone.utc) + timedelta(hours=1)).date()
+check("business_today() is the date in Lagos (UTC+1)", offline_schemas.business_today() == lagos_now)
+_real_today = offline_schemas.business_today
+offline_schemas.business_today = lambda: TODAY + timedelta(days=1)  # Lagos already past midnight
+check(
+    "a payment on Lagos's date is accepted when the server's date is still the day before",
+    PaymentIn(**{**ok_payment, "paid_on": TODAY + timedelta(days=1)}).paid_on == TODAY + timedelta(days=1),
+)
+check(
+    "a standalone receipt on Lagos's date is accepted too",
+    StandaloneReceiptIn(**CONTACT, method="cash", received_on=TODAY + timedelta(days=1), lines=[line("a", 1, 1)]).received_on
+    == TODAY + timedelta(days=1),
+)
+check(
+    "the day after Lagos's date is still refused",
+    raises(lambda: PaymentIn(**{**ok_payment, "paid_on": TODAY + timedelta(days=2)}), ValidationError),
+)
+offline_schemas.business_today = lambda: TODAY - timedelta(days=1)  # server ahead of Lagos
+check("the server's own today is never refused", PaymentIn(**ok_payment).paid_on == TODAY)
+offline_schemas.business_today = _real_today
+check("the 2000-01-01 lower bound still holds", raises(lambda: PaymentIn(**{**ok_payment, "paid_on": date(1999, 12, 31)}), ValidationError))
 
 # --- recalculate (criteria 12, 14, 16, 18, 21) ---------------------------------------
 
@@ -504,11 +532,30 @@ check("a direct receipt mentions no invoice", "against invoice" not in sent[-1][
 
 before = len(sent)
 big = b"x" * (email_svc.MAX_ATTACHMENT_BYTES + 1)
+import logging  # noqa: E402
+
+big_records: list[logging.LogRecord] = []
+
+
+class _CollectBig(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        big_records.append(record)
+
+
+_big_handler = _CollectBig()
+email_svc.logger.addHandler(_big_handler)
 check(
     "an attachment over 5 MB is refused with False",
-    email_svc.send_offline_invoice_email("a@example.com", "A", "INV-1", "NGN 1.00", None, None, None, big) is False,
+    email_svc.send_offline_invoice_email("bigsender@example.com", "A", "INV-1", "NGN 1.00", None, None, None, big) is False,
 )
+email_svc.logger.removeHandler(_big_handler)
+big_logged = " ".join(r.getMessage() for r in big_records)
 check("and nothing is sent", len(sent) == before)
+check("the 5 MB log line names the document", "over 5 MB" in big_logged and "INV-1" in big_logged, big_logged)
+check("the 5 MB log line never has the recipient's address", "bigsender@example.com" not in big_logged and "bigsender" not in big_logged, big_logged)
+check("it logs a masked address instead", "b***@example.com" in big_logged, big_logged)
+check("mask_address keeps one letter and the domain", email_svc.mask_address("ada@example.com") == "a***@example.com")
+check("mask_address of something that is not an address is ***", email_svc.mask_address("nope") == "***" and email_svc.mask_address("") == "***")
 at_limit = b"x" * email_svc.MAX_ATTACHMENT_BYTES
 check(
     "exactly 5 MB is still allowed",
@@ -582,10 +629,11 @@ settings.MAILTRAP_API_TOKEN = ""
 print("\n-- routes --")
 routes = [r for r in app.routes if getattr(r, "path", "").startswith("/api/admin/offline")]
 methods = sorted((m, r.path) for r in routes for m in r.methods if m != "HEAD")
-check("19 offline routes are mounted", len(methods) == 19, str(len(methods)))
+check("20 offline routes are mounted", len(methods) == 20, str(len(methods)))
 expected = {
     ("GET", "/api/admin/offline/contacts"), ("POST", "/api/admin/offline/contacts"),
     ("GET", "/api/admin/offline/contacts/{contact_id}"), ("PATCH", "/api/admin/offline/contacts/{contact_id}"),
+    ("DELETE", "/api/admin/offline/contacts/{contact_id}"),
     ("POST", "/api/admin/offline/invoices"), ("GET", "/api/admin/offline/invoices/{invoice_id}"),
     ("PATCH", "/api/admin/offline/invoices/{invoice_id}"), ("POST", "/api/admin/offline/invoices/{invoice_id}/cancel"),
     ("POST", "/api/admin/offline/invoices/{invoice_id}/reopen"), ("POST", "/api/admin/offline/invoices/{invoice_id}/payments"),
@@ -611,6 +659,54 @@ def guarded(route) -> bool:
 unguarded = [r.path for r in routes if not guarded(r)]
 check("every offline route is behind require_staff", not unguarded, str(unguarded))
 check("no offline route is public (no route without a guard)", len(routes) > 0 and not unguarded)
+delete_route = next(r for r in routes if r.path.endswith("/contacts/{contact_id}") and "DELETE" in r.methods)
+check("DELETE /contacts/{id} answers 204", delete_route.status_code == 204)
+receipts_route = next(r for r in routes if r.path == "/api/admin/offline/receipts" and "GET" in r.methods)
+params = {p.name: p for p in receipts_route.dependant.query_params}
+check("GET /receipts takes limit and offset", {"limit", "offset"} <= set(params), sorted(params))
+check("limit defaults to 200", params["limit"].field_info.default == 200)
+
+# --- Strict budget on the two email routes (review fix) ---------------------------------
+
+print("\n-- email rate limit --")
+email_paths = [
+    "/api/admin/offline/invoices/3f1c1d1e-1111-4111-8111-111111111111/email",
+    "/api/admin/offline/receipts/3f1c1d1e-1111-4111-8111-111111111111/email",
+]
+check("both email routes get the strict bucket", all(rate_limiter.is_offline_email("POST", p) for p in email_paths))
+for method, path in (
+    ("GET", email_paths[0]),
+    ("POST", "/api/admin/offline/invoices/x/pdf"),
+    ("POST", "/api/admin/offline/receipts"),
+    ("POST", "/api/admin/offline/invoices/x/email/extra"),
+    ("POST", "/api/admin/offline/contacts/x/email"),
+    ("POST", "/api/admin/invoices/x/email"),
+):
+    check(f"{method} {path} is not in the email bucket", not rate_limiter.is_offline_email(method, path))
+check("the default email budget is 5 a minute", type(settings).model_fields["OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE"].default == 5)
+
+import asyncio  # noqa: E402
+
+import httpx  # noqa: E402
+
+
+async def email_budget() -> tuple[list[int], int, int]:
+    settings.OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE = 5
+    transport = httpx.ASGITransport(app=app, client=("10.7.0.1", 1234))
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        # No token: every one is turned away by the staff guard, after the limiter has counted it.
+        codes = [(await c.post(email_paths[i % 2], json={})).status_code for i in range(6)]
+        other = (await c.get("/api/admin/offline/receipts")).status_code
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app, client=("10.7.0.2", 1234)), base_url="http://t") as c:
+        fresh = (await c.post(email_paths[0], json={})).status_code
+    return codes, other, fresh
+
+
+codes, other, fresh = asyncio.run(email_budget())
+check("emails 1-5 in a minute are not limited", 429 not in codes[:5], str(codes))
+check("the 6th email in a minute is 429, invoice and receipt sharing one budget", codes[5] == 429, str(codes))
+check("other offline routes are not held back by the email budget", other != 429, str(other))
+check("another address has its own budget", fresh != 429, str(fresh))
 
 print()
 if FAILURES:

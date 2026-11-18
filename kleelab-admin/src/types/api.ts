@@ -599,6 +599,12 @@ export interface ChatReply {
 
 /** An invoice with the project and client it belongs to (the money page). */
 export interface AdminInvoice extends Invoice {
+  source: 'project';
+  /** The amount when paid, else 0. */
+  paid_cents: number;
+  /** The amount when unpaid, else 0. */
+  balance_cents: number;
+  balance_promised_on?: string | null;
   project_id: string;
   project_title: string;
   project_reference: string;
@@ -780,4 +786,195 @@ export interface PortfolioItemInput {
   template_id: string | null;
   status: PortfolioStatus;
   featured: boolean;
+}
+
+// --- Offline invoices, part payments and receipts ------------------------------
+
+export type OfflineInvoiceStatus = InvoiceStatus | 'part_paid';
+export type PaymentMethod = 'bank_transfer' | 'cash' | 'other';
+export type ReceiptKind = 'payment' | 'standalone';
+
+/** One row of the Money list for work done outside a project. */
+export interface OfflineMoneyInvoice {
+  source: 'offline';
+  id: string;
+  number: string;
+  title: string;
+  amount_cents: number;
+  paid_cents: number;
+  balance_cents: number;
+  currency: Currency;
+  status: OfflineInvoiceStatus;
+  due_date: string | null;
+  balance_promised_on: string | null;
+  paid_at: string | null;
+  created_at: string;
+  contact_id: string;
+  client_name: string;
+  client_email: string | null;
+  client_company: string | null;
+  /** Payments that are not voided, oldest first. */
+  payments: { amount_cents: number; paid_on: string }[];
+}
+
+/** Check `source` before reading project-only fields such as `project_id` or `pay_url`. */
+export type MoneyInvoice = AdminInvoice | OfflineMoneyInvoice;
+
+export interface OfflineContactInput {
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+}
+
+export interface OfflineContactPatch extends Partial<OfflineContactInput> {
+  archived?: boolean;
+}
+
+export interface OfflineContact {
+  id: string;
+  name: string;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  archived_at: string | null;
+  created_at: string;
+  invoice_count: number;
+  receipt_count: number;
+}
+
+export interface OfflineContactDetail extends OfflineContact {
+  invoices: OfflineInvoiceSummary[];
+  receipts: OfflineReceipt[];
+}
+
+export interface OfflineLineInput {
+  description: string;
+  quantity: number;
+  unit_price_cents: number;
+}
+
+export interface OfflineLine extends OfflineLineInput {
+  amount_cents: number;
+}
+
+export interface OfflineInvoiceInput {
+  /** Exactly one of these. */
+  contact_id?: string;
+  contact?: OfflineContactInput;
+  title: string;
+  lines: OfflineLineInput[];
+  currency: Currency;
+  due_date?: string | null;
+  notes?: string | null;
+}
+
+/** Only what is sent changes. `null` clears `due_date`, `notes` and `balance_promised_on`. */
+export interface OfflineInvoicePatchInput {
+  contact_id?: string;
+  title?: string;
+  lines?: OfflineLineInput[];
+  currency?: Currency;
+  due_date?: string | null;
+  notes?: string | null;
+  balance_promised_on?: string | null;
+}
+
+export interface OfflineInvoiceSummary {
+  id: string;
+  number: string;
+  title: string;
+  amount_cents: number;
+  paid_cents: number;
+  balance_cents: number;
+  currency: Currency;
+  status: OfflineInvoiceStatus;
+  due_date: string | null;
+  balance_promised_on: string | null;
+  created_at: string;
+}
+
+export interface OfflinePayment {
+  id: string;
+  amount_cents: number;
+  method: PaymentMethod;
+  reference: string | null;
+  paid_on: string;
+  note: string | null;
+  recorded_by_name: string | null;
+  created_at: string;
+  voided_at: string | null;
+  void_reason: string | null;
+  receipt_id: string;
+  receipt_number: string;
+}
+
+export interface OfflineInvoiceDetail extends OfflineInvoiceSummary {
+  /** The contact as they are now. The `bill_to_*` fields are as the invoice was issued. */
+  contact: OfflineContact;
+  bill_to_name: string;
+  bill_to_company: string | null;
+  bill_to_email: string | null;
+  bill_to_phone: string | null;
+  bill_to_address: string | null;
+  lines: OfflineLine[];
+  notes: string | null;
+  paid_at: string | null;
+  cancelled_at: string | null;
+  /** Newest first, voided ones included. */
+  payments: OfflinePayment[];
+  editable: boolean;
+  overdue: boolean;
+}
+
+export interface OfflinePaymentInput {
+  amount_cents: number;
+  method: PaymentMethod;
+  reference?: string | null;
+  paid_on: string;
+  note?: string | null;
+}
+
+export interface OfflineReceipt {
+  id: string;
+  number: string;
+  kind: ReceiptKind;
+  contact_id: string;
+  bill_to_name: string;
+  /** What the receipt was issued to; null when the contact has no email. */
+  bill_to_email: string | null;
+  currency: Currency;
+  amount_cents: number;
+  method: PaymentMethod;
+  reference: string | null;
+  received_on: string;
+  note: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  created_at: string;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  invoice_total_cents: number | null;
+  paid_to_date_cents: number | null;
+  balance_after_cents: number | null;
+  lines: OfflineLine[] | null;
+}
+
+export interface StandaloneReceiptInput {
+  /** Exactly one of these. */
+  contact_id?: string;
+  contact?: OfflineContactInput;
+  currency: Currency;
+  lines: OfflineLineInput[];
+  method: PaymentMethod;
+  reference?: string | null;
+  received_on: string;
+  note?: string | null;
+}
+
+export interface OfflineEmailInput {
+  to?: string | null;
+  message?: string | null;
 }

@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_HOUR: int = 1000
     # Messages per IP per hour to the visitor enquiry chat.
     CHAT_RATE_LIMIT_PER_HOUR: int = 60
+    # Offline invoice and receipt emails per IP per minute. Each one sends a PDF to
+    # an address staff type in, so a stolen or runaway session cannot spam with it.
+    OFFLINE_EMAIL_RATE_LIMIT_PER_MINUTE: int = 5
     SQL_ECHO: bool = False
     SENTRY_DSN: str | None = None
     # Mailtrap Email Sending API token. Used first when set; Resend is the fallback.

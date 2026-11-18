@@ -19,6 +19,15 @@ MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 Attachment = tuple[str, bytes, str]
 
 
+def mask_address(address: str) -> str:
+    """'b***@example.com': enough to tell two addresses apart in a log, not enough to read one."""
+
+    local, at, domain = (address or "").partition("@")
+    if not at:
+        return "***"
+    return f"{local[:1]}***@{domain}"
+
+
 def _send(
     to: str,
     subject: str,
@@ -36,7 +45,8 @@ def _send(
     text = _plain_text(html)
 
     if attachments and sum(len(data) for _, data, _ in attachments) > MAX_ATTACHMENT_BYTES:
-        logger.error("Email to %s was not sent: its attachments are over 5 MB", to)
+        # The subject names the document; the address is masked, never logged whole.
+        logger.error("Email %r to %s was not sent: its attachments are over 5 MB", subject, mask_address(to))
         return False
 
     if settings.MAILTRAP_API_TOKEN:
@@ -657,7 +667,12 @@ def send_offline_receipt_email(
     message: str | None,
     pdf: bytes,
 ) -> bool:
-    """A receipt, with its PDF attached. `balance` is what is still owed on the invoice, if anything."""
+    """A receipt, with its PDF attached.
+
+    `balance` is what is still owed on the invoice now, if anything: the caller
+    passes the invoice's current balance, which can differ from the figure
+    printed on the PDF when later payments were recorded or voided.
+    """
 
     from kleelab.services.invoice_pdf import offline_pdf_filename
 

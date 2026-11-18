@@ -121,7 +121,7 @@ export function TodayView() {
           href="/money?show=paid"
           label="Paid this month"
           value={stats && formatTotals(stats.paid_this_month)}
-          note={stats && invoiceCount(stats.paid_this_month)}
+          note={stats && invoiceCount(stats.paid_this_month, 'payment')}
         />
       </div>
 
@@ -204,7 +204,8 @@ function Stat({
   );
 }
 
-function invoiceCount(totals: AdminStats['unpaid']): string {
+/** `paid_this_month` counts payments (one per payment recorded), the others count invoices. */
+function invoiceCount(totals: AdminStats['unpaid'], noun = 'invoice'): string {
   const n = totals.reduce((sum, t) => sum + t.count, 0);
-  return `${n} ${n === 1 ? 'invoice' : 'invoices'}`;
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }

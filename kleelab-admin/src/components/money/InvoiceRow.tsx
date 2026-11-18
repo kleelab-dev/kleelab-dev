@@ -34,7 +34,10 @@ export function InvoiceRow({
     try {
       const project = await apiService.adminUpdateInvoice(invoice.project_id, invoice.id, { status: 'paid' });
       const saved = project.invoices.find((i) => i.id === invoice.id);
-      onChange({ ...invoice, ...saved }, `${invoice.number} marked as paid.`);
+      // The project's copy has no paid or balance figures, so they are worked out here.
+      const next = { ...invoice, ...saved };
+      const paid = next.status === 'paid';
+      onChange({ ...next, paid_cents: paid ? next.amount_cents : 0, balance_cents: next.status === 'unpaid' ? next.amount_cents : 0 }, `${invoice.number} marked as paid.`);
     } catch (reason) {
       onError(errorText(reason));
     } finally {
