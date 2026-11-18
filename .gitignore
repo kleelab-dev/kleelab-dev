@@ -35,5 +35,9 @@ graphify-out/
 graph.svg
 graph.graphml
 
-# Local Claude Code worktrees and preview config
-.claude/
+# Local Claude Code worktrees, preview config, local settings and test accounts.
+# The agent team, its hooks and the shared settings are committed.
+.claude/*
+!.claude/agents/
+!.claude/hooks/
+!.claude/settings.json
