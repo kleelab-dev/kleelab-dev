@@ -289,9 +289,9 @@ export const careTiers: CareTier[] = [
     code: 'CARE-01',
     name: 'Basic',
     forWho: 'For a small site that rarely changes. We keep it safe and online.',
-    naira: '₦45,000',
-    dollars: '$69',
-    hours: '30 minutes of changes a month',
+    naira: '₦50,000',
+    dollars: '$79',
+    hours: '1 hour of changes a month',
     includes: [
       'Security and software updates',
       'Weekly backups',
@@ -333,6 +333,7 @@ export const careTiers: CareTier[] = [
 /** The small print under the care tiers. */
 export const careTerms = [
   'Need more time one month? Extra hours are ₦25,000 or $60 each, and we always ask first.',
+  'Unused time does not carry over to the next month.',
   'Pay for a year upfront and get two months free.',
   'Hosting is quoted separately, because it depends on how big your site is.',
 ];
