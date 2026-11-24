@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { CheckIcon } from '@heroicons/react/24/outline';
-import { addOns } from '@/content/services';
+import { addOns, careTerms, careTiers } from '@/content/services';
 import { AskButton } from '@/components/site/AskButton';
 import { CallToAction } from '@/components/site/CallToAction';
 import { PageHero, Section, SectionHeading } from '@/components/site/Section';
@@ -68,6 +68,40 @@ export default function CarePage() {
       </Section>
 
       <Section>
+        <SectionHeading tag="Monthly care plans" title="Pick a plan that fits your site." />
+        <div className="mt-12 grid gap-6 lg:grid-cols-3">
+          {careTiers.map((tier, index) => (
+            <Reveal key={tier.code} delay={index * 90}>
+              <article className={tier.featured ? 'card card-lift relative h-full bg-sun p-8 shadow-block' : 'card card-lift relative h-full p-8'}>
+                {tier.featured && <span className="stamp kl-stamp-in absolute -top-3 right-5 z-10 bg-white">Best for most</span>}
+                <span className="font-mono text-[11px] text-cobalt">{tier.code}</span>
+                <h3 className="mt-4 font-display text-3xl font-extrabold tracking-tight">{tier.name}</h3>
+                <p className="mt-3 leading-relaxed text-ink/75">{tier.forWho}</p>
+                <p className="mt-6">
+                  <span className="font-display text-4xl font-extrabold tracking-tight">{tier.naira}</span>
+                  <span className="text-sm text-muted"> a month</span>
+                </p>
+                <p className="mt-1 text-sm text-muted">or {tier.dollars} a month outside Nigeria</p>
+                <ul className="mt-6 grid gap-3 border-t-[1.5px] border-ink pt-6">
+                  {[tier.hours, ...tier.includes].map((item) => (
+                    <li key={item} className="flex gap-3 text-sm">
+                      <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-cobalt" aria-hidden />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+        <ul className="mt-8 grid gap-2 text-sm text-muted">
+          {careTerms.map((term) => (
+            <li key={term}>{term}</li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section tone="white">
         <SectionHeading tag="How it works" title="Four steps, then nothing to think about." />
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_1fr] lg:items-start">
           <ol className="grid gap-5 sm:grid-cols-2">

@@ -271,6 +271,72 @@ export const addOns: AddOn[] = [
   },
 ];
 
+export type CareTier = {
+  code: string;
+  name: string;
+  /** Who the plan is for, in one line. */
+  forWho: string;
+  naira: string;
+  dollars: string;
+  hours: string;
+  includes: string[];
+  featured?: boolean;
+};
+
+/** Monthly care plans shown on /care. Prices are per month; change them here. */
+export const careTiers: CareTier[] = [
+  {
+    code: 'CARE-01',
+    name: 'Basic',
+    forWho: 'For a small site that rarely changes. We keep it safe and online.',
+    naira: '₦45,000',
+    dollars: '$69',
+    hours: '30 minutes of changes a month',
+    includes: [
+      'Security and software updates',
+      'Weekly backups',
+      'We watch it day and night and fix it if it goes offline',
+      'Your web address and padlock renewed on time',
+    ],
+  },
+  {
+    code: 'CARE-02',
+    name: 'Standard',
+    forWho: 'For a business site you update often. Most clients pick this one.',
+    naira: '₦110,000',
+    dollars: '$179',
+    hours: '2 hours of changes a month',
+    featured: true,
+    includes: [
+      'Everything in Basic',
+      'Daily backups',
+      'A monthly report on speed, visitors and uptime',
+      'A reply within one working day',
+    ],
+  },
+  {
+    code: 'CARE-03',
+    name: 'Pro',
+    forWho: 'For a site your business runs on. We treat it like part of our team.',
+    naira: '₦230,000',
+    dollars: '$399',
+    hours: '5 hours of changes a month',
+    includes: [
+      'Everything in Standard',
+      'New sections and content updates',
+      'A monthly check that Google can find you',
+      'Same-day help when something urgent breaks',
+    ],
+  },
+];
+
+/** The small print under the care tiers. */
+export const careTerms = [
+  'Need more time one month? Extra hours are ₦25,000 or $60 each, and we always ask first.',
+  'Pay for a year upfront and get two months free.',
+  'Hosting is quoted separately, because it depends on how big your site is.',
+];
+
 /** How engagements are priced. TODO: confirm terms before launch. */
 export const pricingModel = [
   {
